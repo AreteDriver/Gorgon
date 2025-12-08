@@ -1,9 +1,53 @@
+# Environment and Secrets
 .env
-*.pyc
-__pycache__/
-logs/
-token.json
+.envrc
 credentials.json
+token.json
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.whl
+
+# Logs
+logs/
+*.log
+
+# IDEs
 .idea/
 .vscode/
-.envrc
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv
+
+# Poetry
+poetry.lock
+
+# Temporary files
+*.tmp
+*.bak
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db
