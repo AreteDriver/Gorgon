@@ -2,6 +2,8 @@
 
 Welcome to the AI-Orchestra documentation! This directory contains comprehensive guides and references for using and developing AI-Orchestra.
 
+> **Note**: This documentation is under active development. Some guides listed below are planned for future releases. Links marked with 📝 are coming soon.
+
 ## 📚 Documentation Index
 
 ### Getting Started

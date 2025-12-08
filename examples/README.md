@@ -6,44 +6,29 @@ This directory contains example workflow definitions that demonstrate various fe
 
 ### Basic Examples
 
-1. **[simple-completion.json](simple-completion.json)**
+1. **[simple_ai_completion.json](simple_ai_completion.json)**
    - Basic AI text generation
    - Single-step workflow
    - Good for beginners
 
-2. **[multi-step-ai.json](multi-step-ai.json)**
-   - Multiple AI operations in sequence
-   - Variable passing between steps
-   - Demonstrates workflow chaining
-
 ### Integration Examples
 
-3. **[email-to-notion.json](email-to-notion.json)**
+2. **[email_to_notion.json](email_to_notion.json)**
    - Gmail → AI Summary → Notion
    - Multi-service integration
    - OAuth authentication example
 
-4. **[github-automation.json](github-automation.json)**
+3. **[generate_sop_to_github.json](generate_sop_to_github.json)**
    - AI content generation → GitHub
    - Repository management
-   - File creation and commits
+   - Standard Operating Procedure creation
 
-5. **[notion-to-github.json](notion-to-github.json)**
-   - Notion → AI processing → GitHub
-   - Cross-platform workflow
-   - Database to repository sync
+### Future Examples (Coming Soon)
 
-### Advanced Examples
-
-6. **[content-pipeline.json](content-pipeline.json)**
-   - Complex multi-step pipeline
-   - Multiple AI processing stages
-   - Advanced variable interpolation
-
-7. **[automated-reporting.json](automated-reporting.json)**
-   - Data collection and summarization
-   - Scheduled execution ready
-   - Multiple output destinations
+- **multi-step-ai.json** - Multiple AI operations in sequence
+- **notion-to-github.json** - Notion → AI processing → GitHub
+- **content-pipeline.json** - Complex multi-step pipeline
+- **automated-reporting.json** - Data collection and summarization
 
 ## 🚀 How to Use Examples
 
@@ -59,14 +44,14 @@ This directory contains example workflow definitions that demonstrate various fe
 
 ```bash
 # Copy example to workflows directory
-cp examples/simple-completion.json src/test_ai/workflows/
+cp examples/simple_ai_completion.json src/test_ai/workflows/
 
 # Execute via API
 curl -X POST http://localhost:8000/workflows/execute \
   -H "Authorization: Bearer YOUR_TOKEN" \
   -H "Content-Type: application/json" \
   -d '{
-    "workflow_id": "simple_completion",
+    "workflow_id": "simple_ai_completion",
     "variables": {"prompt": "Hello, AI!"}
   }'
 ```
@@ -77,7 +62,7 @@ curl -X POST http://localhost:8000/workflows/execute \
 from test_ai import WorkflowEngine
 
 engine = WorkflowEngine()
-workflow = engine.load_workflow("simple_completion")
+workflow = engine.load_workflow("simple_ai_completion")
 workflow.variables["prompt"] = "Hello, AI!"
 result = engine.execute_workflow(workflow)
 print(result.outputs)
@@ -113,7 +98,7 @@ All examples follow this structure:
 
 ### Modify an Example
 
-1. Copy the example: `cp examples/simple-completion.json my-workflow.json`
+1. Copy the example: `cp examples/simple_ai_completion.json my-workflow.json`
 2. Edit the file:
    - Change `workflow_id` to unique name
    - Update `name` and `description`
@@ -185,19 +170,19 @@ See [Configuration Guide](../docs/configuration.md) for details.
 ## 💡 Learning Path
 
 **Beginner:**
-1. Start with `simple-completion.json`
-2. Try `multi-step-ai.json`
-3. Experiment with variables
+1. Start with `simple_ai_completion.json`
+2. Experiment with different prompts and variables
+3. Try modifying the workflow parameters
 
 **Intermediate:**
-4. Set up GitHub integration
-5. Try `github-automation.json`
-6. Create custom workflows
+4. Set up GitHub or Notion integration
+5. Try `email_to_notion.json` or `generate_sop_to_github.json`
+6. Create custom workflows by combining steps
 
 **Advanced:**
-7. Combine multiple services
-8. Use `content-pipeline.json`
-9. Build complex automations
+7. Combine multiple services in one workflow
+8. Build complex automations with conditional logic
+9. Share your workflows with the community
 
 ## 🐛 Troubleshooting
 
@@ -232,9 +217,9 @@ See [Contributing Guide](../CONTRIBUTING.md) for details.
 
 ## 📚 Additional Resources
 
-- [Workflow Creation Guide](../docs/creating-workflows.md)
-- [API Integration Guides](../docs/integrations/)
-- [API Reference](../docs/api-reference.md)
+- [Quick Start Guide](../QUICKSTART.md)
+- [Contributing Guide](../CONTRIBUTING.md)
+- [Architecture Overview](../ARCHITECTURE.md)
 
 ---
 
