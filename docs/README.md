@@ -8,43 +8,41 @@ Welcome to the AI-Orchestra documentation! This directory contains comprehensive
 
 ### Getting Started
 - **[Quick Start Guide](../QUICKSTART.md)** - Get up and running in minutes
-- **[Installation Guide](installation.md)** - Detailed installation instructions
-- **[Configuration Guide](configuration.md)** - How to configure AI-Orchestra
+- 📝 **Installation Guide** _(coming soon)_ - Detailed installation instructions
+- 📝 **Configuration Guide** _(coming soon)_ - How to configure AI-Orchestra
 
 ### User Guides
-- **[Creating Workflows](creating-workflows.md)** - Build your first workflow
-- **[Prompt Templates](prompt-templates.md)** - Working with prompts
-- **[Using the Dashboard](dashboard-guide.md)** - Navigate the web interface
-- **[Using the API](api-guide.md)** - Programmatic access
+- 📝 **Creating Workflows** _(coming soon)_ - Build your first workflow
+- 📝 **Prompt Templates** _(coming soon)_ - Working with prompts
+- 📝 **Using the Dashboard** _(coming soon)_ - Navigate the web interface
+- 📝 **Using the API** _(coming soon)_ - Programmatic access
 
 ### Integration Guides
-- **[OpenAI Integration](integrations/openai.md)** - AI-powered automation
-- **[GitHub Integration](integrations/github.md)** - Repository automation
-- **[Notion Integration](integrations/notion.md)** - Knowledge management
-- **[Gmail Integration](integrations/gmail.md)** - Email automation
+- 📝 **OpenAI Integration** _(coming soon)_ - AI-powered automation
+- 📝 **GitHub Integration** _(coming soon)_ - Repository automation
+- 📝 **Notion Integration** _(coming soon)_ - Knowledge management
+- 📝 **Gmail Integration** _(coming soon)_ - Email automation
 
 ### Developer Guides
 - **[Architecture Overview](../ARCHITECTURE.md)** - System architecture
-- **[API Reference](api-reference.md)** - Complete API documentation
+- 📝 **API Reference** _(coming soon)_ - Complete API documentation
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
-- **[Development Setup](development.md)** - Setting up dev environment
+- 📝 **Development Setup** _(coming soon)_ - Setting up dev environment
 
 ### Advanced Topics
-- **[Security Best Practices](security.md)** - Securing your deployment
-- **[Performance Tuning](performance.md)** - Optimization strategies
-- **[Deployment Guide](deployment.md)** - Production deployment
-- **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
+- 📝 **Security Best Practices** _(coming soon)_ - Securing your deployment
+- 📝 **Performance Tuning** _(coming soon)_ - Optimization strategies
+- 📝 **Deployment Guide** _(coming soon)_ - Production deployment
+- 📝 **Troubleshooting** _(coming soon)_ - Common issues and solutions
 
 ## 🎯 Quick Links
 
 ### I want to...
 
 - **Get started quickly** → [Quick Start Guide](../QUICKSTART.md)
-- **Create my first workflow** → [Creating Workflows](creating-workflows.md)
-- **Integrate with GitHub** → [GitHub Integration](integrations/github.md)
-- **Use the REST API** → [API Guide](api-guide.md)
-- **Deploy to production** → [Deployment Guide](deployment.md)
+- **Understand the architecture** → [Architecture Overview](../ARCHITECTURE.md)
 - **Contribute code** → [Contributing Guide](../CONTRIBUTING.md)
+- **See example workflows** → [Examples Directory](../examples/)
 - **Report a bug** → [GitHub Issues](https://github.com/AreteDriver/AI-Orchestra/issues)
 
 ## 📖 Documentation Structure

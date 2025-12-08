@@ -165,7 +165,7 @@ NOTION_TOKEN=secret_...
 GMAIL_CREDENTIALS_PATH=credentials.json
 ```
 
-See [Configuration Guide](../docs/configuration.md) for details.
+See [.env.example](../.env.example) for complete configuration options.
 
 ## 💡 Learning Path
 

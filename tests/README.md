@@ -74,7 +74,10 @@ from test_ai import WorkflowEngine, Workflow, WorkflowStep
 
 
 def test_workflow_execution():
-    """Test basic workflow execution."""
+    """Test basic workflow execution.
+    
+    Note: This is example code. Actual implementation may vary.
+    """
     engine = WorkflowEngine()
     
     workflow = Workflow(
