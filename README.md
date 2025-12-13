@@ -635,6 +635,36 @@ poetry shell
 
 # Using pip
 pip install -r requirements.txt
+```
+
+2. Create a `.env` file with these variables:
+
+```
+AI_API_KEY=your_ai_api_key
+SMTP_HOST=smtp.example.com
+SMTP_PORT=587
+SMTP_USER=you@example.com
+SMTP_PASS=supersecret
+IMAP_HOST=imap.example.com
+IMAP_USER=you@example.com
+IMAP_PASS=supersecret
+API_KEY=some-internal-api-key
+```
+
+3. Run the app:
+
+```bash
+uvicorn app.main:app --reload
+```
+
+Endpoints
+- GET /health
+  - Returns: {"status": "ok"}
+
+- POST /generate
+  - Body: { "prompt": "Write a short follow-up email about X" }
+  - Returns: { "text": "..." }
+  - Uses: Calls an AI provider endpoint (replace the placeholder URL in code with your provider).
 
 # Set PYTHONPATH
 export PYTHONPATH="${PYTHONPATH}:${PWD}/src"
