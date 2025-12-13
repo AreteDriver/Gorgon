@@ -171,9 +171,11 @@ For detailed architecture diagrams and component interactions, see [docs/archite
 
 ### 📂 Project Structure
 
+> **Note**: The Python package is named `test_ai` internally. This is the import name used in code examples throughout the documentation.
+
 ```
 AI-Orchestra/
-├── src/test_ai/              # Main application package
+├── src/test_ai/              # Main application package (Python import name)
 │   ├── api.py                # FastAPI backend
 │   ├── main.py               # Original demo script
 │   ├── auth/                 # Authentication module
