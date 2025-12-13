@@ -1,9 +1,78 @@
+# Environment and secrets
 .env
-*.pyc
-__pycache__/
-logs/
-token.json
+.envrc
+*.env.local
 credentials.json
+token.json
+
+# Python
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+*.wheel
+.Python
+
+# Virtual environments
+venv/
+env/
+ENV/
+.venv/
+
+# IDEs
 .idea/
 .vscode/
-.envrc
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Logs and databases
+logs/
+*.log
+*.sql
+*.sqlite
+*.db
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# pytype
+.pytype/
+
+# Pyre type checker
+.pyre/
+
+# Workflow data (generated at runtime)
+src/test_ai/workflows/*.json
+!src/test_ai/workflows/simple_ai_completion.json
+!src/test_ai/workflows/email_to_notion.json
+!src/test_ai/workflows/generate_sop_to_github.json
+
+# Configuration files (use examples instead)
+config/settings.yaml
+config/prompts.json
+
+# Temporary files
+tmp/
+*.tmp
+*.bak
+.cache/
