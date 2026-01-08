@@ -20,6 +20,11 @@ from .webhooks import (
     WebhookStatus,
     PayloadMapping,
 )
+from .jobs import (
+    JobManager,
+    Job,
+    JobStatus,
+)
 
 __all__ = [
     "Settings",
@@ -43,4 +48,7 @@ __all__ = [
     "Webhook",
     "WebhookStatus",
     "PayloadMapping",
+    "JobManager",
+    "Job",
+    "JobStatus",
 ]

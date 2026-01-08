@@ -18,18 +18,24 @@ from test_ai.webhooks import (
     WebhookManager,
     Webhook,
 )
+from test_ai.jobs import (
+    JobManager,
+    JobStatus,
+)
 
-# Initialize scheduler globally for lifespan management
+# Initialize managers globally for lifespan management
 schedule_manager = ScheduleManager()
 webhook_manager = WebhookManager()
+job_manager = JobManager()
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage scheduler lifecycle."""
+    """Manage component lifecycles."""
     schedule_manager.start()
     yield
     schedule_manager.shutdown()
+    job_manager.shutdown()
 
 
 app = FastAPI(title="AI Workflow Orchestrator", version="0.1.0", lifespan=lifespan)
@@ -439,6 +445,108 @@ async def trigger_webhook(
         return result
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
+
+
+# Job endpoints (async workflow execution)
+@app.post("/jobs")
+def submit_job(
+    request: WorkflowExecuteRequest, authorization: Optional[str] = Header(None)
+):
+    """Submit a workflow for async execution. Returns immediately with job ID."""
+    verify_auth(authorization)
+
+    try:
+        job = job_manager.submit(request.workflow_id, request.variables)
+        return {
+            "status": "submitted",
+            "job_id": job.id,
+            "workflow_id": job.workflow_id,
+            "poll_url": f"/jobs/{job.id}",
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@app.get("/jobs")
+def list_jobs(
+    status: Optional[str] = None,
+    workflow_id: Optional[str] = None,
+    limit: int = 50,
+    authorization: Optional[str] = Header(None),
+):
+    """List jobs with optional filtering."""
+    verify_auth(authorization)
+
+    status_filter = None
+    if status:
+        try:
+            status_filter = JobStatus(status)
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid status: {status}")
+
+    jobs = job_manager.list_jobs(
+        status=status_filter, workflow_id=workflow_id, limit=limit
+    )
+    return [j.model_dump(mode="json") for j in jobs]
+
+
+@app.get("/jobs/stats")
+def get_job_stats(authorization: Optional[str] = Header(None)):
+    """Get job statistics."""
+    verify_auth(authorization)
+    return job_manager.get_stats()
+
+
+@app.get("/jobs/{job_id}")
+def get_job(job_id: str, authorization: Optional[str] = Header(None)):
+    """Get job status and result."""
+    verify_auth(authorization)
+
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    return job.model_dump(mode="json")
+
+
+@app.post("/jobs/{job_id}/cancel")
+def cancel_job(job_id: str, authorization: Optional[str] = Header(None)):
+    """Cancel a pending or running job."""
+    verify_auth(authorization)
+
+    if job_manager.cancel(job_id):
+        return {"status": "success", "message": "Job cancelled"}
+
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    raise HTTPException(
+        status_code=400, detail=f"Cannot cancel job in {job.status.value} status"
+    )
+
+
+@app.delete("/jobs/{job_id}")
+def delete_job(job_id: str, authorization: Optional[str] = Header(None)):
+    """Delete a completed/failed/cancelled job."""
+    verify_auth(authorization)
+
+    if job_manager.delete_job(job_id):
+        return {"status": "success"}
+
+    job = job_manager.get_job(job_id)
+    if not job:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    raise HTTPException(status_code=400, detail="Cannot delete running job")
+
+
+@app.post("/jobs/cleanup")
+def cleanup_jobs(max_age_hours: int = 24, authorization: Optional[str] = Header(None)):
+    """Remove old completed/failed/cancelled jobs."""
+    verify_auth(authorization)
+    deleted = job_manager.cleanup_old_jobs(max_age_hours)
+    return {"status": "success", "deleted": deleted}
 
 
 @app.get("/health")

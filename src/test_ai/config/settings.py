@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     webhooks_dir: Path = Field(
         default_factory=lambda: Path(__file__).parent.parent / "webhooks"
     )
+    jobs_dir: Path = Field(
+        default_factory=lambda: Path(__file__).parent.parent / "jobs"
+    )
 
     # Auth
     secret_key: str = Field(
@@ -65,6 +68,7 @@ class Settings(BaseSettings):
         self.workflows_dir.mkdir(parents=True, exist_ok=True)
         self.schedules_dir.mkdir(parents=True, exist_ok=True)
         self.webhooks_dir.mkdir(parents=True, exist_ok=True)
+        self.jobs_dir.mkdir(parents=True, exist_ok=True)
 
 
 @lru_cache()
