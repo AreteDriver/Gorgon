@@ -1,11 +1,14 @@
 """FastAPI backend for AI Workflow Orchestrator."""
 
 import logging
+import time
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Header, Request
+from fastapi import FastAPI, HTTPException, Header, Request, Response
+from starlette.middleware.base import BaseHTTPMiddleware
 from pydantic import BaseModel
 
 from test_ai.auth import create_access_token, verify_token
@@ -66,6 +69,52 @@ async def lifespan(app: FastAPI):
 
 
 app = FastAPI(title="AI Workflow Orchestrator", version="0.1.0", lifespan=lifespan)
+
+
+class RequestLoggingMiddleware(BaseHTTPMiddleware):
+    """Middleware to log all API requests with timing and request IDs."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        # Generate unique request ID
+        request_id = str(uuid.uuid4())[:8]
+
+        # Get client info
+        client_ip = request.client.host if request.client else "unknown"
+        method = request.method
+        path = request.url.path
+
+        # Log request start
+        start_time = time.perf_counter()
+        logger.info(f"[{request_id}] {method} {path} - client={client_ip}")
+
+        # Process request
+        try:
+            response = await call_next(request)
+        except Exception as e:
+            # Log error and re-raise
+            duration_ms = (time.perf_counter() - start_time) * 1000
+            logger.error(f"[{request_id}] {method} {path} - 500 ERROR in {duration_ms:.1f}ms - {e}")
+            raise
+
+        # Calculate duration
+        duration_ms = (time.perf_counter() - start_time) * 1000
+
+        # Log response
+        status_code = response.status_code
+        log_level = logging.WARNING if status_code >= 400 else logging.INFO
+        logger.log(
+            log_level,
+            f"[{request_id}] {method} {path} - {status_code} in {duration_ms:.1f}ms",
+        )
+
+        # Add request ID to response headers for tracing
+        response.headers["X-Request-ID"] = request_id
+
+        return response
+
+
+# Register middleware
+app.add_middleware(RequestLoggingMiddleware)
 
 # Initialize components
 workflow_engine = WorkflowEngine()

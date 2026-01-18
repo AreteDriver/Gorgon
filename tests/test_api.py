@@ -110,6 +110,14 @@ class TestHealthEndpoint:
         assert "pending" in migrations
         assert "up_to_date" in migrations
 
+    def test_request_id_header(self, client):
+        """All responses include X-Request-ID header."""
+        response = client.get("/health")
+        assert response.status_code == 200
+        assert "X-Request-ID" in response.headers
+        # Request ID should be 8 characters (UUID prefix)
+        assert len(response.headers["X-Request-ID"]) == 8
+
 
 class TestRootEndpoint:
     """Tests for root endpoint."""
