@@ -10,9 +10,10 @@ import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any, Callable, Optional
+from typing import Any, Callable, Optional, TYPE_CHECKING
 
-from test_ai.api_clients import ClaudeCodeClient
+if TYPE_CHECKING:
+    from test_ai.api_clients import ClaudeCodeClient
 
 
 class PipelineStage(str, Enum):
@@ -93,7 +94,10 @@ class AnalyticsPipeline:
         self.pipeline_id = pipeline_id
         self.use_agents = use_agents
         self._stages: list[tuple[PipelineStage, Callable, dict]] = []
-        self._claude_client = ClaudeCodeClient() if use_agents else None
+        self._claude_client = None
+        if use_agents:
+            from test_ai.api_clients import ClaudeCodeClient
+            self._claude_client = ClaudeCodeClient()
 
     def add_stage(
         self,

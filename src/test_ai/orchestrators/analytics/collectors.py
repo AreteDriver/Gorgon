@@ -8,9 +8,10 @@ from __future__ import annotations
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from test_ai.integrations.vdc_metrics import VDCMetricsClient, get_vdc_metrics_json
+if TYPE_CHECKING:
+    from test_ai.integrations.vdc_metrics import VDCMetricsClient
 
 
 @dataclass
@@ -68,6 +69,7 @@ class VDCCollector(DataCollector):
     """Collector for VDC operational data."""
 
     def __init__(self, metrics_db_path: str = None, logistics_db_path: str = None):
+        from test_ai.integrations.vdc_metrics import VDCMetricsClient
         self.client = VDCMetricsClient(
             metrics_db_path=metrics_db_path,
             logistics_db_path=logistics_db_path,
@@ -121,6 +123,7 @@ class MetricsCollector(DataCollector):
     """Collector for application metrics from metrics database."""
 
     def __init__(self, metrics_db_path: str = None):
+        from test_ai.integrations.vdc_metrics import VDCMetricsClient
         self.client = VDCMetricsClient(metrics_db_path=metrics_db_path)
 
     def collect(self, context: Any, config: dict) -> CollectedData:
