@@ -4,7 +4,6 @@ import pytest
 import tempfile
 import os
 import sys
-from datetime import datetime, timedelta
 sys.path.insert(0, 'src')
 
 from test_ai.state.memory import AgentMemory, MemoryEntry

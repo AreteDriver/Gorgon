@@ -13,7 +13,7 @@ from test_ai.orchestrator import WorkflowEngine, Workflow, WorkflowStep, StepTyp
 def test_settings():
     """Test settings configuration."""
     settings = get_settings()
-    assert settings.app_name == "AI Workflow Orchestrator"
+    assert settings.app_name == "Gorgon"
     print("✓ Settings configuration working")
 
 

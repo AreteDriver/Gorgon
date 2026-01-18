@@ -7,7 +7,6 @@ sys.path.insert(0, 'src')
 
 from test_ai.workflow.parallel import (
     ParallelExecutor,
-    ParallelStrategy,
     ParallelTask,
     ParallelResult,
     execute_steps_parallel,
