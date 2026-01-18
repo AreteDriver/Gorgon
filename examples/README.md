@@ -1,6 +1,6 @@
 # Example Workflows
 
-This directory contains example workflow definitions that demonstrate various features and integrations of AI-Orchestra.
+This directory contains example workflow definitions that demonstrate various features and integrations of Gorgon.
 
 ## 📁 Available Examples
 
@@ -242,4 +242,4 @@ See [Contributing Guide](../CONTRIBUTING.md) for details.
 
 ---
 
-**Happy Workflow Building! 🎼**
+**Happy Workflow Building!**

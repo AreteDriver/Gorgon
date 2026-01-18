@@ -1,6 +1,6 @@
-# AI-Orchestra Tests
+# Gorgon Tests
 
-This directory contains tests for AI-Orchestra.
+This directory contains tests for Gorgon.
 
 ## 🧪 Test Structure
 
@@ -244,4 +244,4 @@ When adding new features:
 
 ---
 
-**Happy Testing! 🎼**
+**Happy Testing!**

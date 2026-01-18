@@ -1,6 +1,6 @@
 # Repository Metadata Recommendations
 
-This document provides recommended metadata settings for the AI-Orchestra GitHub repository to maximize discoverability and showcase its capabilities.
+This document provides recommended metadata settings for the Gorgon GitHub repository to maximize discoverability and showcase its capabilities.
 
 ## Repository Description
 
@@ -87,7 +87,7 @@ multi-service
 ### Via GitHub CLI
 ```bash
 # Example command (requires gh CLI)
-gh repo edit AreteDriver/AI-Orchestra \
+gh repo edit AreteDriver/Gorgon \
   --add-topic ai \
   --add-topic python \
   --add-topic workflow \
@@ -105,18 +105,18 @@ gh repo edit AreteDriver/AI-Orchestra \
 ### Homepage URL
 If you have a deployed instance or documentation site:
 ```
-https://your-domain.com/ai-orchestra
+https://your-domain.com/gorgon
 ```
 
 Or link to your documentation:
 ```
-https://github.com/AreteDriver/AI-Orchestra/blob/main/docs/architecture.md
+https://github.com/AreteDriver/Gorgon/blob/main/docs/architecture.md
 ```
 
 ### Social Preview Image
 
 Create and upload a social preview image (1280x640px recommended) that includes:
-- Repository name: "AI-Orchestra"
+- Repository name: "Gorgon"
 - Tagline: "Enterprise-grade AI Workflow Orchestration"
 - Key technologies: Python, FastAPI, OpenAI, Streamlit
 - Visual representation of workflow/orchestration
@@ -133,23 +133,23 @@ The following badges are already included in the README.md:
 
 **Build Status** (when CI/CD is set up):
 ```markdown
-[![Build Status](https://github.com/AreteDriver/AI-Orchestra/workflows/Tests/badge.svg)](https://github.com/AreteDriver/AI-Orchestra/actions)
+[![Build Status](https://github.com/AreteDriver/Gorgon/workflows/Tests/badge.svg)](https://github.com/AreteDriver/Gorgon/actions)
 ```
 
 **Code Coverage** (when tests are comprehensive):
 ```markdown
-[![codecov](https://codecov.io/gh/AreteDriver/AI-Orchestra/branch/main/graph/badge.svg)](https://codecov.io/gh/AreteDriver/AI-Orchestra)
+[![codecov](https://codecov.io/gh/AreteDriver/Gorgon/branch/main/graph/badge.svg)](https://codecov.io/gh/AreteDriver/Gorgon)
 ```
 
 **Documentation Status**:
 ```markdown
-[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://github.com/AreteDriver/AI-Orchestra/blob/main/README.md)
+[![Documentation](https://img.shields.io/badge/docs-latest-blue.svg)](https://github.com/AreteDriver/Gorgon/blob/main/README.md)
 ```
 
 **Stars and Forks**:
 ```markdown
-[![GitHub stars](https://img.shields.io/github/stars/AreteDriver/AI-Orchestra?style=social)](https://github.com/AreteDriver/AI-Orchestra/stargazers)
-[![GitHub forks](https://img.shields.io/github/forks/AreteDriver/AI-Orchestra?style=social)](https://github.com/AreteDriver/AI-Orchestra/network/members)
+[![GitHub stars](https://img.shields.io/github/stars/AreteDriver/Gorgon?style=social)](https://github.com/AreteDriver/Gorgon/stargazers)
+[![GitHub forks](https://img.shields.io/github/forks/AreteDriver/Gorgon?style=social)](https://github.com/AreteDriver/Gorgon/network/members)
 ```
 
 ## GitHub Repository Settings Checklist
@@ -223,7 +223,7 @@ Expand documentation with:
 
 ### For LinkedIn/Twitter
 ```
-🎼 Introducing AI-Orchestra: An enterprise-grade workflow orchestration platform
+Introducing Gorgon: An enterprise-grade workflow orchestration platform
 
 ✨ Chain GPT-4, GitHub, Notion & Gmail into powerful automation pipelines
 🐍 Built with Python, FastAPI & Streamlit

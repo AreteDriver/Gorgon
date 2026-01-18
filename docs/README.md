@@ -1,6 +1,6 @@
-# AI-Orchestra Documentation
+# Gorgon Documentation
 
-Welcome to the AI-Orchestra documentation! This directory contains comprehensive guides and references for using and developing AI-Orchestra.
+Welcome to the Gorgon documentation! This directory contains comprehensive guides and references for using and developing Gorgon.
 
 > **Note**: This documentation is under active development. Some guides listed below are planned for future releases. Links marked with 📝 are coming soon.
 
@@ -9,7 +9,7 @@ Welcome to the AI-Orchestra documentation! This directory contains comprehensive
 ### Getting Started
 - **[Quick Start Guide](../QUICKSTART.md)** - Get up and running in minutes
 - 📝 **Installation Guide** _(coming soon)_ - Detailed installation instructions
-- 📝 **Configuration Guide** _(coming soon)_ - How to configure AI-Orchestra
+- 📝 **Configuration Guide** _(coming soon)_ - How to configure Gorgon
 
 ### User Guides
 - 📝 **Creating Workflows** _(coming soon)_ - Build your first workflow
@@ -43,7 +43,7 @@ Welcome to the AI-Orchestra documentation! This directory contains comprehensive
 - **Understand the architecture** → [Architecture Overview](../ARCHITECTURE.md)
 - **Contribute code** → [Contributing Guide](../CONTRIBUTING.md)
 - **See example workflows** → [Examples Directory](../examples/)
-- **Report a bug** → [GitHub Issues](https://github.com/AreteDriver/AI-Orchestra/issues)
+- **Report a bug** → [GitHub Issues](https://github.com/AreteDriver/Gorgon/issues)
 
 ## 📖 Documentation Structure
 
@@ -92,10 +92,10 @@ When contributing to documentation:
 
 ## 💬 Need Help?
 
-- **Issues**: [GitHub Issues](https://github.com/AreteDriver/AI-Orchestra/issues)
-- **Discussions**: [GitHub Discussions](https://github.com/AreteDriver/AI-Orchestra/discussions)
+- **Issues**: [GitHub Issues](https://github.com/AreteDriver/Gorgon/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/AreteDriver/Gorgon/discussions)
 - **Email**: aretedriver@gmail.com
 
 ---
 
-**Happy Orchestrating! 🎼**
+**Happy Orchestrating!**

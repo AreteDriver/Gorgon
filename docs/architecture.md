@@ -1,4 +1,4 @@
-# AI-Orchestra Architecture
+# Gorgon Architecture
 
 ## System Architecture
 

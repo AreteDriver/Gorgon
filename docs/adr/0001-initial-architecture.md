@@ -6,7 +6,7 @@
 
 ## Context
 
-AI-Orchestra needs to provide a unified platform for orchestrating AI-powered automation workflows across multiple services (OpenAI, GitHub, Notion, Gmail). The system must support both programmatic access and interactive use by non-developers.
+Gorgon needs to provide a unified platform for orchestrating AI-powered automation workflows across multiple services (OpenAI, GitHub, Notion, Gmail). The system must support both programmatic access and interactive use by non-developers.
 
 Key requirements:
 - Multi-step workflow execution with variable interpolation

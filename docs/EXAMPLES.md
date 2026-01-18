@@ -1,6 +1,6 @@
-# AI-Orchestra Code Examples
+# Gorgon Code Examples
 
-This document provides detailed code examples and usage patterns for AI-Orchestra.
+This document provides detailed code examples and usage patterns for Gorgon.
 
 ## Table of Contents
 - [Basic Usage](#basic-usage)
