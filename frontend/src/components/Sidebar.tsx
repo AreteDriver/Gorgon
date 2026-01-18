@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { useUIStore } from '@/stores';
 
 interface NavItem {
@@ -90,14 +91,15 @@ export function Sidebar() {
       </nav>
 
       {/* Footer */}
-      {sidebarOpen && (
-        <div className="absolute bottom-4 left-4 right-4">
-          <div className="rounded-lg bg-muted p-3 text-xs text-muted-foreground">
+      <div className={cn('absolute bottom-4 left-2 right-2', !sidebarOpen && 'left-2 right-2')}>
+        <ThemeToggle collapsed={!sidebarOpen} />
+        {sidebarOpen && (
+          <div className="mt-2 rounded-lg bg-muted p-3 text-xs text-muted-foreground">
             <p className="font-medium">Gorgon v0.1.0</p>
             <p>Multi-Agent Orchestration</p>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </aside>
   );
 }
