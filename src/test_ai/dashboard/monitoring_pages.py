@@ -117,9 +117,6 @@ def render_monitoring_page():
 
     if recent:
         for execution in recent[:10]:
-            status_color = (
-                "green" if execution["status"] == "completed" else "red"
-            )
             with st.expander(
                 f"{'✅' if execution['status'] == 'completed' else '❌'} "
                 f"{execution['workflow_name']} - {execution['execution_id'][:16]}..."

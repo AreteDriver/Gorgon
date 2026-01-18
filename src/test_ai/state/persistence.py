@@ -6,10 +6,9 @@ import json
 import sqlite3
 import threading
 from contextlib import contextmanager
-from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Generator
+from typing import Generator
 
 
 class WorkflowStatus(Enum):

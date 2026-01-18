@@ -7,7 +7,6 @@ Can run against real VDC databases or with synthetic test data.
 
 from __future__ import annotations
 
-import json
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -16,12 +15,12 @@ from pathlib import Path
 analytics_path = Path(__file__).parent.parent / "src" / "test_ai" / "orchestrators"
 sys.path.insert(0, str(analytics_path))
 
-# Import directly from analytics modules
-from analytics.pipeline import AnalyticsPipeline, PipelineStage
-from analytics.collectors import VDCCollector, MetricsCollector, JSONCollector
-from analytics.analyzers import OperationalAnalyzer, TrendAnalyzer
-from analytics.visualizers import ChartGenerator, DashboardBuilder
-from analytics.reporters import ReportGenerator, AlertGenerator
+# Import directly from analytics modules (after path modification)
+from analytics.pipeline import AnalyticsPipeline, PipelineStage  # noqa: E402
+from analytics.collectors import VDCCollector, JSONCollector  # noqa: E402
+from analytics.analyzers import OperationalAnalyzer  # noqa: E402
+from analytics.visualizers import ChartGenerator, DashboardBuilder  # noqa: E402
+from analytics.reporters import ReportGenerator, AlertGenerator  # noqa: E402
 
 
 def create_synthetic_vdc_data() -> dict:

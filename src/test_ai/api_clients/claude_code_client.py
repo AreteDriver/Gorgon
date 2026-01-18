@@ -2,8 +2,7 @@
 
 import json
 import subprocess
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 from test_ai.config import get_settings
 

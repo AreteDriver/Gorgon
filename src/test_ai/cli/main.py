@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-import sys
 from pathlib import Path
 from typing import Optional
 
@@ -12,7 +11,6 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
-from rich import print as rprint
 
 app = typer.Typer(
     name="gorgon",
@@ -115,7 +113,7 @@ def run(
             console.print(f"  • {step['id']} ({step['type']}:{step.get('action', 'N/A')})")
 
     if variables:
-        console.print(f"\n[dim]Variables:[/dim]")
+        console.print("\n[dim]Variables:[/dim]")
         for k, v in variables.items():
             console.print(f"  {k} = {v}")
 
@@ -265,10 +263,7 @@ def validate(
         if "action" not in step:
             errors.append(f"{step_prefix}: Missing 'action'")
 
-        # Check next_step references
-        if "next_step" in step and step["next_step"]:
-            next_id = step["next_step"]
-            # We'll check this after collecting all step IDs
+        # next_step references are validated in the loop below
 
     # Validate next_step references
     for step in data.get("steps", []):
@@ -294,9 +289,9 @@ def validate(
     if not errors and not warnings:
         console.print(f"[green]✓ Workflow is valid:[/green] {workflow_file}")
     elif not errors:
-        console.print(f"\n[green]✓ Workflow is valid with warnings[/green]")
+        console.print("\n[green]✓ Workflow is valid with warnings[/green]")
     else:
-        console.print(f"\n[red]✗ Validation failed[/red]")
+        console.print("\n[red]✗ Validation failed[/red]")
         raise typer.Exit(1)
 
 

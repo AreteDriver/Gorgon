@@ -4,9 +4,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import Any
 
-from .base import AgentContract, AgentRole, ContractViolation
+from .base import AgentRole, ContractViolation
 from .definitions import get_contract
 
 

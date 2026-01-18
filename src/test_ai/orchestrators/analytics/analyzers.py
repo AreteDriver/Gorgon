@@ -79,7 +79,7 @@ class OperationalAnalyzer(DataAnalyzer):
             takt_threshold: float - Multiplier for takt time alerts (default: 1.5)
             shift_warning_pct: int - Shift progress warning threshold (default: 40)
         """
-        takt_threshold = config.get("takt_threshold", 1.5)
+        _takt_threshold = config.get("takt_threshold", 1.5)  # noqa: F841
         shift_warning_pct = config.get("shift_warning_pct", 40)
 
         findings = []
@@ -199,7 +199,7 @@ class TrendAnalyzer(DataAnalyzer):
             trend_window: int - Number of data points to consider (default: 10)
             change_threshold: float - Percent change to flag as significant (default: 0.2)
         """
-        change_threshold = config.get("change_threshold", 0.2)
+        _change_threshold = config.get("change_threshold", 0.2)  # noqa: F841
 
         findings = []
         metrics = {}

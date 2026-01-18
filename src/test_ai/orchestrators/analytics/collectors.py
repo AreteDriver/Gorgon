@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime, timedelta
+from datetime import datetime
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from test_ai.integrations.vdc_metrics import VDCMetricsClient
+    pass
 
 
 @dataclass

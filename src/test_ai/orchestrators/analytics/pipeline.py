@@ -6,14 +6,13 @@ analysis, visualization, and reporting stages.
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from typing import Any, Callable, Optional, TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from test_ai.api_clients import ClaudeCodeClient
+    pass
 
 
 class PipelineStage(str, Enum):

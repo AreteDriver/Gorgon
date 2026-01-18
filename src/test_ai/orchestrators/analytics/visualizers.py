@@ -6,7 +6,6 @@ Note: These generate visualization specifications/code, not actual images.
 
 from __future__ import annotations
 
-from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any
@@ -259,7 +258,7 @@ class DashboardBuilder:
             ")",
             "",
             f'st.title("{dashboard.title}")',
-            f'st.caption(f"Last updated: {{datetime.now().strftime(\'%I:%M %p\')}}")',
+            'st.caption(f"Last updated: {datetime.now().strftime(\'%I:%M %p\')}")',
             "",
         ]
 
