@@ -216,12 +216,24 @@ class PostgresBackend(DatabaseBackend):
 
     def executescript(self, script: str) -> None:
         """Execute multiple SQL statements."""
+        import re
+
         # Adapt SQLite-specific syntax for PostgreSQL
         script = self._adapt_schema(script)
+
+        # Remove SQL comments
+        script = re.sub(r"--.*$", "", script, flags=re.MULTILINE)
+
+        # Split on semicolon followed by whitespace/newline
+        statements = re.split(r";\s*\n", script)
+        statements = [s.strip() for s in statements if s.strip()]
+
         conn = self._get_conn()
         cursor = conn.cursor()
-        cursor.execute(script)
-        conn.commit()
+
+        for stmt in statements:
+            if stmt:
+                cursor.execute(stmt)
 
     def _adapt_schema(self, script: str) -> str:
         """Adapt SQLite schema syntax for PostgreSQL."""

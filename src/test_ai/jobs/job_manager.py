@@ -18,6 +18,15 @@ from test_ai.state import DatabaseBackend, get_database
 logger = logging.getLogger(__name__)
 
 
+def _parse_datetime(value) -> Optional[datetime]:
+    """Parse datetime from database (handles both strings and datetime objects)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
+
+
 class JobStatus(str, Enum):
     """Job execution status."""
 
@@ -102,15 +111,9 @@ class JobManager:
                     id=row["id"],
                     workflow_id=row["workflow_id"],
                     status=JobStatus(row["status"]),
-                    created_at=datetime.fromisoformat(row["created_at"])
-                    if row["created_at"]
-                    else None,
-                    started_at=datetime.fromisoformat(row["started_at"])
-                    if row["started_at"]
-                    else None,
-                    completed_at=datetime.fromisoformat(row["completed_at"])
-                    if row["completed_at"]
-                    else None,
+                    created_at=_parse_datetime(row.get("created_at")),
+                    started_at=_parse_datetime(row.get("started_at")),
+                    completed_at=_parse_datetime(row.get("completed_at")),
                     variables=json.loads(row["variables"])
                     if row["variables"]
                     else {},

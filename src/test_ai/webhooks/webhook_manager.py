@@ -18,6 +18,15 @@ from test_ai.state import DatabaseBackend, get_database
 logger = logging.getLogger(__name__)
 
 
+def _parse_datetime(value) -> Optional[datetime]:
+    """Parse datetime from database (handles both strings and datetime objects)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
+
+
 class WebhookStatus(str, Enum):
     """Webhook status."""
 
@@ -155,12 +164,8 @@ class WebhookManager:
                 if row.get("static_variables")
                 else {},
                 status=WebhookStatus(row["status"]),
-                created_at=datetime.fromisoformat(row["created_at"])
-                if row.get("created_at")
-                else datetime.now(),
-                last_triggered=datetime.fromisoformat(row["last_triggered"])
-                if row.get("last_triggered")
-                else None,
+                created_at=_parse_datetime(row.get("created_at")) or datetime.now(),
+                last_triggered=_parse_datetime(row.get("last_triggered")),
                 trigger_count=row.get("trigger_count", 0),
             )
         except Exception as e:
@@ -499,9 +504,7 @@ class WebhookManager:
                     WebhookTriggerLog(
                         webhook_id=row["webhook_id"],
                         workflow_id=row["workflow_id"],
-                        triggered_at=datetime.fromisoformat(row["triggered_at"])
-                        if row.get("triggered_at")
-                        else datetime.now(),
+                        triggered_at=_parse_datetime(row.get("triggered_at")) or datetime.now(),
                         source_ip=row.get("source_ip"),
                         payload_size=row.get("payload_size", 0),
                         status=row["status"],

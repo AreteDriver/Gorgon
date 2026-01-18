@@ -18,6 +18,15 @@ from test_ai.state import DatabaseBackend, get_database
 logger = logging.getLogger(__name__)
 
 
+def _parse_datetime(value) -> Optional[datetime]:
+    """Parse datetime from database (handles both strings and datetime objects)."""
+    if value is None:
+        return None
+    if isinstance(value, datetime):
+        return value
+    return datetime.fromisoformat(value)
+
+
 class ScheduleType(str, Enum):
     """Types of schedule triggers."""
 
@@ -184,15 +193,9 @@ class ScheduleManager:
                 interval_config=interval_config,
                 variables=json.loads(row["variables"]) if row.get("variables") else {},
                 status=ScheduleStatus(row["status"]),
-                created_at=datetime.fromisoformat(row["created_at"])
-                if row.get("created_at")
-                else datetime.now(),
-                last_run=datetime.fromisoformat(row["last_run"])
-                if row.get("last_run")
-                else None,
-                next_run=datetime.fromisoformat(row["next_run"])
-                if row.get("next_run")
-                else None,
+                created_at=_parse_datetime(row.get("created_at")) or datetime.now(),
+                last_run=_parse_datetime(row.get("last_run")),
+                next_run=_parse_datetime(row.get("next_run")),
                 run_count=row.get("run_count", 0),
             )
         except Exception as e:
@@ -580,9 +583,7 @@ class ScheduleManager:
                     ScheduleExecutionLog(
                         schedule_id=row["schedule_id"],
                         workflow_id=row["workflow_id"],
-                        executed_at=datetime.fromisoformat(row["executed_at"])
-                        if row.get("executed_at")
-                        else datetime.now(),
+                        executed_at=_parse_datetime(row.get("executed_at")) or datetime.now(),
                         status=row["status"],
                         duration_seconds=row.get("duration_seconds", 0),
                         error=row.get("error"),

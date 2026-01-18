@@ -42,11 +42,29 @@ def _get_applied_migrations(backend: DatabaseBackend) -> set[str]:
     Returns:
         Set of applied migration version strings
     """
+    # For PostgreSQL, we need to check if table exists first to avoid
+    # aborting the transaction when the table doesn't exist
+    if isinstance(backend, PostgresBackend):
+        try:
+            result = backend.fetchone(
+                """
+                SELECT EXISTS (
+                    SELECT FROM information_schema.tables
+                    WHERE table_schema = 'public'
+                    AND table_name = 'schema_migrations'
+                )
+                """
+            )
+            if not result or not result.get("exists", False):
+                return set()
+        except Exception:
+            return set()
+
     try:
         rows = backend.fetchall("SELECT version FROM schema_migrations")
         return {row["version"] for row in rows}
     except Exception:
-        # Table doesn't exist yet
+        # Table doesn't exist yet (SQLite)
         return set()
 
 
