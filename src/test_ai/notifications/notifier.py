@@ -8,7 +8,6 @@ from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
-from typing import Any
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -17,6 +16,7 @@ logger = logging.getLogger(__name__)
 
 class EventType(Enum):
     """Types of workflow events."""
+
     WORKFLOW_STARTED = "workflow_started"
     WORKFLOW_COMPLETED = "workflow_completed"
     WORKFLOW_FAILED = "workflow_failed"
@@ -152,11 +152,13 @@ class SlackChannel(NotificationChannel):
         # Add details as fields
         for key, value in event.details.items():
             if isinstance(value, (str, int, float, bool)):
-                fields.append({
-                    "title": key.replace("_", " ").title(),
-                    "value": str(value),
-                    "short": True,
-                })
+                fields.append(
+                    {
+                        "title": key.replace("_", " ").title(),
+                        "value": str(value),
+                        "short": True,
+                    }
+                )
 
         return fields
 
@@ -225,9 +227,9 @@ class DiscordChannel(NotificationChannel):
     def _severity_to_color(self, severity: str) -> int:
         # Discord uses decimal colors
         colors = {
-            "info": 3447003,     # Blue
-            "success": 3066993, # Green
-            "warning": 15844367, # Orange
+            "info": 3447003,  # Blue
+            "success": 3066993,  # Green
+            "warning": 15844367,  # Orange
             "error": 15158332,  # Red
         }
         return colors.get(severity, 9807270)  # Gray
@@ -253,11 +255,13 @@ class DiscordChannel(NotificationChannel):
 
         for key, value in event.details.items():
             if isinstance(value, (str, int, float, bool)):
-                fields.append({
-                    "name": key.replace("_", " ").title(),
-                    "value": str(value),
-                    "inline": True,
-                })
+                fields.append(
+                    {
+                        "name": key.replace("_", " ").title(),
+                        "value": str(value),
+                        "inline": True,
+                    }
+                )
 
         return fields
 
@@ -382,13 +386,15 @@ class Notifier:
 
     def workflow_started(self, workflow_name: str, **details) -> dict[str, bool]:
         """Notify that a workflow has started."""
-        return self.notify(NotificationEvent(
-            event_type=EventType.WORKFLOW_STARTED,
-            workflow_name=workflow_name,
-            message=f"Workflow '{workflow_name}' started",
-            severity="info",
-            details=details,
-        ))
+        return self.notify(
+            NotificationEvent(
+                event_type=EventType.WORKFLOW_STARTED,
+                workflow_name=workflow_name,
+                message=f"Workflow '{workflow_name}' started",
+                severity="info",
+                details=details,
+            )
+        )
 
     def workflow_completed(
         self,
@@ -399,13 +405,15 @@ class Notifier:
     ) -> dict[str, bool]:
         """Notify that a workflow completed successfully."""
         details.update({"tokens_used": tokens, "duration_ms": duration_ms})
-        return self.notify(NotificationEvent(
-            event_type=EventType.WORKFLOW_COMPLETED,
-            workflow_name=workflow_name,
-            message=f"Workflow '{workflow_name}' completed successfully",
-            severity="success",
-            details=details,
-        ))
+        return self.notify(
+            NotificationEvent(
+                event_type=EventType.WORKFLOW_COMPLETED,
+                workflow_name=workflow_name,
+                message=f"Workflow '{workflow_name}' completed successfully",
+                severity="success",
+                details=details,
+            )
+        )
 
     def workflow_failed(
         self,
@@ -418,13 +426,15 @@ class Notifier:
         if step:
             details["failed_step"] = step
         details["error"] = error
-        return self.notify(NotificationEvent(
-            event_type=EventType.WORKFLOW_FAILED,
-            workflow_name=workflow_name,
-            message=f"Workflow '{workflow_name}' failed: {error}",
-            severity="error",
-            details=details,
-        ))
+        return self.notify(
+            NotificationEvent(
+                event_type=EventType.WORKFLOW_FAILED,
+                workflow_name=workflow_name,
+                message=f"Workflow '{workflow_name}' failed: {error}",
+                severity="error",
+                details=details,
+            )
+        )
 
     def step_failed(
         self,
@@ -435,13 +445,15 @@ class Notifier:
     ) -> dict[str, bool]:
         """Notify that a step failed."""
         details.update({"step": step_name, "error": error})
-        return self.notify(NotificationEvent(
-            event_type=EventType.STEP_FAILED,
-            workflow_name=workflow_name,
-            message=f"Step '{step_name}' failed in '{workflow_name}': {error}",
-            severity="warning",
-            details=details,
-        ))
+        return self.notify(
+            NotificationEvent(
+                event_type=EventType.STEP_FAILED,
+                workflow_name=workflow_name,
+                message=f"Step '{step_name}' failed in '{workflow_name}': {error}",
+                severity="warning",
+                details=details,
+            )
+        )
 
     def budget_warning(
         self,
@@ -453,13 +465,15 @@ class Notifier:
     ) -> dict[str, bool]:
         """Notify that budget threshold was crossed."""
         details.update({"used": used, "budget": budget, "percent": f"{percent:.1f}%"})
-        return self.notify(NotificationEvent(
-            event_type=EventType.BUDGET_WARNING,
-            workflow_name=workflow_name,
-            message=f"Budget warning: {percent:.1f}% used ({used}/{budget} tokens)",
-            severity="warning",
-            details=details,
-        ))
+        return self.notify(
+            NotificationEvent(
+                event_type=EventType.BUDGET_WARNING,
+                workflow_name=workflow_name,
+                message=f"Budget warning: {percent:.1f}% used ({used}/{budget} tokens)",
+                severity="warning",
+                details=details,
+            )
+        )
 
     def budget_exceeded(
         self,
@@ -470,10 +484,12 @@ class Notifier:
     ) -> dict[str, bool]:
         """Notify that budget was exceeded."""
         details.update({"used": used, "budget": budget})
-        return self.notify(NotificationEvent(
-            event_type=EventType.BUDGET_EXCEEDED,
-            workflow_name=workflow_name,
-            message=f"Budget exceeded: {used}/{budget} tokens",
-            severity="error",
-            details=details,
-        ))
+        return self.notify(
+            NotificationEvent(
+                event_type=EventType.BUDGET_EXCEEDED,
+                workflow_name=workflow_name,
+                message=f"Budget exceeded: {used}/{budget} tokens",
+                severity="error",
+                details=details,
+            )
+        )

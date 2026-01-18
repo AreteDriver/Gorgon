@@ -8,13 +8,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from enum import Enum
 from pathlib import Path
-from typing import Any, Callable
+from typing import Callable
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
-from .loader import load_workflow, WorkflowConfig
+from .loader import load_workflow
 from .executor import WorkflowExecutor, ExecutionResult
 
 logger = logging.getLogger(__name__)
@@ -22,6 +22,7 @@ logger = logging.getLogger(__name__)
 
 class ScheduleStatus(Enum):
     """Schedule status."""
+
     ACTIVE = "active"
     PAUSED = "paused"
     DISABLED = "disabled"
@@ -97,9 +98,15 @@ class ScheduleConfig:
             dry_run=data.get("dry_run", False),
             timeout_seconds=data.get("timeout_seconds", 3600),
             status=status,
-            created_at=datetime.fromisoformat(data["created_at"]) if data.get("created_at") else datetime.utcnow(),
-            last_run=datetime.fromisoformat(data["last_run"]) if data.get("last_run") else None,
-            next_run=datetime.fromisoformat(data["next_run"]) if data.get("next_run") else None,
+            created_at=datetime.fromisoformat(data["created_at"])
+            if data.get("created_at")
+            else datetime.utcnow(),
+            last_run=datetime.fromisoformat(data["last_run"])
+            if data.get("last_run")
+            else None,
+            next_run=datetime.fromisoformat(data["next_run"])
+            if data.get("next_run")
+            else None,
             run_count=data.get("run_count", 0),
             last_status=data.get("last_status"),
             last_error=data.get("last_error"),
@@ -125,7 +132,9 @@ class ExecutionLog:
             "schedule_id": self.schedule_id,
             "workflow_path": self.workflow_path,
             "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "status": self.status,
             "tokens_used": self.tokens_used,
             "steps_completed": self.steps_completed,
@@ -201,7 +210,9 @@ class WorkflowScheduler:
             if schedule.status == ScheduleStatus.ACTIVE:
                 self._register_job(schedule)
 
-        logger.info(f"Workflow scheduler started with {len(self._schedules)} schedule(s)")
+        logger.info(
+            f"Workflow scheduler started with {len(self._schedules)} schedule(s)"
+        )
 
     def shutdown(self, wait: bool = True) -> None:
         """Shutdown the scheduler."""
@@ -326,17 +337,21 @@ class WorkflowScheduler:
             try:
                 with open(log_file) as f:
                     data = json.load(f)
-                logs.append(ExecutionLog(
-                    schedule_id=data["schedule_id"],
-                    workflow_path=data["workflow_path"],
-                    started_at=datetime.fromisoformat(data["started_at"]),
-                    completed_at=datetime.fromisoformat(data["completed_at"]) if data.get("completed_at") else None,
-                    status=data["status"],
-                    tokens_used=data.get("tokens_used", 0),
-                    steps_completed=data.get("steps_completed", 0),
-                    steps_total=data.get("steps_total", 0),
-                    error=data.get("error"),
-                ))
+                logs.append(
+                    ExecutionLog(
+                        schedule_id=data["schedule_id"],
+                        workflow_path=data["workflow_path"],
+                        started_at=datetime.fromisoformat(data["started_at"]),
+                        completed_at=datetime.fromisoformat(data["completed_at"])
+                        if data.get("completed_at")
+                        else None,
+                        status=data["status"],
+                        tokens_used=data.get("tokens_used", 0),
+                        steps_completed=data.get("steps_completed", 0),
+                        steps_total=data.get("steps_total", 0),
+                        error=data.get("error"),
+                    )
+                )
             except Exception:
                 continue
 
@@ -378,7 +393,9 @@ class WorkflowScheduler:
 
     def _execute(self, config: ScheduleConfig) -> ExecutionResult:
         """Execute a scheduled workflow."""
-        logger.info(f"Executing scheduled workflow: {config.id} -> {config.workflow_path}")
+        logger.info(
+            f"Executing scheduled workflow: {config.id} -> {config.workflow_path}"
+        )
 
         started_at = datetime.utcnow()
         log = ExecutionLog(
@@ -406,7 +423,9 @@ class WorkflowScheduler:
             log.completed_at = datetime.utcnow()
             log.status = result.status
             log.tokens_used = result.total_tokens
-            log.steps_completed = len([s for s in result.steps if s.status.value == "success"])
+            log.steps_completed = len(
+                [s for s in result.steps if s.status.value == "success"]
+            )
 
             if result.error:
                 log.error = result.error
@@ -416,7 +435,9 @@ class WorkflowScheduler:
             log.completed_at = datetime.utcnow()
             log.status = "failed"
             log.error = str(e)
-            result = ExecutionResult(workflow_name=config.workflow_path, status="failed", error=str(e))
+            result = ExecutionResult(
+                workflow_name=config.workflow_path, status="failed", error=str(e)
+            )
 
         # Update config stats
         config.last_run = started_at
