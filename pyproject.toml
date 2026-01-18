@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "gorgon"
-version = "0.2.0"
+version = "0.3.0"
 description = "Multi-agent orchestration framework for production AI workflows"
 authors = ["Aretedriver <aretedriver@gmail.com>"]
 package-mode = false
