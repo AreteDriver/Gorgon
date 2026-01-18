@@ -1,0 +1,36 @@
+# Gorgon - Enterprise Kubernetes Configuration
+# Use with: kubectl apply -k deploy/templates/enterprise/
+
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: gorgon
+
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - deployment.yaml
+  - service.yaml
+  - ingress.yaml
+  - hpa.yaml
+  - network-policy.yaml
+  - service-account.yaml
+
+configMapGenerator:
+  - name: gorgon-config
+    behavior: merge
+    literals:
+      - GORGON_ENV=production
+      - LOG_LEVEL=INFO
+
+secretGenerator:
+  - name: gorgon-secrets
+    behavior: merge
+    type: Opaque
+    # Values should be provided via --set or overlays
+    literals: []
+
+images:
+  - name: gorgon
+    newTag: latest

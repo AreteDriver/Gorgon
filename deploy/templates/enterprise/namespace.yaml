@@ -1,0 +1,7 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: gorgon
+  labels:
+    app.kubernetes.io/name: gorgon
+    app.kubernetes.io/component: orchestrator

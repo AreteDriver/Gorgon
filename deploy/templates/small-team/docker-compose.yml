@@ -1,0 +1,44 @@
+# Gorgon - Small Team Configuration (1-5 developers)
+# Single instance deployment for development teams
+#
+# Usage:
+#   1. Copy .env.example to .env and configure
+#   2. docker compose up -d
+#   3. Access dashboard at http://localhost:8501
+
+version: '3.8'
+
+services:
+  gorgon:
+    image: gorgon:latest
+    build:
+      context: ../../..
+      dockerfile: Dockerfile
+    container_name: gorgon
+    restart: unless-stopped
+    environment:
+      - GORGON_ENV=development
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - METRICS_DB_PATH=/data/metrics.db
+    volumes:
+      - ./workflows:/app/workflows
+      - ./prompts:/app/prompts
+      - gorgon-data:/data
+    ports:
+      - "${DASHBOARD_PORT:-8501}:8501"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8501/healthz"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  gorgon-data:
+    driver: local
+
+networks:
+  default:
+    name: gorgon-network
