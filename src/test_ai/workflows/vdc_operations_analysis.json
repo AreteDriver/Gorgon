@@ -1,0 +1,64 @@
+{
+  "id": "vdc_operations_analysis",
+  "name": "VDC Operations Analysis: Metrics → Analysis → Recommendations",
+  "description": "Multi-agent workflow that analyzes VDC operational metrics, identifies issues, and generates actionable recommendations for supervisors.",
+  "steps": [
+    {
+      "id": "collect_metrics",
+      "type": "transform",
+      "action": "vdc_metrics",
+      "params": {
+        "format": "text"
+      },
+      "next_step": "analyze_operations"
+    },
+    {
+      "id": "analyze_operations",
+      "type": "claude_code",
+      "action": "execute_agent",
+      "params": {
+        "role": "analyst",
+        "task": "Analyze VDC operations data and identify patterns, bottlenecks, and efficiency issues. Focus on:\n1. Production flow bottlenecks\n2. Shift progress vs targets\n3. Work order completion rates\n4. Stage dwell time anomalies\n\nProvide quantitative analysis with specific metrics.",
+        "context": "{{collect_metrics_output}}"
+      },
+      "next_step": "identify_root_causes"
+    },
+    {
+      "id": "identify_root_causes",
+      "type": "claude_code",
+      "action": "execute_agent",
+      "params": {
+        "role": "analyst",
+        "task": "Based on the operational analysis, identify root causes for any issues found. Consider:\n1. Resource constraints (technicians, equipment)\n2. Process inefficiencies\n3. Scheduling problems\n4. Quality issues causing rework\n\nBe specific about cause-effect relationships.",
+        "context": "Analysis:\n{{analyze_operations_output}}\n\nOriginal Metrics:\n{{collect_metrics_output}}"
+      },
+      "next_step": "generate_recommendations"
+    },
+    {
+      "id": "generate_recommendations",
+      "type": "claude_code",
+      "action": "execute_agent",
+      "params": {
+        "role": "reporter",
+        "task": "Generate actionable recommendations for VDC supervisors based on the analysis. Format as:\n\n1. IMMEDIATE ACTIONS (next 2 hours)\n2. SHORT-TERM IMPROVEMENTS (this shift)\n3. PROCESS CHANGES (ongoing)\n\nEach recommendation should include expected impact and priority.",
+        "context": "Root Cause Analysis:\n{{identify_root_causes_output}}\n\nOperational Analysis:\n{{analyze_operations_output}}"
+      },
+      "next_step": "create_summary"
+    },
+    {
+      "id": "create_summary",
+      "type": "claude_code",
+      "action": "execute_agent",
+      "params": {
+        "role": "reporter",
+        "task": "Create an executive summary for facility leadership. Include:\n\n- Current operational status (1 paragraph)\n- Key metrics snapshot (bullet points)\n- Top 3 issues requiring attention\n- Recommended actions with owners\n\nKeep it concise - suitable for a 2-minute read.",
+        "context": "Recommendations:\n{{generate_recommendations_output}}\n\nFull Analysis:\n{{analyze_operations_output}}"
+      },
+      "next_step": null
+    }
+  ],
+  "variables": {
+    "analysis_scope": "full",
+    "shift_focus": "current"
+  }
+}

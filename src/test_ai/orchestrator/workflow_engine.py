@@ -180,6 +180,13 @@ class WorkflowEngine:
         elif action == "format":
             template = params.get("template", "")
             return template.format(**context)
+        elif action == "vdc_metrics":
+            # Get VDC operational metrics
+            from test_ai.integrations.vdc_metrics import get_vdc_metrics_text, get_vdc_metrics_json
+            format_type = params.get("format", "text")
+            if format_type == "json":
+                return get_vdc_metrics_json()
+            return get_vdc_metrics_text()
         else:
             raise ValueError(f"Unknown transform action: {action}")
 
