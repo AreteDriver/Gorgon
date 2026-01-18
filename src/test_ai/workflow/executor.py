@@ -11,6 +11,34 @@ from typing import Any, Callable
 
 from .loader import WorkflowConfig, StepConfig
 
+# Lazy-loaded API clients to avoid circular imports
+_claude_client = None
+_openai_client = None
+
+
+def _get_claude_client():
+    """Get or create ClaudeCodeClient instance."""
+    global _claude_client
+    if _claude_client is None:
+        try:
+            from test_ai.api_clients.claude_code_client import ClaudeCodeClient
+            _claude_client = ClaudeCodeClient()
+        except Exception:
+            _claude_client = False  # Mark as unavailable
+    return _claude_client if _claude_client else None
+
+
+def _get_openai_client():
+    """Get or create OpenAIClient instance."""
+    global _openai_client
+    if _openai_client is None:
+        try:
+            from test_ai.api_clients.openai_client import OpenAIClient
+            _openai_client = OpenAIClient()
+        except Exception:
+            _openai_client = False  # Mark as unavailable
+    return _openai_client if _openai_client else None
+
 
 class StepStatus(Enum):
     """Status of a workflow step."""
@@ -92,6 +120,7 @@ class WorkflowExecutor:
         checkpoint_manager=None,
         contract_validator=None,
         budget_manager=None,
+        dry_run: bool = False,
     ):
         """Initialize executor.
 
@@ -99,10 +128,12 @@ class WorkflowExecutor:
             checkpoint_manager: Optional CheckpointManager for state persistence
             contract_validator: Optional ContractValidator for contract validation
             budget_manager: Optional BudgetManager for token tracking
+            dry_run: If True, use mock responses instead of real API calls
         """
         self.checkpoint_manager = checkpoint_manager
         self.contract_validator = contract_validator
         self.budget_manager = budget_manager
+        self.dry_run = dry_run
         self._handlers: dict[str, StepHandler] = {
             "shell": self._execute_shell,
             "checkpoint": self._execute_checkpoint,
@@ -347,43 +378,134 @@ class WorkflowExecutor:
         return {"parallel_results": results}
 
     def _execute_claude_code(self, step: StepConfig, context: dict) -> dict:
-        """Execute a Claude Code step.
+        """Execute a Claude Code step using the Anthropic API.
 
-        This is a placeholder that would integrate with the Claude API.
+        Params:
+            prompt: The task/prompt to send
+            role: Agent role (planner, builder, tester, reviewer)
+            model: Claude model to use (default: claude-sonnet-4-20250514)
+            max_tokens: Maximum tokens in response (default: 4096)
+            system_prompt: Optional custom system prompt (overrides role)
         """
         prompt = step.params.get("prompt", "")
         role = step.params.get("role", "builder")
+        model = step.params.get("model", "claude-sonnet-4-20250514")
+        max_tokens = step.params.get("max_tokens", 4096)
+        system_prompt = step.params.get("system_prompt")
 
         # Substitute context variables in prompt
         for key, value in context.items():
-            prompt = prompt.replace(f"${{{key}}}", str(value))
+            if isinstance(value, str):
+                prompt = prompt.replace(f"${{{key}}}", value)
 
-        # Placeholder: would call Claude API here
+        # Dry run mode - return mock response
+        if self.dry_run:
+            return {
+                "role": role,
+                "prompt": prompt,
+                "response": f"[DRY RUN] Claude {role} would process: {prompt[:100]}...",
+                "tokens_used": step.params.get("estimated_tokens", 1000),
+                "model": model,
+                "dry_run": True,
+            }
+
+        # Get Claude client
+        client = _get_claude_client()
+        if not client:
+            raise RuntimeError("Claude Code client not available. Check API key configuration.")
+
+        if not client.is_configured():
+            raise RuntimeError("Claude Code client not configured. Set ANTHROPIC_API_KEY.")
+
+        # Execute via API
+        if system_prompt:
+            # Custom system prompt - use generate_completion
+            result = client.generate_completion(
+                prompt=prompt,
+                system_prompt=system_prompt,
+                model=model,
+                max_tokens=max_tokens,
+            )
+        else:
+            # Role-based execution
+            result = client.execute_agent(
+                role=role,
+                task=prompt,
+                context=context.get("_previous_output"),
+                model=model,
+                max_tokens=max_tokens,
+            )
+
+        if not result.get("success"):
+            raise RuntimeError(f"Claude API error: {result.get('error', 'Unknown error')}")
+
+        # Estimate tokens (actual count would require API response metadata)
+        response_text = result.get("output", "")
+        estimated_tokens = len(response_text) // 4 + len(prompt) // 4
+
         return {
             "role": role,
             "prompt": prompt,
-            "response": f"[Claude {role} response placeholder]",
-            "tokens_used": step.params.get("estimated_tokens", 1000),
+            "response": response_text,
+            "tokens_used": estimated_tokens,
+            "model": model,
         }
 
     def _execute_openai(self, step: StepConfig, context: dict) -> dict:
-        """Execute an OpenAI step.
+        """Execute an OpenAI step using the OpenAI API.
 
-        This is a placeholder that would integrate with the OpenAI API.
+        Params:
+            prompt: The prompt to send
+            model: OpenAI model to use (default: gpt-4o-mini)
+            system_prompt: Optional system prompt
+            temperature: Sampling temperature (default: 0.7)
+            max_tokens: Maximum tokens in response (optional)
         """
         prompt = step.params.get("prompt", "")
-        model = step.params.get("model", "gpt-4")
+        model = step.params.get("model", "gpt-4o-mini")
+        system_prompt = step.params.get("system_prompt")
+        temperature = step.params.get("temperature", 0.7)
+        max_tokens = step.params.get("max_tokens")
 
         # Substitute context variables in prompt
         for key, value in context.items():
-            prompt = prompt.replace(f"${{{key}}}", str(value))
+            if isinstance(value, str):
+                prompt = prompt.replace(f"${{{key}}}", value)
 
-        # Placeholder: would call OpenAI API here
+        # Dry run mode - return mock response
+        if self.dry_run:
+            return {
+                "model": model,
+                "prompt": prompt,
+                "response": f"[DRY RUN] OpenAI {model} would process: {prompt[:100]}...",
+                "tokens_used": step.params.get("estimated_tokens", 1000),
+                "dry_run": True,
+            }
+
+        # Get OpenAI client
+        client = _get_openai_client()
+        if not client:
+            raise RuntimeError("OpenAI client not available. Check API key configuration.")
+
+        try:
+            response_text = client.generate_completion(
+                prompt=prompt,
+                model=model,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                system_prompt=system_prompt,
+            )
+        except Exception as e:
+            raise RuntimeError(f"OpenAI API error: {e}")
+
+        # Estimate tokens (actual count would require API response metadata)
+        estimated_tokens = len(response_text) // 4 + len(prompt) // 4
+
         return {
             "model": model,
             "prompt": prompt,
-            "response": f"[OpenAI {model} response placeholder]",
-            "tokens_used": step.params.get("estimated_tokens", 1000),
+            "response": response_text,
+            "tokens_used": estimated_tokens,
         }
 
     def get_context(self) -> dict:
