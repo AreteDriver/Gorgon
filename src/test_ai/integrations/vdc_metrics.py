@@ -10,7 +10,7 @@ import json
 import os
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -323,7 +323,7 @@ class VDCMetricsClient:
         Returns all metrics in a format suitable for AI analysis.
         """
         return VDCMetricsSummary(
-            timestamp=datetime.utcnow(),
+            timestamp=datetime.now(timezone.utc),
             app_metrics=self.get_app_performance(performance_minutes),
             operational_metrics=self.get_operational_summary(),
             performance_metrics={

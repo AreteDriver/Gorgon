@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Callable
 
@@ -23,7 +23,7 @@ class UsageRecord:
 
     agent_id: str
     tokens: int
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     operation: str = ""
     metadata: dict = field(default_factory=dict)
 

@@ -6,7 +6,7 @@ import json
 import logging
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from urllib.request import Request, urlopen
 from urllib.error import URLError
@@ -34,7 +34,7 @@ class NotificationEvent:
     event_type: EventType
     workflow_name: str
     message: str
-    timestamp: datetime = field(default_factory=datetime.utcnow)
+    timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     details: dict = field(default_factory=dict)
     severity: str = "info"  # info, warning, error, success
 

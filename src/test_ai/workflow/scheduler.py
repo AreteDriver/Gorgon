@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from pathlib import Path
 from typing import Callable
@@ -54,7 +54,7 @@ class ScheduleConfig:
     status: ScheduleStatus = ScheduleStatus.ACTIVE
 
     # Stats
-    created_at: datetime = field(default_factory=datetime.utcnow)
+    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     last_run: datetime | None = None
     next_run: datetime | None = None
     run_count: int = 0
@@ -100,7 +100,7 @@ class ScheduleConfig:
             status=status,
             created_at=datetime.fromisoformat(data["created_at"])
             if data.get("created_at")
-            else datetime.utcnow(),
+            else datetime.now(timezone.utc),
             last_run=datetime.fromisoformat(data["last_run"])
             if data.get("last_run")
             else None,
@@ -244,7 +244,7 @@ class WorkflowScheduler:
         if not config.cron and not config.interval_seconds:
             raise ValueError("Must specify either 'cron' or 'interval_seconds'")
 
-        config.created_at = datetime.utcnow()
+        config.created_at = datetime.now(timezone.utc)
         self._schedules[config.id] = config
         self._save_schedule(config)
 
@@ -397,7 +397,7 @@ class WorkflowScheduler:
             f"Executing scheduled workflow: {config.id} -> {config.workflow_path}"
         )
 
-        started_at = datetime.utcnow()
+        started_at = datetime.now(timezone.utc)
         log = ExecutionLog(
             schedule_id=config.id,
             workflow_path=config.workflow_path,
@@ -420,7 +420,7 @@ class WorkflowScheduler:
             result = executor.execute(workflow, inputs=config.inputs)
 
             # Update log
-            log.completed_at = datetime.utcnow()
+            log.completed_at = datetime.now(timezone.utc)
             log.status = result.status
             log.tokens_used = result.total_tokens
             log.steps_completed = len(
@@ -432,7 +432,7 @@ class WorkflowScheduler:
 
         except Exception as e:
             logger.error(f"Scheduled execution failed: {e}")
-            log.completed_at = datetime.utcnow()
+            log.completed_at = datetime.now(timezone.utc)
             log.status = "failed"
             log.error = str(e)
             result = ExecutionResult(

@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from .backends import DatabaseBackend, SQLiteBackend
@@ -239,7 +239,7 @@ class AgentMemory:
         Returns:
             List of recent memory entries
         """
-        since = datetime.utcnow() - timedelta(hours=hours)
+        since = datetime.now(timezone.utc) - timedelta(hours=hours)
         return self.recall(agent_id, since=since, limit=limit)
 
     def recall_context(
@@ -378,7 +378,7 @@ class AgentMemory:
         Returns:
             Number of memories removed
         """
-        cutoff = datetime.utcnow() - timedelta(hours=keep_recent_hours)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=keep_recent_hours)
 
         with self.backend.transaction():
             cursor = self.backend.execute(

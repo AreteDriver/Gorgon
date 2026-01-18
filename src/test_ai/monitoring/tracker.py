@@ -7,7 +7,7 @@ from __future__ import annotations
 
 import uuid
 from contextlib import contextmanager
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from typing import Any, Callable, Generator
 
@@ -52,7 +52,7 @@ class ExecutionTracker:
             workflow_id=workflow_id,
             execution_id=execution_id,
             workflow_name=workflow_name or workflow_id,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
         self._current_execution = execution_id
@@ -92,7 +92,7 @@ class ExecutionTracker:
             step_id=step_id,
             step_type=step_type,
             action=action,
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
         self.store.start_step(exec_id, step)
@@ -174,7 +174,7 @@ class AgentTracker:
             "agent_id": agent_id,
             "role": role,
             "workflow_id": workflow_id,
-            "started_at": datetime.utcnow().isoformat(),
+            "started_at": datetime.now(timezone.utc).isoformat(),
             "status": "active",
             "tasks_completed": 0,
         }
@@ -189,7 +189,7 @@ class AgentTracker:
         if agent_id in self._active_agents:
             agent = self._active_agents.pop(agent_id)
             agent["status"] = status
-            agent["completed_at"] = datetime.utcnow().isoformat()
+            agent["completed_at"] = datetime.now(timezone.utc).isoformat()
             self._agent_history.insert(0, agent)
             if len(self._agent_history) > self._max_history:
                 self._agent_history.pop()

@@ -56,16 +56,16 @@ class TestParallelTask:
 
     def test_task_duration(self):
         """Task tracks duration."""
-        from datetime import datetime
+        from datetime import datetime, timezone
 
         task = ParallelTask(
             id="task-1",
             step_id="step-1",
             handler=add_numbers,
         )
-        task.started_at = datetime.utcnow()
+        task.started_at = datetime.now(timezone.utc)
         time.sleep(0.01)
-        task.completed_at = datetime.utcnow()
+        task.completed_at = datetime.now(timezone.utc)
 
         assert task.duration_ms is not None
         assert task.duration_ms >= 10

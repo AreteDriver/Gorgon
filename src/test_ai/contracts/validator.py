@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 
 from .base import AgentRole, ContractViolation
 from .definitions import get_contract
@@ -18,7 +18,7 @@ class ValidationResult:
     direction: str  # "input" or "output"
     errors: list[str] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
-    validated_at: datetime = field(default_factory=datetime.utcnow)
+    validated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     def to_dict(self) -> dict:
         return {

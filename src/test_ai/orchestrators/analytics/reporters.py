@@ -6,7 +6,7 @@ Provides report generation and alerting capabilities for analysis results.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -231,7 +231,7 @@ class ReportGenerator:
 
         return GeneratedReport(
             reporter="report_generator",
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             title=title,
             sections=sections,
             summary=summary,
@@ -344,7 +344,7 @@ class AlertGenerator:
                     title=finding.get("category", "Alert").title(),
                     message=finding.get("message", ""),
                     source=source,
-                    timestamp=datetime.utcnow(),
+                    timestamp=datetime.now(timezone.utc),
                     data=finding.get("data", {}),
                 )
                 alerts.append(alert)
@@ -366,7 +366,7 @@ class AlertGenerator:
 
         return AlertBatch(
             generator="alert_generator",
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             alerts=alerts,
             summary=summary,
             metadata={"min_severity": min_severity, "source": source},

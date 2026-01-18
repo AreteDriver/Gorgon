@@ -7,7 +7,7 @@ Note: These generate visualization specifications/code, not actual images.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -166,7 +166,7 @@ class ChartGenerator:
 
         return VisualizationResult(
             visualizer="chart_generator",
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             charts=charts,
             dashboard=None,
             streamlit_code=streamlit_code,
@@ -256,7 +256,7 @@ class DashboardBuilder:
 
         return VisualizationResult(
             visualizer="dashboard_builder",
-            generated_at=datetime.utcnow(),
+            generated_at=datetime.now(timezone.utc),
             charts=chart_result.charts,
             dashboard=dashboard,
             streamlit_code=streamlit_code,

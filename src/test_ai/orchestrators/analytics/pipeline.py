@@ -7,7 +7,7 @@ analysis, visualization, and reporting stages.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable, Optional, TYPE_CHECKING
 
@@ -167,7 +167,7 @@ class AnalyticsPipeline:
         result = PipelineResult(
             pipeline_id=self.pipeline_id,
             status="running",
-            started_at=datetime.utcnow(),
+            started_at=datetime.now(timezone.utc),
         )
 
         context = initial_context or {}
@@ -219,7 +219,7 @@ class AnalyticsPipeline:
             result.status = "completed"
             result.final_output = current_output
 
-        result.completed_at = datetime.utcnow()
+        result.completed_at = datetime.now(timezone.utc)
         return result
 
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 import time
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Callable
 
@@ -75,7 +75,7 @@ class ExecutionResult:
     outputs: dict = field(default_factory=dict)
     total_tokens: int = 0
     total_duration_ms: int = 0
-    started_at: datetime = field(default_factory=datetime.utcnow)
+    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime | None = None
     error: str | None = None
 
@@ -259,7 +259,7 @@ class WorkflowExecutor:
             if output_name in self._context:
                 result.outputs[output_name] = self._context[output_name]
 
-        result.completed_at = datetime.utcnow()
+        result.completed_at = datetime.now(timezone.utc)
         result.total_duration_ms = int(
             (result.completed_at - result.started_at).total_seconds() * 1000
         )

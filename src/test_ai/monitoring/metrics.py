@@ -6,7 +6,7 @@ import sqlite3
 import threading
 from collections import defaultdict
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -28,7 +28,7 @@ class StepMetrics:
 
     def complete(self, status: str = "success", error: str | None = None):
         """Mark step as completed."""
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.duration_ms = (self.completed_at - self.started_at).total_seconds() * 1000
         self.status = status
         self.error = error
@@ -86,7 +86,7 @@ class WorkflowMetrics:
 
     def complete(self, status: str = "completed", error: str | None = None):
         """Mark workflow as completed."""
-        self.completed_at = datetime.utcnow()
+        self.completed_at = datetime.now(timezone.utc)
         self.duration_ms = (self.completed_at - self.started_at).total_seconds() * 1000
         self.status = status
         self.error = error
@@ -381,7 +381,7 @@ class MetricsStore:
         if not self._db_path:
             return self.get_recent_executions()
 
-        cutoff = (datetime.utcnow() - timedelta(hours=hours)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
 
         conn = sqlite3.connect(self._db_path)
         conn.row_factory = sqlite3.Row

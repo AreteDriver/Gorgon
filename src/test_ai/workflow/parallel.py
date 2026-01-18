@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import concurrent.futures
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from enum import Enum
 from typing import Any, Callable
 
@@ -192,7 +192,7 @@ class ParallelExecutor:
     ) -> ParallelResult:
         """Execute tasks using thread pool."""
         result = ParallelResult()
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         # Build dependency graph
         pending = {t.id: t for t in tasks}
@@ -217,7 +217,7 @@ class ParallelExecutor:
                 # Submit ready tasks
                 futures = {}
                 for task in ready:
-                    task.started_at = datetime.utcnow()
+                    task.started_at = datetime.now(timezone.utc)
                     future = executor.submit(task.handler, *task.args, **task.kwargs)
                     futures[future] = task
 
@@ -226,7 +226,7 @@ class ParallelExecutor:
                     futures, timeout=self.timeout
                 ):
                     task = futures[future]
-                    task.completed_at = datetime.utcnow()
+                    task.completed_at = datetime.now(timezone.utc)
 
                     try:
                         task.result = future.result()
@@ -244,7 +244,7 @@ class ParallelExecutor:
                     del pending[task.id]
 
         result.total_duration_ms = int(
-            (datetime.utcnow() - start_time).total_seconds() * 1000
+            (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         )
         return result
 
@@ -256,7 +256,7 @@ class ParallelExecutor:
     ) -> ParallelResult:
         """Execute tasks using asyncio."""
         result = ParallelResult()
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         pending = {t.id: t for t in tasks}
         completed_ids: set[str] = set()
@@ -275,7 +275,7 @@ class ParallelExecutor:
 
             # Create async tasks
             async def run_task(task: ParallelTask) -> tuple[str, Any, Exception | None]:
-                task.started_at = datetime.utcnow()
+                task.started_at = datetime.now(timezone.utc)
                 try:
                     if asyncio.iscoroutinefunction(task.handler):
                         res = await task.handler(*task.args, **task.kwargs)
@@ -285,10 +285,10 @@ class ParallelExecutor:
                         res = await loop.run_in_executor(
                             None, lambda: task.handler(*task.args, **task.kwargs)
                         )
-                    task.completed_at = datetime.utcnow()
+                    task.completed_at = datetime.now(timezone.utc)
                     return task.id, res, None
                 except Exception as e:
-                    task.completed_at = datetime.utcnow()
+                    task.completed_at = datetime.now(timezone.utc)
                     return task.id, None, e
 
             # Run all ready tasks concurrently
@@ -327,7 +327,7 @@ class ParallelExecutor:
                 del pending[task_id]
 
         result.total_duration_ms = int(
-            (datetime.utcnow() - start_time).total_seconds() * 1000
+            (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         )
         return result
 
@@ -342,7 +342,7 @@ class ParallelExecutor:
         Note: Handlers must be picklable for multiprocessing.
         """
         result = ParallelResult()
-        start_time = datetime.utcnow()
+        start_time = datetime.now(timezone.utc)
 
         pending = {t.id: t for t in tasks}
         completed_ids: set[str] = set()
@@ -364,7 +364,7 @@ class ParallelExecutor:
 
                 futures = {}
                 for task in ready:
-                    task.started_at = datetime.utcnow()
+                    task.started_at = datetime.now(timezone.utc)
                     future = executor.submit(task.handler, *task.args, **task.kwargs)
                     futures[future] = task
 
@@ -372,7 +372,7 @@ class ParallelExecutor:
                     futures, timeout=self.timeout
                 ):
                     task = futures[future]
-                    task.completed_at = datetime.utcnow()
+                    task.completed_at = datetime.now(timezone.utc)
 
                     try:
                         task.result = future.result()
@@ -390,7 +390,7 @@ class ParallelExecutor:
                     del pending[task.id]
 
         result.total_duration_ms = int(
-            (datetime.utcnow() - start_time).total_seconds() * 1000
+            (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         )
         return result
 

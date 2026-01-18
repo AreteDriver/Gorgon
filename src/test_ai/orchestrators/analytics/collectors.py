@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any, TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -112,7 +112,7 @@ class VDCCollector(DataCollector):
 
         return CollectedData(
             source="vdc_operations",
-            collected_at=datetime.utcnow(),
+            collected_at=datetime.now(timezone.utc),
             data=data,
             metadata={
                 "include_performance": include_performance,
@@ -143,7 +143,7 @@ class MetricsCollector(DataCollector):
 
         return CollectedData(
             source="app_metrics",
-            collected_at=datetime.utcnow(),
+            collected_at=datetime.now(timezone.utc),
             data={"metrics": data},
             metadata={"minutes": minutes},
         )
@@ -164,7 +164,7 @@ class JSONCollector(DataCollector):
 
         return CollectedData(
             source=source_name,
-            collected_at=datetime.utcnow(),
+            collected_at=datetime.now(timezone.utc),
             data=data,
             metadata={"type": "json_passthrough"},
         )
@@ -193,7 +193,7 @@ class AggregateCollector(DataCollector):
 
         return CollectedData(
             source="aggregate",
-            collected_at=datetime.utcnow(),
+            collected_at=datetime.now(timezone.utc),
             data=aggregated_data,
             metadata={"collector_count": len(self.collectors)},
         )

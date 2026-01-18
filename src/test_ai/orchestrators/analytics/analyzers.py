@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 
@@ -191,7 +191,7 @@ class OperationalAnalyzer(DataAnalyzer):
 
         return AnalysisResult(
             analyzer="operational",
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
             findings=findings,
             metrics=metrics,
             recommendations=recommendations,
@@ -291,7 +291,7 @@ class TrendAnalyzer(DataAnalyzer):
 
         return AnalysisResult(
             analyzer="trends",
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
             findings=findings,
             metrics=metrics,
             recommendations=recommendations,
@@ -338,7 +338,7 @@ class CompositeAnalyzer(DataAnalyzer):
 
         return AnalysisResult(
             analyzer="composite",
-            analyzed_at=datetime.utcnow(),
+            analyzed_at=datetime.now(timezone.utc),
             findings=all_findings,
             metrics=all_metrics,
             recommendations=unique_recommendations,
