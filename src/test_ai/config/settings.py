@@ -62,6 +62,12 @@ class Settings(BaseSettings):
         default_factory=lambda: Path(__file__).parent.parent / "jobs"
     )
 
+    # Database
+    database_url: str = Field(
+        default="sqlite:///gorgon-state.db",
+        description="Database URL (sqlite:///path.db or postgresql://user:pass@host/db)",
+    )
+
     # Auth
     secret_key: str = Field(
         default="change-me-in-production", description="Secret key for token generation"

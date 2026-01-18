@@ -7,13 +7,13 @@ import logging
 import secrets
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 
 from test_ai.config import get_settings
 from test_ai.orchestrator import WorkflowEngine
+from test_ai.state import DatabaseBackend, get_database
 
 logger = logging.getLogger(__name__)
 
@@ -78,42 +78,179 @@ class WebhookTriggerLog(BaseModel):
 class WebhookManager:
     """Manages webhook definitions and triggers."""
 
-    def __init__(self):
+    SCHEMA = """
+        CREATE TABLE IF NOT EXISTS webhooks (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            workflow_id TEXT NOT NULL,
+            secret TEXT NOT NULL,
+            payload_mappings TEXT,
+            static_variables TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_triggered TIMESTAMP,
+            trigger_count INTEGER DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_webhooks_status ON webhooks(status);
+        CREATE INDEX IF NOT EXISTS idx_webhooks_workflow ON webhooks(workflow_id);
+
+        CREATE TABLE IF NOT EXISTS webhook_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            webhook_id TEXT NOT NULL,
+            workflow_id TEXT NOT NULL,
+            triggered_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            source_ip TEXT,
+            payload_size INTEGER,
+            status TEXT NOT NULL,
+            duration_seconds REAL,
+            error TEXT,
+            FOREIGN KEY (webhook_id) REFERENCES webhooks(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_webhook_logs_webhook
+        ON webhook_logs(webhook_id, triggered_at DESC);
+    """
+
+    def __init__(self, backend: DatabaseBackend | None = None):
         self.settings = get_settings()
-        self.webhooks_dir = self.settings.webhooks_dir
-        self.webhooks_dir.mkdir(parents=True, exist_ok=True)
+        self.backend = backend or get_database()
         self.workflow_engine = WorkflowEngine()
         self._webhooks: Dict[str, Webhook] = {}
+        self._init_schema()
         self._load_all_webhooks()
 
+    def _init_schema(self):
+        """Initialize database schema."""
+        self.backend.executescript(self.SCHEMA)
+
     def _load_all_webhooks(self):
-        """Load all webhooks from disk."""
-        for file_path in self.webhooks_dir.glob("*.json"):
+        """Load all webhooks from database."""
+        rows = self.backend.fetchall("SELECT * FROM webhooks")
+        for row in rows:
             try:
-                webhook = self._load_webhook_file(file_path)
+                webhook = self._row_to_webhook(row)
                 if webhook:
                     self._webhooks[webhook.id] = webhook
             except Exception as e:
-                logger.error(f"Failed to load webhook {file_path}: {e}")
+                logger.error(f"Failed to load webhook from row: {e}")
 
-    def _load_webhook_file(self, file_path: Path) -> Optional[Webhook]:
-        """Load a webhook from file."""
+    def _row_to_webhook(self, row: dict) -> Optional[Webhook]:
+        """Convert database row to Webhook."""
         try:
-            with open(file_path, "r") as f:
-                data = json.load(f)
-            return Webhook(**data)
-        except Exception:
+            payload_mappings = []
+            if row.get("payload_mappings"):
+                mappings_data = json.loads(row["payload_mappings"])
+                payload_mappings = [PayloadMapping(**m) for m in mappings_data]
+
+            return Webhook(
+                id=row["id"],
+                name=row["name"],
+                description=row.get("description", ""),
+                workflow_id=row["workflow_id"],
+                secret=row["secret"],
+                payload_mappings=payload_mappings,
+                static_variables=json.loads(row["static_variables"])
+                if row.get("static_variables")
+                else {},
+                status=WebhookStatus(row["status"]),
+                created_at=datetime.fromisoformat(row["created_at"])
+                if row.get("created_at")
+                else datetime.now(),
+                last_triggered=datetime.fromisoformat(row["last_triggered"])
+                if row.get("last_triggered")
+                else None,
+                trigger_count=row.get("trigger_count", 0),
+            )
+        except Exception as e:
+            logger.error(f"Failed to parse webhook row: {e}")
             return None
 
     def _save_webhook(self, webhook: Webhook) -> bool:
-        """Save a webhook to disk."""
+        """Save a webhook to database (insert or update)."""
         try:
-            file_path = self.webhooks_dir / f"{webhook.id}.json"
-            with open(file_path, "w") as f:
-                json.dump(webhook.model_dump(mode="json"), f, indent=2, default=str)
-            return True
+            existing = self.backend.fetchone(
+                "SELECT id FROM webhooks WHERE id = ?", (webhook.id,)
+            )
+            if existing:
+                return self._update_webhook_in_db(webhook)
+            else:
+                return self._insert_webhook_in_db(webhook)
         except Exception as e:
             logger.error(f"Failed to save webhook {webhook.id}: {e}")
+            return False
+
+    def _insert_webhook_in_db(self, webhook: Webhook) -> bool:
+        """Insert a new webhook into the database."""
+        try:
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    INSERT INTO webhooks
+                    (id, name, description, workflow_id, secret, payload_mappings,
+                     static_variables, status, created_at, last_triggered, trigger_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        webhook.id,
+                        webhook.name,
+                        webhook.description,
+                        webhook.workflow_id,
+                        webhook.secret,
+                        json.dumps([m.model_dump() for m in webhook.payload_mappings])
+                        if webhook.payload_mappings
+                        else None,
+                        json.dumps(webhook.static_variables)
+                        if webhook.static_variables
+                        else None,
+                        webhook.status.value,
+                        webhook.created_at.isoformat() if webhook.created_at else None,
+                        webhook.last_triggered.isoformat()
+                        if webhook.last_triggered
+                        else None,
+                        webhook.trigger_count,
+                    ),
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert webhook {webhook.id}: {e}")
+            return False
+
+    def _update_webhook_in_db(self, webhook: Webhook) -> bool:
+        """Update an existing webhook in the database."""
+        try:
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    UPDATE webhooks
+                    SET name = ?, description = ?, workflow_id = ?, secret = ?,
+                        payload_mappings = ?, static_variables = ?, status = ?,
+                        last_triggered = ?, trigger_count = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        webhook.name,
+                        webhook.description,
+                        webhook.workflow_id,
+                        webhook.secret,
+                        json.dumps([m.model_dump() for m in webhook.payload_mappings])
+                        if webhook.payload_mappings
+                        else None,
+                        json.dumps(webhook.static_variables)
+                        if webhook.static_variables
+                        else None,
+                        webhook.status.value,
+                        webhook.last_triggered.isoformat()
+                        if webhook.last_triggered
+                        else None,
+                        webhook.trigger_count,
+                        webhook.id,
+                    ),
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update webhook {webhook.id}: {e}")
             return False
 
     def create_webhook(self, webhook: Webhook) -> bool:
@@ -156,11 +293,17 @@ class WebhookManager:
         if webhook_id not in self._webhooks:
             return False
 
-        file_path = self.webhooks_dir / f"{webhook_id}.json"
+        # Remove from database (logs cascade due to FK)
         try:
-            file_path.unlink()
-        except Exception:
-            pass
+            with self.backend.transaction():
+                self.backend.execute(
+                    "DELETE FROM webhook_logs WHERE webhook_id = ?", (webhook_id,)
+                )
+                self.backend.execute(
+                    "DELETE FROM webhooks WHERE id = ?", (webhook_id,)
+                )
+        except Exception as e:
+            logger.error(f"Failed to delete webhook {webhook_id} from database: {e}")
 
         del self._webhooks[webhook_id]
         return True
@@ -311,17 +454,27 @@ class WebhookManager:
         }
 
     def _save_trigger_log(self, log: WebhookTriggerLog):
-        """Save trigger log entry."""
-        logs_dir = self.settings.logs_dir / "webhooks"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-
-        log_file = (
-            logs_dir
-            / f"{log.webhook_id}_{log.triggered_at.strftime('%Y%m%d_%H%M%S')}.json"
-        )
+        """Save trigger log entry to database."""
         try:
-            with open(log_file, "w") as f:
-                json.dump(log.model_dump(mode="json"), f, indent=2, default=str)
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    INSERT INTO webhook_logs
+                    (webhook_id, workflow_id, triggered_at, source_ip, payload_size,
+                     status, duration_seconds, error)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        log.webhook_id,
+                        log.workflow_id,
+                        log.triggered_at.isoformat(),
+                        log.source_ip,
+                        log.payload_size,
+                        log.status,
+                        log.duration_seconds,
+                        log.error,
+                    ),
+                )
         except Exception as e:
             logger.error(f"Failed to save trigger log: {e}")
 
@@ -329,19 +482,35 @@ class WebhookManager:
         self, webhook_id: str, limit: int = 10
     ) -> List[WebhookTriggerLog]:
         """Get trigger history for a webhook."""
-        logs_dir = self.settings.logs_dir / "webhooks"
-        if not logs_dir.exists():
-            return []
+        rows = self.backend.fetchall(
+            """
+            SELECT * FROM webhook_logs
+            WHERE webhook_id = ?
+            ORDER BY triggered_at DESC
+            LIMIT ?
+            """,
+            (webhook_id, limit),
+        )
 
         logs = []
-        for file_path in sorted(logs_dir.glob(f"{webhook_id}_*.json"), reverse=True)[
-            :limit
-        ]:
+        for row in rows:
             try:
-                with open(file_path, "r") as f:
-                    data = json.load(f)
-                logs.append(WebhookTriggerLog(**data))
-            except Exception:
+                logs.append(
+                    WebhookTriggerLog(
+                        webhook_id=row["webhook_id"],
+                        workflow_id=row["workflow_id"],
+                        triggered_at=datetime.fromisoformat(row["triggered_at"])
+                        if row.get("triggered_at")
+                        else datetime.now(),
+                        source_ip=row.get("source_ip"),
+                        payload_size=row.get("payload_size", 0),
+                        status=row["status"],
+                        duration_seconds=row.get("duration_seconds", 0),
+                        error=row.get("error"),
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Failed to parse trigger log: {e}")
                 continue
 
         return logs

@@ -13,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from test_ai.config import get_settings
 from test_ai.orchestrator import WorkflowEngine, WorkflowResult
+from test_ai.state import DatabaseBackend, get_database
 
 logger = logging.getLogger(__name__)
 
@@ -49,43 +50,153 @@ class Job(BaseModel):
 class JobManager:
     """Manages async workflow execution with status polling."""
 
-    def __init__(self, max_workers: int = 4):
+    SCHEMA = """
+        CREATE TABLE IF NOT EXISTS jobs (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'pending',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            started_at TIMESTAMP,
+            completed_at TIMESTAMP,
+            variables TEXT,
+            result TEXT,
+            error TEXT,
+            progress TEXT
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs(status);
+        CREATE INDEX IF NOT EXISTS idx_jobs_workflow ON jobs(workflow_id);
+        CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
+    """
+
+    def __init__(
+        self, backend: DatabaseBackend | None = None, max_workers: int = 4
+    ):
         self.settings = get_settings()
-        self.jobs_dir = self.settings.jobs_dir
-        self.jobs_dir.mkdir(parents=True, exist_ok=True)
+        self.backend = backend or get_database()
         self.workflow_engine = WorkflowEngine()
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._jobs: Dict[str, Job] = {}
         self._futures: Dict[str, Future] = {}
         self._lock = threading.Lock()
+        self._init_schema()
         self._load_recent_jobs()
 
+    def _init_schema(self):
+        """Initialize database schema."""
+        self.backend.executescript(self.SCHEMA)
+
     def _load_recent_jobs(self, limit: int = 100):
-        """Load recent jobs from disk on startup."""
-        job_files = sorted(self.jobs_dir.glob("*.json"), reverse=True)[:limit]
-        for file_path in job_files:
+        """Load recent jobs from database on startup."""
+        rows = self.backend.fetchall(
+            """
+            SELECT * FROM jobs
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (limit,),
+        )
+        for row in rows:
             try:
-                with open(file_path, "r") as f:
-                    data = json.load(f)
-                job = Job(**data)
+                job = Job(
+                    id=row["id"],
+                    workflow_id=row["workflow_id"],
+                    status=JobStatus(row["status"]),
+                    created_at=datetime.fromisoformat(row["created_at"])
+                    if row["created_at"]
+                    else None,
+                    started_at=datetime.fromisoformat(row["started_at"])
+                    if row["started_at"]
+                    else None,
+                    completed_at=datetime.fromisoformat(row["completed_at"])
+                    if row["completed_at"]
+                    else None,
+                    variables=json.loads(row["variables"])
+                    if row["variables"]
+                    else {},
+                    result=json.loads(row["result"]) if row["result"] else None,
+                    error=row["error"],
+                    progress=row["progress"],
+                )
                 # Mark running jobs as failed (server restart)
                 if job.status == JobStatus.RUNNING:
                     job.status = JobStatus.FAILED
                     job.error = "Server restarted during execution"
                     job.completed_at = datetime.now()
+                    self._update_job_in_db(job)
                 self._jobs[job.id] = job
             except Exception as e:
-                logger.error(f"Failed to load job {file_path}: {e}")
+                logger.error(f"Failed to load job from row: {e}")
 
     def _save_job(self, job: Job) -> bool:
-        """Save job to disk."""
+        """Save job to database (insert or update)."""
         try:
-            file_path = self.jobs_dir / f"{job.id}.json"
-            with open(file_path, "w") as f:
-                json.dump(job.model_dump(mode="json"), f, indent=2, default=str)
-            return True
+            existing = self.backend.fetchone(
+                "SELECT id FROM jobs WHERE id = ?", (job.id,)
+            )
+            if existing:
+                return self._update_job_in_db(job)
+            else:
+                return self._insert_job_in_db(job)
         except Exception as e:
             logger.error(f"Failed to save job {job.id}: {e}")
+            return False
+
+    def _insert_job_in_db(self, job: Job) -> bool:
+        """Insert a new job into the database."""
+        try:
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    INSERT INTO jobs
+                    (id, workflow_id, status, created_at, started_at, completed_at,
+                     variables, result, error, progress)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        job.id,
+                        job.workflow_id,
+                        job.status.value,
+                        job.created_at.isoformat() if job.created_at else None,
+                        job.started_at.isoformat() if job.started_at else None,
+                        job.completed_at.isoformat() if job.completed_at else None,
+                        json.dumps(job.variables) if job.variables else None,
+                        json.dumps(job.result) if job.result else None,
+                        job.error,
+                        job.progress,
+                    ),
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert job {job.id}: {e}")
+            return False
+
+    def _update_job_in_db(self, job: Job) -> bool:
+        """Update an existing job in the database."""
+        try:
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    UPDATE jobs
+                    SET workflow_id = ?, status = ?, started_at = ?, completed_at = ?,
+                        variables = ?, result = ?, error = ?, progress = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        job.workflow_id,
+                        job.status.value,
+                        job.started_at.isoformat() if job.started_at else None,
+                        job.completed_at.isoformat() if job.completed_at else None,
+                        json.dumps(job.variables) if job.variables else None,
+                        json.dumps(job.result) if job.result else None,
+                        job.error,
+                        job.progress,
+                        job.id,
+                    ),
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update job {job.id}: {e}")
             return False
 
     def _execute_workflow(self, job_id: str):
@@ -219,18 +330,21 @@ class JobManager:
             # Remove from memory
             del self._jobs[job_id]
 
-            # Remove from disk
-            file_path = self.jobs_dir / f"{job_id}.json"
+            # Remove from database
             try:
-                file_path.unlink()
-            except Exception:
-                pass
+                with self.backend.transaction():
+                    self.backend.execute(
+                        "DELETE FROM jobs WHERE id = ?", (job_id,)
+                    )
+            except Exception as e:
+                logger.error(f"Failed to delete job {job_id} from database: {e}")
 
         return True
 
     def cleanup_old_jobs(self, max_age_hours: int = 24) -> int:
         """Remove jobs older than max_age_hours."""
         cutoff = datetime.now().timestamp() - (max_age_hours * 3600)
+        cutoff_iso = datetime.fromtimestamp(cutoff).isoformat()
         deleted = 0
 
         with self._lock:
@@ -246,12 +360,27 @@ class JobManager:
 
             for job_id in to_delete:
                 del self._jobs[job_id]
-                file_path = self.jobs_dir / f"{job_id}.json"
+                deleted += 1
+
+            # Delete from database
+            if to_delete:
                 try:
-                    file_path.unlink()
-                    deleted += 1
-                except Exception:
-                    pass
+                    with self.backend.transaction():
+                        self.backend.execute(
+                            """
+                            DELETE FROM jobs
+                            WHERE status IN (?, ?, ?)
+                            AND completed_at < ?
+                            """,
+                            (
+                                JobStatus.COMPLETED.value,
+                                JobStatus.FAILED.value,
+                                JobStatus.CANCELLED.value,
+                                cutoff_iso,
+                            ),
+                        )
+                except Exception as e:
+                    logger.error(f"Failed to cleanup old jobs from database: {e}")
 
         logger.info(f"Cleaned up {deleted} old jobs")
         return deleted

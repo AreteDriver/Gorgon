@@ -12,6 +12,8 @@ from .backends import (
     PostgresBackend,
     create_backend,
 )
+from .database import get_database, reset_database
+from .migrations import run_migrations, get_migration_status
 from .memory import AgentMemory, MemoryEntry
 
 __all__ = [
@@ -22,6 +24,10 @@ __all__ = [
     "SQLiteBackend",
     "PostgresBackend",
     "create_backend",
+    "get_database",
+    "reset_database",
+    "run_migrations",
+    "get_migration_status",
     "AgentMemory",
     "MemoryEntry",
 ]

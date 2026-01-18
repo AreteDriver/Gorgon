@@ -1,14 +1,11 @@
-"""SQLite-backed workflow state persistence."""
+"""Database-backed workflow state persistence."""
 
 from __future__ import annotations
 
 import json
-import sqlite3
-import threading
-from contextlib import contextmanager
 from enum import Enum
-from pathlib import Path
-from typing import Generator
+
+from .backends import DatabaseBackend
 
 
 class WorkflowStatus(Enum):
@@ -22,77 +19,67 @@ class WorkflowStatus(Enum):
 
 
 class StatePersistence:
-    """SQLite-backed workflow state persistence.
+    """Database-backed workflow state persistence.
 
     Provides checkpoint/resume capability for workflow executions.
-    Thread-safe for concurrent access.
+    Thread-safe for concurrent access. Supports SQLite and PostgreSQL.
     """
 
-    def __init__(self, db_path: str = "gorgon-state.db"):
+    SCHEMA = """
+        CREATE TABLE IF NOT EXISTS workflows (
+            id TEXT PRIMARY KEY,
+            name TEXT NOT NULL,
+            status TEXT NOT NULL,
+            current_stage TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            config TEXT,
+            error TEXT
+        );
+
+        CREATE TABLE IF NOT EXISTS checkpoints (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            workflow_id TEXT NOT NULL,
+            stage TEXT NOT NULL,
+            status TEXT NOT NULL,
+            input_data TEXT,
+            output_data TEXT,
+            tokens_used INTEGER DEFAULT 0,
+            duration_ms INTEGER DEFAULT 0,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (workflow_id) REFERENCES workflows(id)
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_checkpoints_workflow
+        ON checkpoints(workflow_id, created_at DESC);
+
+        CREATE INDEX IF NOT EXISTS idx_workflows_status
+        ON workflows(status);
+    """
+
+    def __init__(
+        self,
+        db_path: str = "gorgon-state.db",
+        *,
+        backend: DatabaseBackend | None = None,
+    ):
         """Initialize state persistence.
 
         Args:
-            db_path: Path to SQLite database file
+            db_path: Path to SQLite database (if no backend provided)
+            backend: Database backend to use (keyword-only, overrides db_path)
         """
-        self.db_path = Path(db_path)
-        self._local = threading.local()
+        if backend:
+            self.backend = backend
+        else:
+            from .backends import SQLiteBackend
+
+            self.backend = SQLiteBackend(db_path=db_path)
         self._init_db()
-
-    def _get_conn(self) -> sqlite3.Connection:
-        """Get thread-local database connection."""
-        if not hasattr(self._local, "conn") or self._local.conn is None:
-            self._local.conn = sqlite3.connect(
-                str(self.db_path),
-                check_same_thread=False,
-            )
-            self._local.conn.row_factory = sqlite3.Row
-        return self._local.conn
-
-    @contextmanager
-    def _transaction(self) -> Generator[sqlite3.Connection, None, None]:
-        """Context manager for database transactions."""
-        conn = self._get_conn()
-        try:
-            yield conn
-            conn.commit()
-        except Exception:
-            conn.rollback()
-            raise
 
     def _init_db(self):
         """Initialize database schema."""
-        with self._transaction() as conn:
-            conn.executescript("""
-                CREATE TABLE IF NOT EXISTS workflows (
-                    id TEXT PRIMARY KEY,
-                    name TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    current_stage TEXT,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    config TEXT,
-                    error TEXT
-                );
-
-                CREATE TABLE IF NOT EXISTS checkpoints (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    workflow_id TEXT NOT NULL,
-                    stage TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    input_data TEXT,
-                    output_data TEXT,
-                    tokens_used INTEGER DEFAULT 0,
-                    duration_ms INTEGER DEFAULT 0,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (workflow_id) REFERENCES workflows(id)
-                );
-
-                CREATE INDEX IF NOT EXISTS idx_checkpoints_workflow
-                ON checkpoints(workflow_id, created_at DESC);
-
-                CREATE INDEX IF NOT EXISTS idx_workflows_status
-                ON workflows(status);
-            """)
+        self.backend.executescript(self.SCHEMA)
 
     def create_workflow(
         self,
@@ -107,8 +94,8 @@ class StatePersistence:
             name: Human-readable workflow name
             config: Optional workflow configuration
         """
-        with self._transaction() as conn:
-            conn.execute(
+        with self.backend.transaction():
+            self.backend.execute(
                 """
                 INSERT INTO workflows (id, name, status, config)
                 VALUES (?, ?, ?, ?)
@@ -134,8 +121,8 @@ class StatePersistence:
             status: New status
             error: Optional error message (for failed status)
         """
-        with self._transaction() as conn:
-            conn.execute(
+        with self.backend.transaction():
+            self.backend.execute(
                 """
                 UPDATE workflows
                 SET status = ?, error = ?, updated_at = CURRENT_TIMESTAMP
@@ -168,8 +155,8 @@ class StatePersistence:
         Returns:
             Checkpoint ID
         """
-        with self._transaction() as conn:
-            cursor = conn.execute(
+        with self.backend.transaction():
+            cursor = self.backend.execute(
                 """
                 INSERT INTO checkpoints
                 (workflow_id, stage, status, input_data, output_data, tokens_used, duration_ms)
@@ -187,7 +174,7 @@ class StatePersistence:
             )
 
             # Update workflow's current stage
-            conn.execute(
+            self.backend.execute(
                 """
                 UPDATE workflows
                 SET current_stage = ?, status = ?, updated_at = CURRENT_TIMESTAMP
@@ -207,8 +194,7 @@ class StatePersistence:
         Returns:
             Checkpoint data or None if not found
         """
-        conn = self._get_conn()
-        row = conn.execute(
+        row = self.backend.fetchone(
             """
             SELECT * FROM checkpoints
             WHERE workflow_id = ?
@@ -216,7 +202,7 @@ class StatePersistence:
             LIMIT 1
             """,
             (workflow_id,),
-        ).fetchone()
+        )
 
         if row:
             return {
@@ -244,15 +230,14 @@ class StatePersistence:
         Returns:
             List of checkpoint data
         """
-        conn = self._get_conn()
-        rows = conn.execute(
+        rows = self.backend.fetchall(
             """
             SELECT * FROM checkpoints
             WHERE workflow_id = ?
             ORDER BY created_at ASC
             """,
             (workflow_id,),
-        ).fetchall()
+        )
 
         return [
             {
@@ -281,11 +266,10 @@ class StatePersistence:
         Returns:
             Workflow data or None if not found
         """
-        conn = self._get_conn()
-        row = conn.execute(
+        row = self.backend.fetchone(
             "SELECT * FROM workflows WHERE id = ?",
             (workflow_id,),
-        ).fetchone()
+        )
 
         if row:
             return {
@@ -306,8 +290,7 @@ class StatePersistence:
         Returns:
             List of workflows with status in (running, paused, failed)
         """
-        conn = self._get_conn()
-        rows = conn.execute(
+        rows = self.backend.fetchall(
             """
             SELECT id, name, current_stage, status, updated_at
             FROM workflows
@@ -319,9 +302,9 @@ class StatePersistence:
                 WorkflowStatus.PAUSED.value,
                 WorkflowStatus.FAILED.value,
             ),
-        ).fetchall()
+        )
 
-        return [dict(row) for row in rows]
+        return list(rows)
 
     def resume_from_checkpoint(self, workflow_id: str) -> dict:
         """Resume a workflow from its last checkpoint.
@@ -381,10 +364,8 @@ class StatePersistence:
         Returns:
             List of workflow summaries
         """
-        conn = self._get_conn()
-
         if status:
-            rows = conn.execute(
+            rows = self.backend.fetchall(
                 """
                 SELECT id, name, status, current_stage, created_at, updated_at
                 FROM workflows
@@ -393,9 +374,9 @@ class StatePersistence:
                 LIMIT ?
                 """,
                 (status.value, limit),
-            ).fetchall()
+            )
         else:
-            rows = conn.execute(
+            rows = self.backend.fetchall(
                 """
                 SELECT id, name, status, current_stage, created_at, updated_at
                 FROM workflows
@@ -403,9 +384,9 @@ class StatePersistence:
                 LIMIT ?
                 """,
                 (limit,),
-            ).fetchall()
+            )
 
-        return [dict(row) for row in rows]
+        return list(rows)
 
     def delete_workflow(self, workflow_id: str) -> bool:
         """Delete a workflow and its checkpoints.
@@ -416,12 +397,12 @@ class StatePersistence:
         Returns:
             True if deleted, False if not found
         """
-        with self._transaction() as conn:
-            conn.execute(
+        with self.backend.transaction():
+            self.backend.execute(
                 "DELETE FROM checkpoints WHERE workflow_id = ?",
                 (workflow_id,),
             )
-            cursor = conn.execute(
+            cursor = self.backend.execute(
                 "DELETE FROM workflows WHERE id = ?",
                 (workflow_id,),
             )
@@ -433,20 +414,21 @@ class StatePersistence:
         Returns:
             Dictionary with workflow counts by status
         """
-        conn = self._get_conn()
+        total_row = self.backend.fetchone("SELECT COUNT(*) as count FROM workflows")
+        total = total_row["count"] if total_row else 0
 
-        total = conn.execute("SELECT COUNT(*) FROM workflows").fetchone()[0]
         by_status = {}
         for status in WorkflowStatus:
-            count = conn.execute(
-                "SELECT COUNT(*) FROM workflows WHERE status = ?",
+            count_row = self.backend.fetchone(
+                "SELECT COUNT(*) as count FROM workflows WHERE status = ?",
                 (status.value,),
-            ).fetchone()[0]
-            by_status[status.value] = count
+            )
+            by_status[status.value] = count_row["count"] if count_row else 0
 
-        checkpoint_count = conn.execute("SELECT COUNT(*) FROM checkpoints").fetchone()[
-            0
-        ]
+        checkpoint_row = self.backend.fetchone(
+            "SELECT COUNT(*) as count FROM checkpoints"
+        )
+        checkpoint_count = checkpoint_row["count"] if checkpoint_row else 0
 
         return {
             "total_workflows": total,

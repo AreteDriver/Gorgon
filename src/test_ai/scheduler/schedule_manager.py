@@ -4,7 +4,6 @@ import json
 import logging
 from datetime import datetime
 from enum import Enum
-from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -14,6 +13,7 @@ from pydantic import BaseModel, Field
 
 from test_ai.config import get_settings
 from test_ai.orchestrator import WorkflowEngine
+from test_ai.state import DatabaseBackend, get_database
 
 logger = logging.getLogger(__name__)
 
@@ -90,13 +90,52 @@ class ScheduleExecutionLog(BaseModel):
 class ScheduleManager:
     """Manages scheduled workflow execution."""
 
-    def __init__(self):
+    SCHEMA = """
+        CREATE TABLE IF NOT EXISTS schedules (
+            id TEXT PRIMARY KEY,
+            workflow_id TEXT NOT NULL,
+            name TEXT NOT NULL,
+            description TEXT DEFAULT '',
+            schedule_type TEXT NOT NULL,
+            cron_config TEXT,
+            interval_config TEXT,
+            variables TEXT,
+            status TEXT NOT NULL DEFAULT 'active',
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            last_run TIMESTAMP,
+            next_run TIMESTAMP,
+            run_count INTEGER DEFAULT 0
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_schedules_status ON schedules(status);
+        CREATE INDEX IF NOT EXISTS idx_schedules_workflow ON schedules(workflow_id);
+
+        CREATE TABLE IF NOT EXISTS schedule_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            schedule_id TEXT NOT NULL,
+            workflow_id TEXT NOT NULL,
+            executed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            status TEXT NOT NULL,
+            duration_seconds REAL,
+            error TEXT,
+            FOREIGN KEY (schedule_id) REFERENCES schedules(id) ON DELETE CASCADE
+        );
+
+        CREATE INDEX IF NOT EXISTS idx_schedule_logs_schedule
+        ON schedule_logs(schedule_id, executed_at DESC);
+    """
+
+    def __init__(self, backend: DatabaseBackend | None = None):
         self.settings = get_settings()
-        self.schedules_dir = self.settings.schedules_dir
-        self.schedules_dir.mkdir(parents=True, exist_ok=True)
+        self.backend = backend or get_database()
         self.workflow_engine = WorkflowEngine()
         self.scheduler = BackgroundScheduler()
         self._schedules: Dict[str, WorkflowSchedule] = {}
+        self._init_schema()
+
+    def _init_schema(self):
+        """Initialize database schema."""
+        self.backend.executescript(self.SCHEMA)
 
     def start(self):
         """Start the scheduler and load existing schedules."""
@@ -112,35 +151,138 @@ class ScheduleManager:
             logger.info("Scheduler shutdown")
 
     def _load_all_schedules(self):
-        """Load all schedules from disk and register active ones."""
-        for file_path in self.schedules_dir.glob("*.json"):
+        """Load all schedules from database and register active ones."""
+        rows = self.backend.fetchall("SELECT * FROM schedules")
+        for row in rows:
             try:
-                schedule = self._load_schedule_file(file_path)
+                schedule = self._row_to_schedule(row)
                 if schedule:
                     self._schedules[schedule.id] = schedule
                     if schedule.status == ScheduleStatus.ACTIVE:
                         self._register_job(schedule)
             except Exception as e:
-                logger.error(f"Failed to load schedule {file_path}: {e}")
+                logger.error(f"Failed to load schedule from row: {e}")
 
-    def _load_schedule_file(self, file_path: Path) -> Optional[WorkflowSchedule]:
-        """Load a schedule from file."""
+    def _row_to_schedule(self, row: dict) -> Optional[WorkflowSchedule]:
+        """Convert database row to WorkflowSchedule."""
         try:
-            with open(file_path, "r") as f:
-                data = json.load(f)
-            return WorkflowSchedule(**data)
-        except Exception:
+            cron_config = None
+            if row.get("cron_config"):
+                cron_config = CronConfig(**json.loads(row["cron_config"]))
+
+            interval_config = None
+            if row.get("interval_config"):
+                interval_config = IntervalConfig(**json.loads(row["interval_config"]))
+
+            return WorkflowSchedule(
+                id=row["id"],
+                workflow_id=row["workflow_id"],
+                name=row["name"],
+                description=row.get("description", ""),
+                schedule_type=ScheduleType(row["schedule_type"]),
+                cron_config=cron_config,
+                interval_config=interval_config,
+                variables=json.loads(row["variables"]) if row.get("variables") else {},
+                status=ScheduleStatus(row["status"]),
+                created_at=datetime.fromisoformat(row["created_at"])
+                if row.get("created_at")
+                else datetime.now(),
+                last_run=datetime.fromisoformat(row["last_run"])
+                if row.get("last_run")
+                else None,
+                next_run=datetime.fromisoformat(row["next_run"])
+                if row.get("next_run")
+                else None,
+                run_count=row.get("run_count", 0),
+            )
+        except Exception as e:
+            logger.error(f"Failed to parse schedule row: {e}")
             return None
 
     def _save_schedule(self, schedule: WorkflowSchedule) -> bool:
-        """Save a schedule to disk."""
+        """Save a schedule to database (insert or update)."""
         try:
-            file_path = self.schedules_dir / f"{schedule.id}.json"
-            with open(file_path, "w") as f:
-                json.dump(schedule.model_dump(mode="json"), f, indent=2, default=str)
-            return True
+            existing = self.backend.fetchone(
+                "SELECT id FROM schedules WHERE id = ?", (schedule.id,)
+            )
+            if existing:
+                return self._update_schedule_in_db(schedule)
+            else:
+                return self._insert_schedule_in_db(schedule)
         except Exception as e:
             logger.error(f"Failed to save schedule {schedule.id}: {e}")
+            return False
+
+    def _insert_schedule_in_db(self, schedule: WorkflowSchedule) -> bool:
+        """Insert a new schedule into the database."""
+        try:
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    INSERT INTO schedules
+                    (id, workflow_id, name, description, schedule_type, cron_config,
+                     interval_config, variables, status, created_at, last_run, next_run, run_count)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        schedule.id,
+                        schedule.workflow_id,
+                        schedule.name,
+                        schedule.description,
+                        schedule.schedule_type.value,
+                        json.dumps(schedule.cron_config.model_dump())
+                        if schedule.cron_config
+                        else None,
+                        json.dumps(schedule.interval_config.model_dump())
+                        if schedule.interval_config
+                        else None,
+                        json.dumps(schedule.variables) if schedule.variables else None,
+                        schedule.status.value,
+                        schedule.created_at.isoformat() if schedule.created_at else None,
+                        schedule.last_run.isoformat() if schedule.last_run else None,
+                        schedule.next_run.isoformat() if schedule.next_run else None,
+                        schedule.run_count,
+                    ),
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to insert schedule {schedule.id}: {e}")
+            return False
+
+    def _update_schedule_in_db(self, schedule: WorkflowSchedule) -> bool:
+        """Update an existing schedule in the database."""
+        try:
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    UPDATE schedules
+                    SET workflow_id = ?, name = ?, description = ?, schedule_type = ?,
+                        cron_config = ?, interval_config = ?, variables = ?, status = ?,
+                        last_run = ?, next_run = ?, run_count = ?
+                    WHERE id = ?
+                    """,
+                    (
+                        schedule.workflow_id,
+                        schedule.name,
+                        schedule.description,
+                        schedule.schedule_type.value,
+                        json.dumps(schedule.cron_config.model_dump())
+                        if schedule.cron_config
+                        else None,
+                        json.dumps(schedule.interval_config.model_dump())
+                        if schedule.interval_config
+                        else None,
+                        json.dumps(schedule.variables) if schedule.variables else None,
+                        schedule.status.value,
+                        schedule.last_run.isoformat() if schedule.last_run else None,
+                        schedule.next_run.isoformat() if schedule.next_run else None,
+                        schedule.run_count,
+                        schedule.id,
+                    ),
+                )
+            return True
+        except Exception as e:
+            logger.error(f"Failed to update schedule {schedule.id}: {e}")
             return False
 
     def _register_job(self, schedule: WorkflowSchedule):
@@ -261,17 +403,24 @@ class ScheduleManager:
         )
 
     def _save_execution_log(self, log: ScheduleExecutionLog):
-        """Save execution log entry."""
-        logs_dir = self.settings.logs_dir / "scheduled"
-        logs_dir.mkdir(parents=True, exist_ok=True)
-
-        log_file = (
-            logs_dir
-            / f"{log.schedule_id}_{log.executed_at.strftime('%Y%m%d_%H%M%S')}.json"
-        )
+        """Save execution log entry to database."""
         try:
-            with open(log_file, "w") as f:
-                json.dump(log.model_dump(mode="json"), f, indent=2, default=str)
+            with self.backend.transaction():
+                self.backend.execute(
+                    """
+                    INSERT INTO schedule_logs
+                    (schedule_id, workflow_id, executed_at, status, duration_seconds, error)
+                    VALUES (?, ?, ?, ?, ?, ?)
+                    """,
+                    (
+                        log.schedule_id,
+                        log.workflow_id,
+                        log.executed_at.isoformat(),
+                        log.status,
+                        log.duration_seconds,
+                        log.error,
+                    ),
+                )
         except Exception as e:
             logger.error(f"Failed to save execution log: {e}")
 
@@ -317,12 +466,17 @@ class ScheduleManager:
         if self.scheduler.get_job(job_id):
             self.scheduler.remove_job(job_id)
 
-        # Remove file
-        file_path = self.schedules_dir / f"{schedule_id}.json"
+        # Remove from database (logs cascade due to FK)
         try:
-            file_path.unlink()
-        except Exception:
-            pass
+            with self.backend.transaction():
+                self.backend.execute(
+                    "DELETE FROM schedule_logs WHERE schedule_id = ?", (schedule_id,)
+                )
+                self.backend.execute(
+                    "DELETE FROM schedules WHERE id = ?", (schedule_id,)
+                )
+        except Exception as e:
+            logger.error(f"Failed to delete schedule {schedule_id} from database: {e}")
 
         del self._schedules[schedule_id]
         return True
@@ -409,19 +563,33 @@ class ScheduleManager:
         self, schedule_id: str, limit: int = 10
     ) -> List[ScheduleExecutionLog]:
         """Get execution history for a schedule."""
-        logs_dir = self.settings.logs_dir / "scheduled"
-        if not logs_dir.exists():
-            return []
+        rows = self.backend.fetchall(
+            """
+            SELECT * FROM schedule_logs
+            WHERE schedule_id = ?
+            ORDER BY executed_at DESC
+            LIMIT ?
+            """,
+            (schedule_id, limit),
+        )
 
         logs = []
-        for file_path in sorted(logs_dir.glob(f"{schedule_id}_*.json"), reverse=True)[
-            :limit
-        ]:
+        for row in rows:
             try:
-                with open(file_path, "r") as f:
-                    data = json.load(f)
-                logs.append(ScheduleExecutionLog(**data))
-            except Exception:
+                logs.append(
+                    ScheduleExecutionLog(
+                        schedule_id=row["schedule_id"],
+                        workflow_id=row["workflow_id"],
+                        executed_at=datetime.fromisoformat(row["executed_at"])
+                        if row.get("executed_at")
+                        else datetime.now(),
+                        status=row["status"],
+                        duration_seconds=row.get("duration_seconds", 0),
+                        error=row.get("error"),
+                    )
+                )
+            except Exception as e:
+                logger.error(f"Failed to parse execution log: {e}")
                 continue
 
         return logs

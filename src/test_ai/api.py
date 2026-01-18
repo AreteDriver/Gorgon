@@ -1,8 +1,10 @@
 """FastAPI backend for AI Workflow Orchestrator."""
 
+import logging
 from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Optional
+
 from fastapi import FastAPI, HTTPException, Header, Request
 from pydantic import BaseModel
 
@@ -22,16 +24,41 @@ from test_ai.jobs import (
     JobManager,
     JobStatus,
 )
+from test_ai.state import get_database, run_migrations
 
-# Initialize managers globally for lifespan management
-schedule_manager = ScheduleManager()
-webhook_manager = WebhookManager()
-job_manager = JobManager()
+logger = logging.getLogger(__name__)
+
+# Managers initialized in lifespan
+schedule_manager: ScheduleManager | None = None
+webhook_manager: WebhookManager | None = None
+job_manager: JobManager | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage component lifecycles."""
+    global schedule_manager, webhook_manager, job_manager
+
+    # Get shared database backend
+    backend = get_database()
+
+    # Run migrations
+    logger.info("Running database migrations...")
+    try:
+        applied = run_migrations(backend)
+        if applied:
+            logger.info(f"Applied migrations: {', '.join(applied)}")
+        else:
+            logger.info("Database schema is up to date")
+    except Exception as e:
+        logger.error(f"Migration failed: {e}")
+        raise
+
+    # Initialize managers with shared backend
+    schedule_manager = ScheduleManager(backend=backend)
+    webhook_manager = WebhookManager(backend=backend)
+    job_manager = JobManager(backend=backend)
+
     schedule_manager.start()
     yield
     schedule_manager.shutdown()

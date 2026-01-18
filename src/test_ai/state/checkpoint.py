@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Generator
 
+from .backends import DatabaseBackend
 from .persistence import StatePersistence, WorkflowStatus
 
 
@@ -32,17 +33,25 @@ class CheckpointManager:
     workflow execution.
     """
 
-    def __init__(self, persistence: StatePersistence = None, db_path: str = None):
+    def __init__(
+        self,
+        persistence: StatePersistence = None,
+        backend: DatabaseBackend = None,
+        db_path: str = None,
+    ):
         """Initialize checkpoint manager.
 
         Args:
             persistence: Optional StatePersistence instance
-            db_path: Path to database (used if persistence not provided)
+            backend: Optional DatabaseBackend (used if persistence not provided)
+            db_path: Path to database (used if neither persistence nor backend provided)
         """
         if persistence:
             self.persistence = persistence
+        elif backend:
+            self.persistence = StatePersistence(backend=backend)
         else:
-            self.persistence = StatePersistence(db_path or "gorgon-state.db")
+            self.persistence = StatePersistence(db_path=db_path or "gorgon-state.db")
 
         self._current_workflow: str | None = None
         self._current_stage: StageContext | None = None

@@ -31,6 +31,10 @@ typer = "^0.15.0"
 rich = "^14.0.0"
 pyyaml = "^6.0.0"
 jsonschema = "^4.23.0"
+psycopg2-binary = {version = "^2.9.0", optional = true}
+
+[tool.poetry.extras]
+postgres = ["psycopg2-binary"]
 
 [tool.poetry.scripts]
 gorgon = "test_ai.cli:app"
