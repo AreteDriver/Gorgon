@@ -1,8 +1,8 @@
-# AI-Orchestra Architecture
+# Gorgon Architecture
 
 ## Overview
 
-AI-Orchestra is built as a modular, extensible workflow orchestration platform. This document provides a detailed technical overview of the system architecture, design decisions, and implementation patterns.
+Gorgon is built as a modular, extensible workflow orchestration platform. This document provides a detailed technical overview of the system architecture, design decisions, and implementation patterns.
 
 ## System Architecture
 
@@ -688,4 +688,4 @@ WorkflowError (base)
 
 ## Conclusion
 
-AI-Orchestra is designed with modularity, extensibility, and maintainability in mind. The architecture supports easy addition of new integrations, workflow types, and features while maintaining a clean separation of concerns.
+Gorgon is designed with modularity, extensibility, and maintainability in mind. The architecture supports easy addition of new integrations, workflow types, and features while maintaining a clean separation of concerns.

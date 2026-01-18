@@ -1,8 +1,8 @@
-# Claude Code Integration Guide for AI-Orchestra
+# Claude Code Integration Guide for Gorgon
 
 ## Overview
 
-Claude Code is Anthropic's command-line tool for agentic coding. AI-Orchestra integrates with Claude through two modes:
+Claude Code is Anthropic's command-line tool for agentic coding. Gorgon integrates with Claude through two modes:
 - **API Mode**: Direct calls to Anthropic's API (recommended for production)
 - **CLI Mode**: Subprocess execution of the `claude` CLI (useful for local development)
 
@@ -21,10 +21,10 @@ npm install -g @anthropic-ai/claude-code
 claude --version
 ```
 
-### AI-Orchestra Setup
+### Gorgon Setup
 
 ```bash
-cd ~/projects/AI-Orchestra
+cd ~/projects/Gorgon
 pip install -r requirements.txt  # Includes anthropic SDK
 cp .env.example .env
 ```
@@ -41,7 +41,7 @@ echo 'ANTHROPIC_API_KEY=your-api-key-here' >> .env
 export ANTHROPIC_API_KEY='your-api-key-here'
 ```
 
-### AI-Orchestra Settings
+### Gorgon Settings
 
 In `.env`:
 ```bash
@@ -59,11 +59,11 @@ CLAUDE_MODE=api                 # 'api' or 'cli'
 2. Create new API key
 3. Copy and save securely
 
-## AI-Orchestra Integration
+## Gorgon Integration
 
 ### How It Works
 
-AI-Orchestra's `ClaudeCodeClient` wraps Claude with specialized agent prompts:
+Gorgon's `ClaudeCodeClient` wraps Claude with specialized agent prompts:
 
 ```python
 from test_ai.api_clients import ClaudeCodeClient
@@ -341,9 +341,9 @@ print(f"Errors: {result.errors}")
 
 - [Claude Code Documentation](https://docs.anthropic.com/en/docs/claude-code)
 - [Anthropic API Reference](https://docs.anthropic.com/en/api)
-- [AI-Orchestra GitHub](https://github.com/AreteDriver/AI-Orchestra)
+- [Gorgon GitHub](https://github.com/AreteDriver/Gorgon)
 
 ---
 
 **Last Updated**: January 2026
-**AI-Orchestra Version**: 0.1.0
+**Gorgon Version**: 0.1.0

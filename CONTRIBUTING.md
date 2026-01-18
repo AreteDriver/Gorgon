@@ -1,6 +1,6 @@
-# Contributing to AI-Orchestra
+# Contributing to Gorgon
 
-Thank you for your interest in contributing to AI-Orchestra! This document provides guidelines and instructions for contributing to the project.
+Thank you for your interest in contributing to Gorgon! This document provides guidelines and instructions for contributing to the project.
 
 ## 🌟 Ways to Contribute
 
@@ -16,11 +16,11 @@ Thank you for your interest in contributing to AI-Orchestra! This document provi
 
 ```bash
 # Fork the repository on GitHub, then clone your fork
-git clone https://github.com/YOUR_USERNAME/AI-Orchestra.git
-cd AI-Orchestra
+git clone https://github.com/YOUR_USERNAME/Gorgon.git
+cd Gorgon
 
 # Add upstream remote
-git remote add upstream https://github.com/AreteDriver/AI-Orchestra.git
+git remote add upstream https://github.com/AreteDriver/Gorgon.git
 ```
 
 ### 2. Set Up Development Environment
@@ -244,7 +244,7 @@ Clear description of the bug
 ## Environment
 - OS: [e.g., macOS 14.0]
 - Python Version: [e.g., 3.12]
-- AI-Orchestra Version: [e.g., 0.1.0]
+- Gorgon Version: [e.g., 0.1.0]
 
 ## Additional Context
 - Error messages
@@ -352,4 +352,4 @@ By contributing, you agree that your contributions will be licensed under the MI
 
 ---
 
-**Thank you for contributing to AI-Orchestra! 🎼**
+**Thank you for contributing to Gorgon! 🎼**

@@ -1,13 +1,14 @@
 [tool.poetry]
-name = "test-ai"
-version = "0.1.0"
-description = ""
+name = "gorgon"
+version = "0.2.0"
+description = "Multi-agent orchestration framework for production AI workflows"
 authors = ["Aretedriver <aretedriver@gmail.com>"]
 package-mode = false
 
 [tool.poetry.dependencies]
 python = ">=3.12,<4.0"
 openai = "^2.1.0"
+anthropic = "^0.40.0"
 fastapi = "^0.115.0"
 uvicorn = "^0.32.0"
 streamlit = "^1.39.0"

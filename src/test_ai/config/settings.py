@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     )
 
     # Application Settings
-    app_name: str = Field("AI Workflow Orchestrator", description="Application name")
+    app_name: str = Field("Gorgon", description="Application name")
     debug: bool = Field(False, description="Debug mode")
     log_level: str = Field("INFO", description="Logging level")
 
