@@ -16,6 +16,7 @@ from slowapi.errors import RateLimitExceeded
 from pydantic import BaseModel
 
 from test_ai.auth import create_access_token, verify_token
+from test_ai.config import get_settings, configure_logging
 from test_ai.orchestrator import WorkflowEngine, Workflow
 from test_ai.prompts import PromptTemplateManager, PromptTemplate
 from test_ai.api_clients import OpenAIClient
@@ -31,7 +32,13 @@ from test_ai.jobs import (
     JobManager,
     JobStatus,
 )
-from test_ai.state import get_database, run_migrations, get_migration_status
+from test_ai.state import (
+    get_database,
+    run_migrations,
+    get_migration_status,
+    SQLiteBackend,
+    PostgresBackend,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +55,10 @@ job_manager: JobManager | None = None
 async def lifespan(app: FastAPI):
     """Manage component lifecycles."""
     global schedule_manager, webhook_manager, job_manager
+
+    # Configure logging
+    settings = get_settings()
+    configure_logging(level=settings.log_level, format=settings.log_format)
 
     # Get shared database backend
     backend = get_database()
@@ -90,9 +101,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         method = request.method
         path = request.url.path
 
-        # Log request start
+        # Log request start with structured fields
         start_time = time.perf_counter()
-        logger.info(f"[{request_id}] {method} {path} - client={client_ip}")
+        logger.info(
+            f"[{request_id}] {method} {path} - client={client_ip}",
+            extra={
+                "request_id": request_id,
+                "method": method,
+                "path": path,
+                "client_ip": client_ip,
+            },
+        )
 
         # Process request
         try:
@@ -100,18 +119,36 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         except Exception as e:
             # Log error and re-raise
             duration_ms = (time.perf_counter() - start_time) * 1000
-            logger.error(f"[{request_id}] {method} {path} - 500 ERROR in {duration_ms:.1f}ms - {e}")
+            logger.error(
+                f"[{request_id}] {method} {path} - 500 ERROR in {duration_ms:.1f}ms - {e}",
+                extra={
+                    "request_id": request_id,
+                    "method": method,
+                    "path": path,
+                    "client_ip": client_ip,
+                    "status_code": 500,
+                    "duration_ms": round(duration_ms, 2),
+                },
+            )
             raise
 
         # Calculate duration
         duration_ms = (time.perf_counter() - start_time) * 1000
 
-        # Log response
+        # Log response with structured fields
         status_code = response.status_code
         log_level = logging.WARNING if status_code >= 400 else logging.INFO
         logger.log(
             log_level,
             f"[{request_id}] {method} {path} - {status_code} in {duration_ms:.1f}ms",
+            extra={
+                "request_id": request_id,
+                "method": method,
+                "path": path,
+                "client_ip": client_ip,
+                "status_code": status_code,
+                "duration_ms": round(duration_ms, 2),
+            },
         )
 
         # Add request ID to response headers for tracing
@@ -669,12 +706,21 @@ def database_health_check():
         # Test connectivity with a simple query
         backend.fetchone("SELECT 1 AS ping")
 
+        # Determine backend type
+        if isinstance(backend, PostgresBackend):
+            backend_type = "postgresql"
+        elif isinstance(backend, SQLiteBackend):
+            backend_type = "sqlite"
+        else:
+            backend_type = "unknown"
+
         # Get migration status
         migration_status = get_migration_status(backend)
 
         return {
             "status": "healthy",
             "database": "connected",
+            "backend": backend_type,
             "migrations": migration_status,
             "timestamp": datetime.now().isoformat(),
         }

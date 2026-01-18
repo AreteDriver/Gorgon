@@ -38,6 +38,9 @@ class Settings(BaseSettings):
     app_name: str = Field("Gorgon", description="Application name")
     debug: bool = Field(False, description="Debug mode")
     log_level: str = Field("INFO", description="Logging level")
+    log_format: str = Field(
+        "text", description="Log format: 'text' or 'json'"
+    )
 
     # Paths
     base_dir: Path = Field(

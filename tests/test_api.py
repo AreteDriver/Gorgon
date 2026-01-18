@@ -103,6 +103,7 @@ class TestHealthEndpoint:
         data = response.json()
         assert data["status"] == "healthy"
         assert data["database"] == "connected"
+        assert data["backend"] == "sqlite"
         assert "migrations" in data
         assert "timestamp" in data
 
