@@ -84,4 +84,6 @@ jobs:
       - name: Run tests with PostgreSQL
         env:
           DATABASE_URL: postgresql://gorgon:gorgon_test@localhost:5432/gorgon_test
+          OPENAI_API_KEY: test-key-for-ci
+          ANTHROPIC_API_KEY: test-key-for-ci
         run: pytest tests/test_database.py tests/test_job_manager.py tests/test_schedule_manager.py tests/test_webhook_manager.py -v
