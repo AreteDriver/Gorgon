@@ -1,7 +1,6 @@
 """Settings and configuration management."""
 
 import logging
-import os
 import secrets
 import warnings
 from functools import lru_cache
