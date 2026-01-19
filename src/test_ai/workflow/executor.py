@@ -434,8 +434,19 @@ class WorkflowExecutor:
                 stage_name = f"{parent_step_id}.{sub_step.id}"
                 output = None
                 error_msg = None
+                tokens_used = 0
 
                 try:
+                    # Check budget before execution if configured
+                    estimated_tokens = sub_step.params.get("estimated_tokens", 1000)
+                    if self.budget_manager:
+                        if not self.budget_manager.can_allocate(
+                            estimated_tokens, agent_id=stage_name
+                        ):
+                            raise RuntimeError(
+                                f"Budget exceeded for sub-step '{sub_step.id}'"
+                            )
+
                     # Get current context snapshot plus any updates from completed deps
                     step_context = context.copy()
                     step_context.update(context_updates)
@@ -449,8 +460,8 @@ class WorkflowExecutor:
                     output = step_handler(sub_step, step_context)
 
                     # Track tokens
-                    tokens = output.get("tokens_used", 0)
-                    total_tokens += tokens
+                    tokens_used = output.get("tokens_used", 0)
+                    total_tokens += tokens_used
 
                     # Store outputs in context updates for dependent steps
                     for output_key in sub_step.outputs:
@@ -464,11 +475,24 @@ class WorkflowExecutor:
                     raise
 
                 finally:
+                    duration_ms = int((time.time() - start_time) * 1000)
+
+                    # Record budget usage for sub-step (thread-safe)
+                    if self.budget_manager and tokens_used > 0:
+                        self.budget_manager.record_usage(
+                            agent_id=stage_name,
+                            tokens=tokens_used,
+                            operation=f"parallel:{sub_step.type}",
+                            metadata={
+                                "parent_step": parent_step_id,
+                                "sub_step": sub_step.id,
+                                "step_type": sub_step.type,
+                                "duration_ms": duration_ms,
+                            },
+                        )
+
                     # Checkpoint the sub-step (thread-safe via checkpoint_now)
                     if self.checkpoint_manager and self._current_workflow_id:
-                        duration_ms = int((time.time() - start_time) * 1000)
-                        tokens_used = output.get("tokens_used", 0) if output else 0
-
                         self.checkpoint_manager.checkpoint_now(
                             stage=stage_name,
                             status="success" if error_msg is None else "failed",

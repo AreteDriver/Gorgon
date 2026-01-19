@@ -11,6 +11,7 @@ sys.path.insert(0, "src")
 
 from test_ai.workflow import WorkflowConfig, StepConfig, WorkflowExecutor
 from test_ai.state import CheckpointManager
+from test_ai.budget import BudgetManager, BudgetConfig
 
 
 class TestStepConfigDependsOn:
@@ -897,3 +898,247 @@ class TestExecutorParallelCheckpoints:
         assert result.status == "success"
         # Workflow ID should be cleared
         assert executor._current_workflow_id is None
+
+
+class TestExecutorParallelBudget:
+    """Tests for budget tracking in parallel execution."""
+
+    def test_budget_tracked_per_substep(self):
+        """Each parallel sub-step records usage in budget manager."""
+        budget_manager = BudgetManager(BudgetConfig(total_budget=100000))
+
+        workflow = WorkflowConfig(
+            name="Budget Track Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "claude1",
+                                "type": "claude_code",
+                                "params": {"role": "planner", "prompt": "test1"},
+                            },
+                            {
+                                "id": "claude2",
+                                "type": "claude_code",
+                                "params": {"role": "builder", "prompt": "test2"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor(budget_manager=budget_manager, dry_run=True)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+
+        # Check budget was tracked per sub-step
+        stats = budget_manager.get_stats()
+        agents = stats["agents"]
+
+        # Should have compound agent IDs
+        assert "parallel_step.claude1" in agents
+        assert "parallel_step.claude2" in agents
+
+        # Each should have recorded usage
+        assert agents["parallel_step.claude1"]["used"] >= 1000
+        assert agents["parallel_step.claude2"]["used"] >= 1000
+
+    def test_budget_usage_records_metadata(self):
+        """Budget usage records include metadata about the step."""
+        budget_manager = BudgetManager(BudgetConfig(total_budget=100000))
+
+        workflow = WorkflowConfig(
+            name="Metadata Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "task1",
+                                "type": "claude_code",
+                                "params": {"role": "planner", "prompt": "test"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor(budget_manager=budget_manager, dry_run=True)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+
+        # Check usage history has metadata
+        history = budget_manager.get_usage_history(agent_id="parallel_step.task1")
+        assert len(history) >= 1
+
+        record = history[0]
+        assert record.metadata["parent_step"] == "parallel_step"
+        assert record.metadata["sub_step"] == "task1"
+        assert record.metadata["step_type"] == "claude_code"
+        assert "duration_ms" in record.metadata
+
+    def test_budget_exceeded_fails_substep(self):
+        """Sub-step fails when its estimated_tokens exceeds remaining budget."""
+        # Create budget manager with limited budget - enough for parent step check
+        # but not enough for sub-step with high estimated_tokens
+        budget_manager = BudgetManager(
+            BudgetConfig(total_budget=2000, reserve_tokens=0)
+        )
+
+        workflow = WorkflowConfig(
+            name="Budget Exceeded Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        # Low estimate for parent step check (default 1000)
+                        "estimated_tokens": 500,
+                        "steps": [
+                            {
+                                "id": "big_task",
+                                "type": "claude_code",
+                                "params": {
+                                    "role": "planner",
+                                    "prompt": "test",
+                                    # High estimate triggers budget check failure
+                                    "estimated_tokens": 5000,
+                                },
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor(budget_manager=budget_manager, dry_run=True)
+        result = executor.execute(workflow)
+
+        # Parallel step succeeds (fail_fast=False), but sub-step recorded failure
+        assert result.status == "success"
+        parallel_results = result.steps[0].output["parallel_results"]
+        assert "error" in parallel_results["big_task"]
+        assert "Budget exceeded" in parallel_results["big_task"]["error"]
+
+    def test_budget_total_aggregated(self):
+        """Total budget usage is aggregated from all sub-steps."""
+        budget_manager = BudgetManager(BudgetConfig(total_budget=100000))
+
+        workflow = WorkflowConfig(
+            name="Aggregate Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "task1",
+                                "type": "claude_code",
+                                "params": {"role": "planner", "prompt": "test1"},
+                            },
+                            {
+                                "id": "task2",
+                                "type": "claude_code",
+                                "params": {"role": "builder", "prompt": "test2"},
+                            },
+                            {
+                                "id": "task3",
+                                "type": "claude_code",
+                                "params": {"role": "reviewer", "prompt": "test3"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor(budget_manager=budget_manager, dry_run=True)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+
+        # Total should be sum of all sub-steps
+        stats = budget_manager.get_stats()
+        assert stats["used"] >= 3000  # At least 3 * 1000 tokens
+
+    def test_no_budget_tracking_without_manager(self):
+        """Works fine without budget manager configured."""
+        workflow = WorkflowConfig(
+            name="No Budget Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "task",
+                                "type": "shell",
+                                "params": {"command": "echo test"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        # No budget_manager
+        executor = WorkflowExecutor()
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+
+    def test_budget_with_dependencies(self):
+        """Budget tracking works with dependent sub-steps."""
+        budget_manager = BudgetManager(BudgetConfig(total_budget=100000))
+
+        workflow = WorkflowConfig(
+            name="Dependency Budget Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "first",
+                                "type": "claude_code",
+                                "params": {"role": "planner", "prompt": "plan"},
+                            },
+                            {
+                                "id": "second",
+                                "type": "claude_code",
+                                "params": {"role": "builder", "prompt": "build"},
+                                "depends_on": ["first"],
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor(budget_manager=budget_manager, dry_run=True)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+
+        # Both should be tracked
+        stats = budget_manager.get_stats()
+        assert "parallel_step.first" in stats["agents"]
+        assert "parallel_step.second" in stats["agents"]
