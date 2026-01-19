@@ -1,9 +1,6 @@
 """Tests for api_errors module - structured API error responses."""
 
-import pytest
-from fastapi import Request
 from fastapi.responses import JSONResponse
-from unittest.mock import MagicMock
 
 from test_ai.api_errors import (
     ErrorDetail,
@@ -11,7 +8,6 @@ from test_ai.api_errors import (
     ValidationErrorItem,
     ValidationErrorResponse,
     RateLimitErrorResponse,
-    ERROR_STATUS_MAP,
     get_status_code,
     gorgon_error_to_response,
     http_error_to_gorgon,

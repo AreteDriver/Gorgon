@@ -1,7 +1,6 @@
 """Tests for execution tracker module."""
 
 import pytest
-from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 from test_ai.monitoring.tracker import (
@@ -191,7 +190,7 @@ class TestTrackStep:
 
     def test_track_step_starts_step(self, tracker, mock_metrics_store):
         """Test track_step calls start_step."""
-        with tracker.track_workflow("wf1", "Workflow 1") as exec_id:
+        with tracker.track_workflow("wf1", "Workflow 1"):
             with tracker.track_step("step1", "transform", "format"):
                 pass
         mock_metrics_store.start_step.assert_called()

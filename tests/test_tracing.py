@@ -1,8 +1,6 @@
 """Tests for distributed tracing module."""
 
 import pytest
-from unittest.mock import MagicMock, AsyncMock, patch
-from datetime import datetime, timezone
 
 from test_ai.tracing.context import (
     Span,
@@ -26,7 +24,6 @@ from test_ai.tracing.propagation import (
     inject_trace_headers,
     add_gorgon_tracestate,
     parse_gorgon_tracestate,
-    PropagatedContext,
     TRACEPARENT_HEADER,
     TRACESTATE_HEADER,
 )
@@ -321,7 +318,7 @@ class TestContextVariables:
     def test_trace_context_manager_with_error(self):
         """Test trace context manager handles errors."""
         with pytest.raises(ValueError):
-            with trace_context("test") as trace:
+            with trace_context("test"):
                 raise ValueError("Test error")
 
         # Trace should still be ended
@@ -629,10 +626,8 @@ class TestTracingIntegration:
 
     def test_error_handling_in_spans(self):
         """Test that errors are properly recorded."""
-        trace = None
-
         with pytest.raises(RuntimeError):
-            with trace_context("error-test") as trace:
+            with trace_context("error-test"):
                 with span_context("failing-operation"):
                     raise RuntimeError("Test error")
 

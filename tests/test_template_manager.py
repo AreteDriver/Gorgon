@@ -2,7 +2,6 @@
 
 import json
 import pytest
-from pathlib import Path
 from unittest.mock import patch, MagicMock
 
 from pydantic import ValidationError as PydanticValidationError
@@ -333,7 +332,7 @@ class TestPromptTemplateManagerInit:
         templates_dir = tmp_path / "new_templates"
         with patch("test_ai.prompts.template_manager.get_settings") as mock_settings:
             mock_settings.return_value.prompts_dir = templates_dir
-            manager = PromptTemplateManager()
+            _manager = PromptTemplateManager()
             assert templates_dir.exists()
 
     def test_init_uses_existing_directory(self, temp_templates_dir):

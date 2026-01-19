@@ -3,8 +3,7 @@
 import json
 import pytest
 from datetime import datetime, timezone, timedelta
-from pathlib import Path
-from unittest.mock import MagicMock, patch, PropertyMock
+from unittest.mock import MagicMock, patch
 
 from test_ai.workflow.scheduler import (
     ScheduleStatus,

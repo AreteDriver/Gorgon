@@ -6,7 +6,6 @@ import time
 import pytest
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch, MagicMock
 
 from test_ai.monitoring.metrics import StepMetrics, WorkflowMetrics, MetricsStore
 
