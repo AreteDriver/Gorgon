@@ -81,7 +81,9 @@ class ValidationErrorItem(BaseModel):
 
     field: str = Field(..., description="Field that failed validation")
     message: str = Field(..., description="Validation error message")
-    value: Optional[Any] = Field(None, description="The invalid value (if safe to show)")
+    value: Optional[Any] = Field(
+        None, description="The invalid value (if safe to show)"
+    )
 
 
 class ValidationErrorResponse(BaseModel):
@@ -363,7 +365,11 @@ def responses(*status_codes: int) -> dict:
         @router.get("/items/{id}", responses=responses(404, 500))
         def get_item(id: str): ...
     """
-    return {code: COMMON_RESPONSES[code] for code in status_codes if code in COMMON_RESPONSES}
+    return {
+        code: COMMON_RESPONSES[code]
+        for code in status_codes
+        if code in COMMON_RESPONSES
+    }
 
 
 # Convenience response sets

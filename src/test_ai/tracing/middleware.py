@@ -58,7 +58,11 @@ class TracingMiddleware(BaseHTTPMiddleware):
         """
         super().__init__(app)
         self.service_name = service_name
-        self.exclude_paths = exclude_paths or ["/health", "/health/live", "/health/ready"]
+        self.exclude_paths = exclude_paths or [
+            "/health",
+            "/health/live",
+            "/health/ready",
+        ]
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Process request with tracing."""
@@ -163,6 +167,7 @@ def trace_workflow_step(step_id: str, step_type: str, action: str):
         def execute_step(...):
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         def wrapper(*args, **kwargs):
             trace = get_current_trace()
@@ -187,6 +192,7 @@ def trace_workflow_step(step_id: str, step_type: str, action: str):
                 raise
 
         return wrapper
+
     return decorator
 
 
@@ -198,6 +204,7 @@ async def trace_async_workflow_step(step_id: str, step_type: str, action: str):
         async def execute_step(...):
             ...
     """
+
     def decorator(func: Callable) -> Callable:
         async def wrapper(*args, **kwargs):
             trace = get_current_trace()
@@ -222,4 +229,5 @@ async def trace_async_workflow_step(step_id: str, step_type: str, action: str):
                 raise
 
         return wrapper
+
     return decorator

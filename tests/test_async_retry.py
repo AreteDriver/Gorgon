@@ -88,7 +88,9 @@ class TestAsyncWithRetry:
         class CustomError(Exception):
             pass
 
-        @async_with_retry(max_retries=2, base_delay=0.01, retryable_exceptions=(CustomError,))
+        @async_with_retry(
+            max_retries=2, base_delay=0.01, retryable_exceptions=(CustomError,)
+        )
         async def raises_custom_error():
             nonlocal call_count
             call_count += 1
@@ -170,7 +172,9 @@ class TestAsyncRetryContext:
     @pytest.mark.asyncio
     async def test_max_retries_raises(self):
         """Should raise MaxRetriesError when exhausted."""
-        async with AsyncRetryContext(max_retries=2, base_delay=0.01, operation_name="test_op") as retry:
+        async with AsyncRetryContext(
+            max_retries=2, base_delay=0.01, operation_name="test_op"
+        ) as retry:
             with pytest.raises(MaxRetriesError) as exc_info:
                 for attempt in retry:
                     try:
@@ -197,7 +201,9 @@ class TestRetryConfig:
 
     def test_exponential_backoff(self):
         """Delay should increase exponentially."""
-        config = RetryConfig(base_delay=1.0, exponential_base=2.0, max_delay=100.0, jitter=False)
+        config = RetryConfig(
+            base_delay=1.0, exponential_base=2.0, max_delay=100.0, jitter=False
+        )
 
         assert config.calculate_delay(0) == 1.0
         assert config.calculate_delay(1) == 2.0
@@ -206,13 +212,17 @@ class TestRetryConfig:
 
     def test_max_delay_cap(self):
         """Delay should not exceed max_delay."""
-        config = RetryConfig(base_delay=1.0, exponential_base=2.0, max_delay=5.0, jitter=False)
+        config = RetryConfig(
+            base_delay=1.0, exponential_base=2.0, max_delay=5.0, jitter=False
+        )
 
         assert config.calculate_delay(10) == 5.0  # Capped at max
 
     def test_jitter_adds_randomness(self):
         """Jitter should add randomness to delay."""
-        config = RetryConfig(base_delay=1.0, exponential_base=2.0, max_delay=100.0, jitter=True)
+        config = RetryConfig(
+            base_delay=1.0, exponential_base=2.0, max_delay=100.0, jitter=True
+        )
 
         # With jitter, delays should vary
         delays = [config.calculate_delay(1) for _ in range(10)]
@@ -228,7 +238,9 @@ class TestAsyncRetryWithMockedSleep:
     @pytest.mark.asyncio
     async def test_uses_asyncio_sleep(self):
         """Should use asyncio.sleep for delays."""
-        with patch("test_ai.utils.retry.asyncio.sleep", new_callable=AsyncMock) as mock_sleep:
+        with patch(
+            "test_ai.utils.retry.asyncio.sleep", new_callable=AsyncMock
+        ) as mock_sleep:
             call_count = 0
 
             @async_with_retry(max_retries=2, base_delay=1.0, jitter=False)

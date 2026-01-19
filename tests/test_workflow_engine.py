@@ -41,13 +41,17 @@ def mock_settings(temp_dirs):
 @pytest.fixture
 def workflow_engine(mock_settings):
     """Create workflow engine with mocked clients."""
-    with patch("test_ai.orchestrator.workflow_engine.get_settings") as mock_get_settings:
+    with patch(
+        "test_ai.orchestrator.workflow_engine.get_settings"
+    ) as mock_get_settings:
         mock_get_settings.return_value = mock_settings
         with patch("test_ai.orchestrator.workflow_engine.OpenAIClient"):
             with patch("test_ai.orchestrator.workflow_engine.GitHubClient"):
                 with patch("test_ai.orchestrator.workflow_engine.NotionClientWrapper"):
                     with patch("test_ai.orchestrator.workflow_engine.GmailClient"):
-                        with patch("test_ai.orchestrator.workflow_engine.ClaudeCodeClient"):
+                        with patch(
+                            "test_ai.orchestrator.workflow_engine.ClaudeCodeClient"
+                        ):
                             engine = WorkflowEngine()
                             yield engine
 
@@ -403,7 +407,9 @@ class TestStepExecution:
 
     def test_execute_openai_generate(self, workflow_engine):
         """Test OpenAI generate_completion step."""
-        workflow_engine.openai_client.generate_completion.return_value = "Generated text"
+        workflow_engine.openai_client.generate_completion.return_value = (
+            "Generated text"
+        )
         step = WorkflowStep(
             id="test",
             type=StepType.OPENAI,
@@ -473,7 +479,9 @@ class TestStepExecution:
 
     def test_execute_github_list_repos(self, workflow_engine):
         """Test GitHub list_repositories step."""
-        workflow_engine.github_client.list_repositories.return_value = [{"name": "repo1"}]
+        workflow_engine.github_client.list_repositories.return_value = [
+            {"name": "repo1"}
+        ]
         step = WorkflowStep(
             id="test",
             type=StepType.GITHUB,
@@ -552,7 +560,10 @@ class TestStepExecution:
 
     def test_execute_gmail_get_message(self, workflow_engine):
         """Test Gmail get_message step."""
-        workflow_engine.gmail_client.get_message.return_value = {"id": "msg-1", "body": "content"}
+        workflow_engine.gmail_client.get_message.return_value = {
+            "id": "msg-1",
+            "body": "content",
+        }
         step = WorkflowStep(
             id="test",
             type=StepType.GMAIL,
@@ -574,7 +585,9 @@ class TestStepExecution:
 
     def test_execute_claude_code_agent(self, workflow_engine):
         """Test Claude Code execute_agent step."""
-        workflow_engine.claude_code_client.execute_agent.return_value = {"response": "Done"}
+        workflow_engine.claude_code_client.execute_agent.return_value = {
+            "response": "Done"
+        }
         step = WorkflowStep(
             id="test",
             type=StepType.CLAUDE_CODE,
@@ -586,7 +599,9 @@ class TestStepExecution:
 
     def test_execute_claude_code_completion(self, workflow_engine):
         """Test Claude Code generate_completion step."""
-        workflow_engine.claude_code_client.generate_completion.return_value = "Generated"
+        workflow_engine.claude_code_client.generate_completion.return_value = (
+            "Generated"
+        )
         step = WorkflowStep(
             id="test",
             type=StepType.CLAUDE_CODE,
@@ -598,7 +613,9 @@ class TestStepExecution:
 
     def test_execute_claude_code_cli(self, workflow_engine):
         """Test Claude Code execute_cli step."""
-        workflow_engine.claude_code_client.execute_cli_command.return_value = "CLI output"
+        workflow_engine.claude_code_client.execute_cli_command.return_value = (
+            "CLI output"
+        )
         step = WorkflowStep(
             id="test",
             type=StepType.CLAUDE_CODE,
@@ -749,7 +766,9 @@ class TestWorkflowPersistence:
         file_path = mock_settings.workflows_dir / f"{simple_workflow.id}.json"
         assert file_path.exists()
 
-    def test_save_workflow_creates_valid_json(self, workflow_engine, simple_workflow, mock_settings):
+    def test_save_workflow_creates_valid_json(
+        self, workflow_engine, simple_workflow, mock_settings
+    ):
         """Test saved workflow is valid JSON."""
         workflow_engine.save_workflow(simple_workflow)
         file_path = mock_settings.workflows_dir / f"{simple_workflow.id}.json"

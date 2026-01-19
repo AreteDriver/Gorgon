@@ -165,7 +165,9 @@ def async_cached(
             return result
 
         # Add cache control methods
-        wrapper.cache_clear = lambda: asyncio.create_task(_async_clear_prefix(prefix or func.__name__))
+        wrapper.cache_clear = lambda: asyncio.create_task(
+            _async_clear_prefix(prefix or func.__name__)
+        )
 
         def _get_cache_key(*a, **kw):
             if key_builder:

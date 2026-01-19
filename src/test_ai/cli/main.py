@@ -676,13 +676,22 @@ def completion(
         try:
             # Typer installs completion via --install-completion
             result = subprocess.run(
-                [sys.executable, "-m", "typer", "gorgon", "--install-completion", shell],
+                [
+                    sys.executable,
+                    "-m",
+                    "typer",
+                    "gorgon",
+                    "--install-completion",
+                    shell,
+                ],
                 capture_output=True,
                 text=True,
             )
             if result.returncode == 0:
                 console.print(f"[green]Completion installed for {shell}![/green]")
-                console.print("[dim]Restart your shell or source your config file.[/dim]")
+                console.print(
+                    "[dim]Restart your shell or source your config file.[/dim]"
+                )
             else:
                 # Fall back to manual instructions
                 _show_completion_instructions(shell)
@@ -695,35 +704,37 @@ def completion(
 def _show_completion_instructions(shell: str):
     """Show manual completion installation instructions."""
     instructions = {
-        "bash": '''
+        "bash": """
 # Add to ~/.bashrc:
 eval "$(_GORGON_COMPLETE=bash_source gorgon)"
 
 # Or generate and source a file:
 _GORGON_COMPLETE=bash_source gorgon > ~/.gorgon-complete.bash
 echo 'source ~/.gorgon-complete.bash' >> ~/.bashrc
-''',
-        "zsh": '''
+""",
+        "zsh": """
 # Add to ~/.zshrc:
 eval "$(_GORGON_COMPLETE=zsh_source gorgon)"
 
 # Or for faster startup, add to ~/.zshrc:
 autoload -Uz compinit && compinit
 eval "$(_GORGON_COMPLETE=zsh_source gorgon)"
-''',
-        "fish": '''
+""",
+        "fish": """
 # Add to ~/.config/fish/completions/gorgon.fish:
 _GORGON_COMPLETE=fish_source gorgon > ~/.config/fish/completions/gorgon.fish
-''',
+""",
     }
 
-    console.print(Panel(
-        f"[bold]Shell Completion Setup for {shell.upper()}[/bold]\n\n"
-        f"{instructions.get(shell, instructions['bash'])}\n"
-        "[dim]After adding, restart your shell or source the config file.[/dim]",
-        title="Installation Instructions",
-        border_style="cyan",
-    ))
+    console.print(
+        Panel(
+            f"[bold]Shell Completion Setup for {shell.upper()}[/bold]\n\n"
+            f"{instructions.get(shell, instructions['bash'])}\n"
+            "[dim]After adding, restart your shell or source the config file.[/dim]",
+            title="Installation Instructions",
+            border_style="cyan",
+        )
+    )
 
 
 # =============================================================================

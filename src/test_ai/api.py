@@ -329,7 +329,9 @@ class WorkflowExecuteRequest(BaseModel):
 def verify_auth(authorization: Optional[str] = Header(None)) -> str:
     """Verify authentication token."""
     if not authorization or not authorization.startswith("Bearer "):
-        raise unauthorized("Authentication required. Provide Bearer token in Authorization header.")
+        raise unauthorized(
+            "Authentication required. Provide Bearer token in Authorization header."
+        )
 
     token = authorization.split(" ")[1]
     user_id = verify_token(token)
@@ -517,7 +519,9 @@ def update_schedule(
     verify_auth(authorization)
 
     if schedule.id != schedule_id:
-        raise bad_request("Schedule ID mismatch", {"expected": schedule_id, "got": schedule.id})
+        raise bad_request(
+            "Schedule ID mismatch", {"expected": schedule_id, "got": schedule.id}
+        )
 
     try:
         if schedule_manager.update_schedule(schedule):
@@ -636,7 +640,9 @@ def update_webhook(
     verify_auth(authorization)
 
     if webhook.id != webhook_id:
-        raise bad_request("Webhook ID mismatch", {"expected": webhook_id, "got": webhook.id})
+        raise bad_request(
+            "Webhook ID mismatch", {"expected": webhook_id, "got": webhook.id}
+        )
 
     try:
         if webhook_manager.update_webhook(webhook):
@@ -770,7 +776,10 @@ def list_jobs(
         try:
             status_filter = JobStatus(status)
         except ValueError:
-            raise bad_request(f"Invalid status: {status}", {"valid_statuses": [s.value for s in JobStatus]})
+            raise bad_request(
+                f"Invalid status: {status}",
+                {"valid_statuses": [s.value for s in JobStatus]},
+            )
 
     jobs = job_manager.list_jobs(
         status=status_filter, workflow_id=workflow_id, limit=limit
@@ -827,7 +836,9 @@ def delete_job(job_id: str, authorization: Optional[str] = Header(None)):
     if not job:
         raise not_found("Job", job_id)
 
-    raise bad_request("Cannot delete running job", {"job_id": job_id, "status": job.status.value})
+    raise bad_request(
+        "Cannot delete running job", {"job_id": job_id, "status": job.status.value}
+    )
 
 
 @v1_router.post("/jobs/cleanup")

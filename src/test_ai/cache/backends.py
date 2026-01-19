@@ -45,9 +45,7 @@ class Cache(ABC):
         pass
 
     @abstractmethod
-    async def set(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Set value in cache with optional TTL in seconds."""
         pass
 
@@ -72,9 +70,7 @@ class Cache(ABC):
         pass
 
     @abstractmethod
-    def set_sync(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    def set_sync(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Synchronous set for non-async contexts."""
         pass
 
@@ -127,15 +123,11 @@ class MemoryCache(Cache):
             self._stats.hits += 1
             return entry.value
 
-    async def set(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Set value in cache."""
         self.set_sync(key, value, ttl)
 
-    def set_sync(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    def set_sync(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Synchronous set."""
         self._maybe_cleanup()
 
@@ -184,9 +176,7 @@ class MemoryCache(Cache):
     def _cleanup_expired(self) -> None:
         """Remove all expired entries."""
         with self._lock:
-            expired_keys = [
-                k for k, v in self._cache.items() if v.is_expired()
-            ]
+            expired_keys = [k for k, v in self._cache.items() if v.is_expired()]
             for key in expired_keys:
                 del self._cache[key]
 
@@ -235,6 +225,7 @@ class RedisCache(Cache):
         if self._client is None:
             try:
                 import redis
+
                 self._client = redis.from_url(self._url)
             except ImportError:
                 raise ImportError(
@@ -247,6 +238,7 @@ class RedisCache(Cache):
         if self._async_client is None:
             try:
                 import redis.asyncio as aioredis
+
                 self._async_client = await aioredis.from_url(self._url)
             except ImportError:
                 raise ImportError(
@@ -280,9 +272,7 @@ class RedisCache(Cache):
         except json.JSONDecodeError:
             return data.decode() if isinstance(data, bytes) else data
 
-    async def set(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    async def set(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Set value in Redis."""
         client = await self._get_async_client()
         ttl = ttl if ttl is not None else self._default_ttl
@@ -298,9 +288,7 @@ class RedisCache(Cache):
         else:
             await client.set(self._make_key(key), data)
 
-    def set_sync(
-        self, key: str, value: Any, ttl: Optional[int] = None
-    ) -> None:
+    def set_sync(self, key: str, value: Any, ttl: Optional[int] = None) -> None:
         """Synchronous set."""
         client = self._get_client()
         ttl = ttl if ttl is not None else self._default_ttl
@@ -409,14 +397,18 @@ def make_cache_key(*args, **kwargs) -> str:
             key_parts.append(str(arg))
         else:
             # Hash complex objects
-            key_parts.append(hashlib.md5(
-                json.dumps(arg, sort_keys=True, default=str).encode()
-            ).hexdigest()[:8])
+            key_parts.append(
+                hashlib.md5(
+                    json.dumps(arg, sort_keys=True, default=str).encode()
+                ).hexdigest()[:8]
+            )
 
     for k, v in sorted(kwargs.items()):
         if isinstance(v, (str, int, float, bool)):
             key_parts.append(f"{k}={v}")
         else:
-            key_parts.append(f"{k}={hashlib.md5(json.dumps(v, sort_keys=True, default=str).encode()).hexdigest()[:8]}")
+            key_parts.append(
+                f"{k}={hashlib.md5(json.dumps(v, sort_keys=True, default=str).encode()).hexdigest()[:8]}"
+            )
 
     return ":".join(key_parts)

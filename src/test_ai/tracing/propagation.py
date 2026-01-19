@@ -209,7 +209,9 @@ def add_gorgon_tracestate(
 
     # Prepend to existing (most recent first per spec)
     # Remove any existing gorgon entry
-    parts = [p.strip() for p in existing.split(",") if not p.strip().startswith("gorgon=")]
+    parts = [
+        p.strip() for p in existing.split(",") if not p.strip().startswith("gorgon=")
+    ]
     parts.insert(0, gorgon_entry)
 
     return ",".join(parts)

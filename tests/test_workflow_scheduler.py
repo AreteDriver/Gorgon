@@ -450,7 +450,9 @@ class TestWorkflowSchedulerAddRemove:
             scheduler.add(config)
 
     @patch("test_ai.workflow.scheduler.load_workflow")
-    def test_add_registers_job_when_running(self, mock_load, scheduler, schedule_config):
+    def test_add_registers_job_when_running(
+        self, mock_load, scheduler, schedule_config
+    ):
         """Test add registers job when scheduler is running."""
         mock_load.return_value = MagicMock()
         scheduler._running = True
@@ -516,16 +518,20 @@ class TestWorkflowSchedulerGetList:
         """Test listing all schedules."""
         mock_load.return_value = MagicMock()
 
-        scheduler.add(ScheduleConfig(
-            id="sched1",
-            workflow_path="test.yaml",
-            cron="0 * * * *",
-        ))
-        scheduler.add(ScheduleConfig(
-            id="sched2",
-            workflow_path="test.yaml",
-            interval_seconds=60,
-        ))
+        scheduler.add(
+            ScheduleConfig(
+                id="sched1",
+                workflow_path="test.yaml",
+                cron="0 * * * *",
+            )
+        )
+        scheduler.add(
+            ScheduleConfig(
+                id="sched2",
+                workflow_path="test.yaml",
+                interval_seconds=60,
+            )
+        )
 
         result = scheduler.list()
 
@@ -580,7 +586,9 @@ class TestWorkflowSchedulerPauseResume:
         scheduler._scheduler.resume_job.assert_called_with("wf_test-schedule")
 
     @patch("test_ai.workflow.scheduler.load_workflow")
-    def test_resume_registers_job_if_missing(self, mock_load, scheduler, schedule_config):
+    def test_resume_registers_job_if_missing(
+        self, mock_load, scheduler, schedule_config
+    ):
         """Test resume registers job if not in scheduler."""
         mock_load.return_value = MagicMock()
         scheduler.add(schedule_config)
@@ -608,7 +616,9 @@ class TestWorkflowSchedulerTrigger:
 
     @patch("test_ai.workflow.scheduler.load_workflow")
     @patch("test_ai.workflow.scheduler.WorkflowExecutor")
-    def test_trigger_schedule(self, mock_executor_class, mock_load, scheduler, schedule_config):
+    def test_trigger_schedule(
+        self, mock_executor_class, mock_load, scheduler, schedule_config
+    ):
         """Test manually triggering a schedule."""
         mock_load.return_value = MagicMock(steps=[])
         mock_executor = MagicMock()
@@ -641,7 +651,9 @@ class TestWorkflowSchedulerExecution:
 
     @patch("test_ai.workflow.scheduler.load_workflow")
     @patch("test_ai.workflow.scheduler.WorkflowExecutor")
-    def test_execute_success(self, mock_executor_class, mock_load, scheduler, schedule_config):
+    def test_execute_success(
+        self, mock_executor_class, mock_load, scheduler, schedule_config
+    ):
         """Test successful execution."""
         mock_workflow = MagicMock()
         mock_workflow.steps = [MagicMock(), MagicMock()]
@@ -670,7 +682,9 @@ class TestWorkflowSchedulerExecution:
 
     @patch("test_ai.workflow.scheduler.load_workflow")
     @patch("test_ai.workflow.scheduler.WorkflowExecutor")
-    def test_execute_failure(self, mock_executor_class, mock_load, scheduler, schedule_config):
+    def test_execute_failure(
+        self, mock_executor_class, mock_load, scheduler, schedule_config
+    ):
         """Test execution with error."""
         mock_load.side_effect = Exception("Workflow load failed")
 
@@ -684,7 +698,9 @@ class TestWorkflowSchedulerExecution:
 
     @patch("test_ai.workflow.scheduler.load_workflow")
     @patch("test_ai.workflow.scheduler.WorkflowExecutor")
-    def test_execute_calls_callback(self, mock_executor_class, mock_load, scheduler, schedule_config):
+    def test_execute_calls_callback(
+        self, mock_executor_class, mock_load, scheduler, schedule_config
+    ):
         """Test execution calls callback."""
         mock_load.return_value = MagicMock(steps=[])
         mock_executor = MagicMock()
@@ -704,7 +720,9 @@ class TestWorkflowSchedulerExecution:
 
     @patch("test_ai.workflow.scheduler.load_workflow")
     @patch("test_ai.workflow.scheduler.WorkflowExecutor")
-    def test_execute_saves_log(self, mock_executor_class, mock_load, scheduler, schedule_config):
+    def test_execute_saves_log(
+        self, mock_executor_class, mock_load, scheduler, schedule_config
+    ):
         """Test execution saves log file."""
         mock_load.return_value = MagicMock(steps=[])
         mock_executor = MagicMock()
@@ -818,7 +836,9 @@ class TestWorkflowSchedulerJobRegistration:
         assert call_kwargs[1]["id"] == "wf_test-schedule"
 
     @patch("test_ai.workflow.scheduler.load_workflow")
-    def test_register_interval_job(self, mock_load, scheduler, interval_schedule_config):
+    def test_register_interval_job(
+        self, mock_load, scheduler, interval_schedule_config
+    ):
         """Test registering an interval job."""
         mock_load.return_value = MagicMock()
         # No existing job
@@ -874,8 +894,12 @@ class TestWorkflowSchedulerPersistence:
     def test_load_schedules(self, scheduler, temp_data_dir):
         """Test loading schedules from disk."""
         # Create schedule files
-        config1 = ScheduleConfig(id="sched1", workflow_path="test.yaml", cron="0 * * * *")
-        config2 = ScheduleConfig(id="sched2", workflow_path="test.yaml", interval_seconds=60)
+        config1 = ScheduleConfig(
+            id="sched1", workflow_path="test.yaml", cron="0 * * * *"
+        )
+        config2 = ScheduleConfig(
+            id="sched2", workflow_path="test.yaml", interval_seconds=60
+        )
 
         with open(temp_data_dir / "sched1.json", "w") as f:
             json.dump(config1.to_dict(), f)

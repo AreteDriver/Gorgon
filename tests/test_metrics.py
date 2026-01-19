@@ -403,9 +403,7 @@ class TestMetricsStoreInit:
     def test_db_tables_created(self, metrics_store_with_db):
         """Test that database tables are created."""
         conn = sqlite3.connect(metrics_store_with_db._db_path)
-        cursor = conn.execute(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )
+        cursor = conn.execute("SELECT name FROM sqlite_master WHERE type='table'")
         tables = {row[0] for row in cursor.fetchall()}
         conn.close()
 
@@ -819,7 +817,9 @@ class TestMetricsStoreThreadSafety:
                         started_at=datetime.now(timezone.utc),
                     )
                     metrics_store.start_workflow(wf)
-                    metrics_store.complete_workflow(f"exec_{worker_id}_{i}", "completed")
+                    metrics_store.complete_workflow(
+                        f"exec_{worker_id}_{i}", "completed"
+                    )
             except Exception as e:
                 errors.append(e)
 
@@ -906,9 +906,7 @@ class TestMetricsIntegration:
             started_at=datetime.now(timezone.utc),
         )
         metrics_store.start_step("exec_mixed", step2)
-        metrics_store.complete_step(
-            "exec_mixed", "step_2", "failed", error="API error"
-        )
+        metrics_store.complete_step("exec_mixed", "step_2", "failed", error="API error")
 
         metrics_store.complete_workflow("exec_mixed", "failed", error="Step failed")
 

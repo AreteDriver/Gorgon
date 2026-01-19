@@ -62,7 +62,10 @@ class TestNotionClientWrapper:
                     "created_time": "2024-01-01T00:00:00.000Z",
                     "last_edited_time": "2024-01-02T00:00:00.000Z",
                     "properties": {
-                        "Name": {"type": "title", "title": [{"text": {"content": "Test Page"}}]},
+                        "Name": {
+                            "type": "title",
+                            "title": [{"text": {"content": "Test Page"}}],
+                        },
                         "Status": {"type": "select", "select": {"name": "Done"}},
                     },
                 }
@@ -192,9 +195,7 @@ class TestNotionClientWrapper:
                     "id": "block-2",
                     "type": "heading_1",
                     "has_children": False,
-                    "heading_1": {
-                        "rich_text": [{"text": {"content": "Main Heading"}}]
-                    },
+                    "heading_1": {"rich_text": [{"text": {"content": "Main Heading"}}]},
                 },
                 {
                     "id": "block-3",
@@ -347,26 +348,55 @@ class TestNotionClientWrapper:
         assert client._extract_property_value({"type": "number", "number": 42}) == 42
 
         # Checkbox
-        assert client._extract_property_value({"type": "checkbox", "checkbox": True}) is True
+        assert (
+            client._extract_property_value({"type": "checkbox", "checkbox": True})
+            is True
+        )
 
         # URL
-        assert client._extract_property_value({"type": "url", "url": "https://example.com"}) == "https://example.com"
+        assert (
+            client._extract_property_value(
+                {"type": "url", "url": "https://example.com"}
+            )
+            == "https://example.com"
+        )
 
         # Email
-        assert client._extract_property_value({"type": "email", "email": "test@example.com"}) == "test@example.com"
+        assert (
+            client._extract_property_value(
+                {"type": "email", "email": "test@example.com"}
+            )
+            == "test@example.com"
+        )
 
         # Phone
-        assert client._extract_property_value({"type": "phone_number", "phone_number": "555-1234"}) == "555-1234"
+        assert (
+            client._extract_property_value(
+                {"type": "phone_number", "phone_number": "555-1234"}
+            )
+            == "555-1234"
+        )
 
         # Date
-        assert client._extract_property_value({"type": "date", "date": {"start": "2024-01-01"}}) == "2024-01-01"
+        assert (
+            client._extract_property_value(
+                {"type": "date", "date": {"start": "2024-01-01"}}
+            )
+            == "2024-01-01"
+        )
 
         # Multi-select
-        multi_select = {"type": "multi_select", "multi_select": [{"name": "Tag1"}, {"name": "Tag2"}]}
+        multi_select = {
+            "type": "multi_select",
+            "multi_select": [{"name": "Tag1"}, {"name": "Tag2"}],
+        }
         assert client._extract_property_value(multi_select) == ["Tag1", "Tag2"]
 
         # Relation
-        relation = {"type": "relation", "relation": [{"id": "page-1"}, {"id": "page-2"}]}
+        relation = {
+            "type": "relation",
+            "relation": [{"id": "page-1"}, {"id": "page-2"}],
+        }
         assert client._extract_property_value(relation) == ["page-1", "page-2"]
 
         # Status
@@ -470,8 +500,7 @@ class TestNotionClientIntegration:
         }
 
         update_result = client.update_page(
-            "new-page-id",
-            {"Status": {"select": {"name": "Published"}}}
+            "new-page-id", {"Status": {"select": {"name": "Published"}}}
         )
         assert update_result["id"] == "new-page-id"
 
@@ -486,7 +515,10 @@ class TestNotionClientIntegration:
                     "created_time": "2023-01-01T00:00:00.000Z",
                     "last_edited_time": "2023-01-01T00:00:00.000Z",
                     "properties": {
-                        "Name": {"type": "title", "title": [{"text": {"content": "Old Page"}}]},
+                        "Name": {
+                            "type": "title",
+                            "title": [{"text": {"content": "Old Page"}}],
+                        },
                         "Status": {"type": "select", "select": {"name": "Archived"}},
                     },
                 }
@@ -494,8 +526,7 @@ class TestNotionClientIntegration:
         }
 
         results = client.query_database(
-            "db-123",
-            filter={"property": "Status", "select": {"equals": "Archived"}}
+            "db-123", filter={"property": "Status", "select": {"equals": "Archived"}}
         )
         assert len(results) == 1
 

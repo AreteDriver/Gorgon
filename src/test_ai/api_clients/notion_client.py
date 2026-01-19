@@ -59,7 +59,9 @@ class NotionClientWrapper:
             return []
 
         try:
-            return self._query_database_with_retry(database_id, filter, sorts, page_size)
+            return self._query_database_with_retry(
+                database_id, filter, sorts, page_size
+            )
         except (APIResponseError, MaxRetriesError) as e:
             return [{"error": str(e)}]
 
@@ -72,14 +74,19 @@ class NotionClientWrapper:
         page_size: int,
     ) -> List[Dict]:
         """Query database with retry logic."""
-        query_params: Dict[str, Any] = {"database_id": database_id, "page_size": page_size}
+        query_params: Dict[str, Any] = {
+            "database_id": database_id,
+            "page_size": page_size,
+        }
         if filter:
             query_params["filter"] = filter
         if sorts:
             query_params["sorts"] = sorts
 
         results = self.client.databases.query(**query_params)
-        return [self._parse_page_properties(page) for page in results.get("results", [])]
+        return [
+            self._parse_page_properties(page) for page in results.get("results", [])
+        ]
 
     def get_database_schema(self, database_id: str) -> Optional[Dict]:
         """Get database schema (properties and their types)."""
@@ -248,7 +255,16 @@ class NotionClientWrapper:
         }
 
         # Extract text content from common block types
-        if block_type in ("paragraph", "heading_1", "heading_2", "heading_3", "bulleted_list_item", "numbered_list_item", "quote", "callout"):
+        if block_type in (
+            "paragraph",
+            "heading_1",
+            "heading_2",
+            "heading_3",
+            "bulleted_list_item",
+            "numbered_list_item",
+            "quote",
+            "callout",
+        ):
             rich_text = block.get(block_type, {}).get("rich_text", [])
             parsed["text"] = self._extract_rich_text(rich_text)
         elif block_type == "code":
@@ -426,7 +442,9 @@ class NotionClientWrapper:
             return []
 
         try:
-            return await self._query_database_with_retry_async(database_id, filter, sorts, page_size)
+            return await self._query_database_with_retry_async(
+                database_id, filter, sorts, page_size
+            )
         except (APIResponseError, MaxRetriesError) as e:
             return [{"error": str(e)}]
 
@@ -439,14 +457,19 @@ class NotionClientWrapper:
         page_size: int,
     ) -> List[Dict]:
         """Query database with retry logic (async)."""
-        query_params: Dict[str, Any] = {"database_id": database_id, "page_size": page_size}
+        query_params: Dict[str, Any] = {
+            "database_id": database_id,
+            "page_size": page_size,
+        }
         if filter:
             query_params["filter"] = filter
         if sorts:
             query_params["sorts"] = sorts
 
         results = await self.async_client.databases.query(**query_params)
-        return [self._parse_page_properties(page) for page in results.get("results", [])]
+        return [
+            self._parse_page_properties(page) for page in results.get("results", [])
+        ]
 
     async def get_database_schema_async(self, database_id: str) -> Optional[Dict]:
         """Get database schema (properties and their types) (async)."""
@@ -507,7 +530,9 @@ class NotionClientWrapper:
         blocks = await self.async_client.blocks.children.list(block_id=page_id)
         return [self._parse_block(block) for block in blocks.get("results", [])]
 
-    async def create_page_async(self, parent_id: str, title: str, content: str) -> Optional[Dict]:
+    async def create_page_async(
+        self, parent_id: str, title: str, content: str
+    ) -> Optional[Dict]:
         """Create a page in Notion (async)."""
         if not self.is_async_configured():
             return None
@@ -518,7 +543,9 @@ class NotionClientWrapper:
             return {"error": str(e)}
 
     @async_with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
-    async def _create_page_with_retry_async(self, parent_id: str, title: str, content: str) -> Dict:
+    async def _create_page_with_retry_async(
+        self, parent_id: str, title: str, content: str
+    ) -> Dict:
         """Create page with retry logic (async)."""
         page = await self.async_client.pages.create(
             parent={"database_id": parent_id},
@@ -535,7 +562,9 @@ class NotionClientWrapper:
         )
         return {"id": page["id"], "url": page["url"]}
 
-    async def update_page_async(self, page_id: str, properties: Dict[str, Any]) -> Optional[Dict]:
+    async def update_page_async(
+        self, page_id: str, properties: Dict[str, Any]
+    ) -> Optional[Dict]:
         """Update page properties (async)."""
         if not self.is_async_configured():
             return None
@@ -546,9 +575,13 @@ class NotionClientWrapper:
             return {"error": str(e)}
 
     @async_with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
-    async def _update_page_with_retry_async(self, page_id: str, properties: Dict[str, Any]) -> Dict:
+    async def _update_page_with_retry_async(
+        self, page_id: str, properties: Dict[str, Any]
+    ) -> Dict:
         """Update page with retry logic (async)."""
-        page = await self.async_client.pages.update(page_id=page_id, properties=properties)
+        page = await self.async_client.pages.update(
+            page_id=page_id, properties=properties
+        )
         return {"id": page["id"], "url": page["url"]}
 
     # -------------------------------------------------------------------------

@@ -535,7 +535,9 @@ class TestPromptTemplateManagerList:
 class TestPromptTemplateManagerDelete:
     """Tests for PromptTemplateManager.delete_template()."""
 
-    def test_delete_template_success(self, manager, sample_template, temp_templates_dir):
+    def test_delete_template_success(
+        self, manager, sample_template, temp_templates_dir
+    ):
         """Test deleting a template successfully."""
         manager.save_template(sample_template)
         assert (temp_templates_dir / "sample.json").exists()

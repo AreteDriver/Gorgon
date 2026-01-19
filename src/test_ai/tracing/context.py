@@ -57,11 +57,13 @@ class Span:
 
     def add_event(self, name: str, attributes: Optional[Dict[str, Any]] = None):
         """Add an event to the span."""
-        self.events.append({
-            "name": name,
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "attributes": attributes or {},
-        })
+        self.events.append(
+            {
+                "name": name,
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "attributes": attributes or {},
+            }
+        )
 
     def set_attribute(self, key: str, value: Any):
         """Set a span attribute."""
@@ -97,7 +99,9 @@ class TraceContext:
     _span_stack: list[Span] = field(default_factory=list)
 
     @classmethod
-    def new(cls, name: str = "root", attributes: Optional[Dict[str, Any]] = None) -> TraceContext:
+    def new(
+        cls, name: str = "root", attributes: Optional[Dict[str, Any]] = None
+    ) -> TraceContext:
         """Create a new trace context with a root span."""
         trace_id = _generate_trace_id()
         root_span = Span(
@@ -145,7 +149,9 @@ class TraceContext:
         """Get the current active span."""
         return self._span_stack[-1] if self._span_stack else None
 
-    def start_span(self, name: str, attributes: Optional[Dict[str, Any]] = None) -> Span:
+    def start_span(
+        self, name: str, attributes: Optional[Dict[str, Any]] = None
+    ) -> Span:
         """Start a new child span."""
         parent = self.current_span
         span = Span(
@@ -170,7 +176,10 @@ class TraceContext:
         # End all remaining spans
         while self._span_stack:
             span = self._span_stack.pop()
-            span.end(status if span == self.root_span else "ok", error if span == self.root_span else None)
+            span.end(
+                status if span == self.root_span else "ok",
+                error if span == self.root_span else None,
+            )
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert trace to dictionary."""
@@ -193,7 +202,9 @@ class TraceContext:
 
 
 # Context variables for trace propagation
-_trace_context: ContextVar[Optional[TraceContext]] = ContextVar("trace_context", default=None)
+_trace_context: ContextVar[Optional[TraceContext]] = ContextVar(
+    "trace_context", default=None
+)
 _current_span: ContextVar[Optional[Span]] = ContextVar("current_span", default=None)
 
 
@@ -236,7 +247,9 @@ def start_trace(
     return ctx
 
 
-def start_span(name: str, attributes: Optional[Dict[str, Any]] = None) -> Optional[Span]:
+def start_span(
+    name: str, attributes: Optional[Dict[str, Any]] = None
+) -> Optional[Span]:
     """Start a new span in the current trace.
 
     Returns None if no active trace.

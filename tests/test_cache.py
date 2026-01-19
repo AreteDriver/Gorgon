@@ -229,6 +229,7 @@ class TestCachedDecorator:
 
     def test_prefix_namespacing(self):
         """Prefix creates namespace for cache keys."""
+
         @cached(prefix="ns1")
         def func1(x: int) -> str:
             return f"func1:{x}"
@@ -265,6 +266,7 @@ class TestCachedDecorator:
 
     def test_custom_key_builder(self):
         """Custom key builder used for cache key."""
+
         @cached(key_builder=lambda x, y: f"custom:{x}:{y}")
         def func(x: int, y: int) -> int:
             return x + y

@@ -48,6 +48,7 @@ def agent_tracker():
 def reset_global_tracker():
     """Reset global tracker before each test."""
     import test_ai.monitoring.tracker as tracker_module
+
     tracker_module._tracker = None
     yield
     tracker_module._tracker = None
@@ -131,7 +132,9 @@ class TestTrackWorkflow:
             pass
         mock_metrics_store.complete_workflow.assert_called_with(exec_id, "completed")
 
-    def test_track_workflow_marks_failed_on_exception(self, tracker, mock_metrics_store):
+    def test_track_workflow_marks_failed_on_exception(
+        self, tracker, mock_metrics_store
+    ):
         """Test track_workflow marks failed on exception."""
         with pytest.raises(ValueError):
             with tracker.track_workflow("wf1", "Workflow 1") as exec_id:
@@ -163,7 +166,9 @@ class TestTrackWorkflow:
         assert tracker._current_execution is None
         assert tracker._current_workflow is None
 
-    def test_track_workflow_uses_id_as_name_if_not_provided(self, tracker, mock_metrics_store):
+    def test_track_workflow_uses_id_as_name_if_not_provided(
+        self, tracker, mock_metrics_store
+    ):
         """Test track_workflow uses workflow_id as name if not provided."""
         with tracker.track_workflow("my_workflow"):
             pass
@@ -237,7 +242,9 @@ class TestTrackStep:
         mock_metrics_store.start_step.return_value = None
         mock_metrics_store.complete_step.return_value = None
 
-        with tracker.track_step("step1", "transform", "format", execution_id="exec_123"):
+        with tracker.track_step(
+            "step1", "transform", "format", execution_id="exec_123"
+        ):
             pass
 
         mock_metrics_store.start_step.assert_called()
