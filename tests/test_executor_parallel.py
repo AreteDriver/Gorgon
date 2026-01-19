@@ -1142,3 +1142,154 @@ class TestExecutorParallelBudget:
         stats = budget_manager.get_stats()
         assert "parallel_step.first" in stats["agents"]
         assert "parallel_step.second" in stats["agents"]
+
+
+class TestExecutorParallelCancellation:
+    """Tests for task cancellation in parallel execution."""
+
+    def test_cancelled_field_in_output(self):
+        """Output includes cancelled field."""
+        workflow = WorkflowConfig(
+            name="Cancel Field Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "task1",
+                                "type": "shell",
+                                "params": {"command": "echo done"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        output = result.steps[0].output
+        assert "cancelled" in output
+        assert output["cancelled"] == []  # No cancellations
+
+    def test_fail_fast_cancels_pending(self):
+        """fail_fast=True cancels pending dependent tasks when failure occurs."""
+        workflow = WorkflowConfig(
+            name="Cancel Pending Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "fail_fast": True,
+                        "steps": [
+                            {
+                                "id": "fail_first",
+                                "type": "shell",
+                                "params": {"command": "exit 1"},
+                            },
+                            {
+                                "id": "depends_on_fail",
+                                "type": "shell",
+                                "params": {"command": "echo never"},
+                                "depends_on": ["fail_first"],
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        result = executor.execute(workflow)
+
+        # Workflow fails due to fail_fast
+        assert result.status == "failed"
+        assert "Parallel step failed" in result.error
+
+    def test_no_cancel_without_fail_fast(self):
+        """Without fail_fast, all independent tasks complete."""
+        workflow = WorkflowConfig(
+            name="No Cancel Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "fail_fast": False,
+                        "steps": [
+                            {
+                                "id": "slow_fail",
+                                "type": "shell",
+                                "params": {"command": "exit 1"},
+                            },
+                            {
+                                "id": "fast_success",
+                                "type": "shell",
+                                "params": {"command": "echo fast"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        output = result.steps[0].output
+        # Both ran - one failed, one succeeded
+        assert "slow_fail" in output["failed"]
+        assert "fast_success" in output["successful"]
+        assert output["cancelled"] == []
+
+    def test_dependent_tasks_not_started(self):
+        """Tasks depending on failed tasks are not started."""
+        workflow = WorkflowConfig(
+            name="Not Started Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "fail_fast": True,
+                        "steps": [
+                            {
+                                "id": "fast_fail",
+                                "type": "shell",
+                                "params": {"command": "exit 1"},
+                            },
+                            {
+                                "id": "never_runs",
+                                "type": "shell",
+                                # This depends on the failed task, so never starts
+                                "params": {"command": "echo never"},
+                                "depends_on": ["fast_fail"],
+                            },
+                            {
+                                "id": "also_never",
+                                "type": "shell",
+                                "params": {"command": "echo also"},
+                                "depends_on": ["never_runs"],
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        result = executor.execute(workflow)
+
+        # Workflow fails due to fail_fast
+        assert result.status == "failed"
+        assert "Parallel step failed" in result.error

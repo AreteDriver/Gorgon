@@ -532,6 +532,7 @@ class WorkflowExecutor:
                 tasks=tasks,
                 on_complete=on_complete,
                 on_error=on_error,
+                fail_fast=fail_fast,
             )
         except ValueError as e:
             # Dependency resolution error (circular deps, deadlock)
@@ -549,6 +550,7 @@ class WorkflowExecutor:
             "tokens_used": total_tokens,
             "successful": parallel_result.successful,
             "failed": parallel_result.failed,
+            "cancelled": parallel_result.cancelled,
             "duration_ms": parallel_result.total_duration_ms,
         }
 
