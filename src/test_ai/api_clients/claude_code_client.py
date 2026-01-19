@@ -5,6 +5,7 @@ import subprocess
 from typing import Any, Dict, Optional
 
 from test_ai.config import get_settings
+from test_ai.utils.retry import with_retry
 
 try:
     import anthropic
@@ -215,14 +216,23 @@ class ClaudeCodeClient:
         if not self.client:
             raise RuntimeError("Anthropic client not initialized")
 
+        return self._call_anthropic_api(system_prompt, user_prompt, model, max_tokens)
+
+    @with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    def _call_anthropic_api(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        max_tokens: int,
+    ) -> str:
+        """Make the actual Anthropic API call with retry logic."""
         response = self.client.messages.create(
             model=model,
             max_tokens=max_tokens,
             system=system_prompt,
             messages=[{"role": "user", "content": user_prompt}],
         )
-
-        # Extract text from response
         return response.content[0].text
 
     def _execute_via_cli(

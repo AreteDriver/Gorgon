@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Literal
 
 import yaml
+
+from test_ai.utils.validation import validate_safe_path
+from test_ai.errors import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -206,11 +212,31 @@ WORKFLOW_SCHEMA = {
 }
 
 
-def load_workflow(path: str | Path) -> WorkflowConfig:
+def _get_workflows_dir() -> Path:
+    """Get the trusted workflows directory from settings."""
+    try:
+        from test_ai.config import get_settings
+
+        return get_settings().workflows_dir
+    except Exception:
+        # Fallback if settings not available
+        return Path(__file__).parent.parent / "workflows"
+
+
+def load_workflow(
+    path: str | Path,
+    trusted_dir: str | Path | None = None,
+    validate_path: bool = True,
+) -> WorkflowConfig:
     """Load workflow from YAML file.
+
+    Security: By default, paths are validated to prevent loading arbitrary files.
+    The workflow file must be within trusted_dir (defaults to settings.workflows_dir).
 
     Args:
         path: Path to YAML workflow file
+        trusted_dir: Base directory for path validation (default: settings.workflows_dir)
+        validate_path: If True, validate path is within trusted_dir (default: True)
 
     Returns:
         WorkflowConfig object
@@ -218,9 +244,23 @@ def load_workflow(path: str | Path) -> WorkflowConfig:
     Raises:
         FileNotFoundError: If file doesn't exist
         ValueError: If YAML is invalid or schema validation fails
+        ValidationError: If path escapes trusted directory
     """
     path = Path(path)
-    if not path.exists():
+
+    # Validate path if enabled
+    if validate_path:
+        base_dir = Path(trusted_dir) if trusted_dir else _get_workflows_dir()
+        try:
+            path = validate_safe_path(
+                path,
+                base_dir,
+                must_exist=True,
+                allow_absolute=True,
+            )
+        except ValidationError:
+            raise
+    elif not path.exists():
         raise FileNotFoundError(f"Workflow file not found: {path}")
 
     with open(path) as f:

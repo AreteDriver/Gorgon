@@ -4,6 +4,7 @@ from typing import Optional, List, Dict
 from openai import OpenAI
 
 from test_ai.config import get_settings
+from test_ai.utils.retry import with_retry
 
 
 class OpenAIClient:
@@ -29,13 +30,23 @@ class OpenAIClient:
 
         messages.append({"role": "user", "content": prompt})
 
+        return self._call_api(model, messages, temperature, max_tokens)
+
+    @with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    def _call_api(
+        self,
+        model: str,
+        messages: List[Dict[str, str]],
+        temperature: float,
+        max_tokens: Optional[int],
+    ) -> str:
+        """Make the actual API call with retry logic."""
         response = self.client.chat.completions.create(
             model=model,
             messages=messages,
             temperature=temperature,
             max_tokens=max_tokens,
         )
-
         return response.choices[0].message.content
 
     def summarize_text(self, text: str, max_length: int = 500) -> str:

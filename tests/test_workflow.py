@@ -193,15 +193,15 @@ class TestLoadWorkflow:
 
     def test_load_existing_workflow(self):
         """Can load an existing YAML workflow."""
-        # Use one of the example workflows
-        config = load_workflow("workflows/feature-build.yaml")
+        # Use one of the example workflows - disable path validation for test
+        config = load_workflow("workflows/feature-build.yaml", validate_path=False)
         assert config.name == "Feature Build"
         assert len(config.steps) > 0
 
     def test_load_nonexistent_raises(self):
         """Loading nonexistent file raises."""
         with pytest.raises(FileNotFoundError):
-            load_workflow("nonexistent.yaml")
+            load_workflow("nonexistent.yaml", validate_path=False)
 
     def test_load_invalid_yaml_raises(self):
         """Loading invalid YAML raises."""
@@ -210,7 +210,7 @@ class TestLoadWorkflow:
             f.flush()
             try:
                 with pytest.raises(ValueError):
-                    load_workflow(f.name)
+                    load_workflow(f.name, validate_path=False)
             finally:
                 os.unlink(f.name)
 

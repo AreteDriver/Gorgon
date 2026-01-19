@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 import subprocess
 import time
 from dataclasses import dataclass, field
@@ -11,6 +12,9 @@ from typing import Callable
 
 from .loader import WorkflowConfig, StepConfig
 from .parallel import ParallelExecutor, ParallelTask, ParallelStrategy
+from test_ai.utils.validation import substitute_shell_variables, validate_shell_command
+
+logger = logging.getLogger(__name__)
 
 # Lazy-loaded API clients to avoid circular imports
 _claude_client = None
@@ -340,14 +344,25 @@ class WorkflowExecutor:
         return result
 
     def _execute_shell(self, step: StepConfig, context: dict) -> dict:
-        """Execute a shell command step."""
+        """Execute a shell command step.
+
+        Security: Variables are escaped using shlex.quote to prevent injection.
+        Set allow_dangerous=True in params to skip dangerous pattern checks.
+        Set escape_variables=False to disable escaping (use with extreme caution).
+        """
         command = step.params.get("command", "")
         if not command:
             raise ValueError("Shell step requires 'command' parameter")
 
-        # Substitute context variables
-        for key, value in context.items():
-            command = command.replace(f"${{{key}}}", str(value))
+        # Validate command template (before substitution)
+        allow_dangerous = step.params.get("allow_dangerous", False)
+        validate_shell_command(command, allow_dangerous=allow_dangerous)
+
+        # Safely substitute context variables with shell escaping
+        escape_variables = step.params.get("escape_variables", True)
+        command = substitute_shell_variables(command, context, escape=escape_variables)
+
+        logger.debug("Executing shell command: %s", command[:200])
 
         result = subprocess.run(
             command,

@@ -11,29 +11,63 @@ from typing import Type
 
 from .base import Plugin
 from .registry import PluginRegistry, get_registry
+from test_ai.utils.validation import validate_safe_path
+from test_ai.errors import ValidationError
 
 logger = logging.getLogger(__name__)
+
+
+def _get_plugins_dir() -> Path:
+    """Get the trusted plugins directory from settings."""
+    try:
+        from test_ai.config import get_settings
+
+        return get_settings().plugins_dir
+    except Exception:
+        # Fallback if settings not available
+        return Path(__file__).parent / "custom"
 
 
 def load_plugin_from_file(
     filepath: str | Path,
     registry: PluginRegistry | None = None,
     config: dict | None = None,
+    trusted_dir: str | Path | None = None,
+    validate_path: bool = True,
 ) -> Plugin | None:
     """Load a plugin from a Python file.
 
     The file must define a class that inherits from Plugin.
 
+    Security: By default, paths are validated to prevent loading arbitrary files.
+    The file must be within the trusted_dir (defaults to configured plugins_dir).
+
     Args:
-        filepath: Path to Python file
+        filepath: Path to Python file (relative to trusted_dir, or absolute)
         registry: Registry to register with (default: global)
         config: Plugin configuration
+        trusted_dir: Base directory for path validation (default: settings.plugins_dir)
+        validate_path: If True, validate path is within trusted_dir (default: True)
 
     Returns:
         Loaded Plugin instance or None on failure
     """
     filepath = Path(filepath)
-    if not filepath.exists():
+
+    # Validate path if enabled
+    if validate_path:
+        base_dir = Path(trusted_dir) if trusted_dir else _get_plugins_dir()
+        try:
+            filepath = validate_safe_path(
+                filepath,
+                base_dir,
+                must_exist=True,
+                allow_absolute=True,
+            )
+        except ValidationError as e:
+            logger.error(f"Plugin path validation failed: {e}")
+            return None
+    elif not filepath.exists():
         logger.error(f"Plugin file not found: {filepath}")
         return None
 
@@ -131,21 +165,41 @@ def discover_plugins(
     directory: str | Path,
     registry: PluginRegistry | None = None,
     config: dict | None = None,
+    trusted_dir: str | Path | None = None,
+    validate_path: bool = True,
 ) -> list[Plugin]:
     """Discover and load plugins from a directory.
 
     Scans for .py files and attempts to load plugins from each.
 
+    Security: By default, the directory is validated to be within trusted_dir.
+
     Args:
-        directory: Directory to scan
+        directory: Directory to scan (relative to trusted_dir, or absolute)
         registry: Registry to register with (default: global)
         config: Shared plugin configuration
+        trusted_dir: Base directory for path validation (default: settings.plugins_dir)
+        validate_path: If True, validate directory is within trusted_dir
 
     Returns:
         List of successfully loaded plugins
     """
     directory = Path(directory)
-    if not directory.exists():
+
+    # Validate directory if enabled
+    if validate_path:
+        base_dir = Path(trusted_dir) if trusted_dir else _get_plugins_dir()
+        try:
+            directory = validate_safe_path(
+                directory,
+                base_dir,
+                must_exist=True,
+                allow_absolute=True,
+            )
+        except ValidationError as e:
+            logger.error(f"Plugin directory validation failed: {e}")
+            return []
+    elif not directory.exists():
         logger.warning(f"Plugin directory not found: {directory}")
         return []
 
@@ -159,7 +213,14 @@ def discover_plugins(
         if filepath.name.startswith("_"):
             continue
 
-        plugin = load_plugin_from_file(filepath, registry, config)
+        # Files within validated directory are safe (already within trusted_dir)
+        plugin = load_plugin_from_file(
+            filepath,
+            registry,
+            config,
+            trusted_dir=directory,
+            validate_path=validate_path,
+        )
         if plugin:
             plugins.append(plugin)
 
@@ -170,14 +231,20 @@ def discover_plugins(
 def load_plugins(
     sources: list[str | Path | dict],
     registry: PluginRegistry | None = None,
+    trusted_dir: str | Path | None = None,
+    validate_path: bool = True,
 ) -> list[Plugin]:
     """Load plugins from multiple sources.
+
+    Security: By default, file paths are validated to be within trusted_dir.
 
     Args:
         sources: List of plugin sources:
             - str/Path: File path or module name
             - dict: {"path": "...", "config": {...}} or {"module": "...", "config": {...}}
         registry: Registry to register with (default: global)
+        trusted_dir: Base directory for path validation (default: settings.plugins_dir)
+        validate_path: If True, validate paths are within trusted_dir
 
     Returns:
         List of successfully loaded plugins
@@ -188,12 +255,30 @@ def load_plugins(
     for source in sources:
         if isinstance(source, dict):
             config = source.get("config")
+            # Allow per-source validation override
+            source_validate = source.get("validate_path", validate_path)
+            source_trusted = source.get("trusted_dir", trusted_dir)
+
             if "path" in source:
-                plugin = load_plugin_from_file(source["path"], registry, config)
+                plugin = load_plugin_from_file(
+                    source["path"],
+                    registry,
+                    config,
+                    trusted_dir=source_trusted,
+                    validate_path=source_validate,
+                )
             elif "module" in source:
                 plugin = load_plugin_from_module(source["module"], registry, config)
             elif "directory" in source:
-                plugins.extend(discover_plugins(source["directory"], registry, config))
+                plugins.extend(
+                    discover_plugins(
+                        source["directory"],
+                        registry,
+                        config,
+                        trusted_dir=source_trusted,
+                        validate_path=source_validate,
+                    )
+                )
                 continue
             else:
                 logger.warning(f"Invalid plugin source dict: {source}")
@@ -201,12 +286,21 @@ def load_plugins(
         elif isinstance(source, Path) or (isinstance(source, str) and "/" in source):
             path = Path(source)
             if path.is_dir():
-                plugins.extend(discover_plugins(path, registry))
+                plugins.extend(
+                    discover_plugins(
+                        path,
+                        registry,
+                        trusted_dir=trusted_dir,
+                        validate_path=validate_path,
+                    )
+                )
                 continue
             else:
-                plugin = load_plugin_from_file(path, registry)
+                plugin = load_plugin_from_file(
+                    path, registry, trusted_dir=trusted_dir, validate_path=validate_path
+                )
         else:
-            # Assume module name
+            # Assume module name (no path validation needed for module imports)
             plugin = load_plugin_from_module(str(source), registry)
 
         if plugin:

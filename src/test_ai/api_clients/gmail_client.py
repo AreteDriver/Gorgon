@@ -2,6 +2,8 @@
 
 from typing import Optional, List, Dict
 from test_ai.config import get_settings
+from test_ai.utils.retry import with_retry
+from test_ai.errors import MaxRetriesError
 
 
 class GmailClient:
@@ -61,17 +63,22 @@ class GmailClient:
             return []
 
         try:
-            results = (
-                self.service.users()
-                .messages()
-                .list(userId="me", maxResults=max_results, q=query or "")
-                .execute()
-            )
-
-            messages = results.get("messages", [])
-            return messages
-        except Exception:
+            return self._list_messages_with_retry(max_results, query)
+        except (MaxRetriesError, Exception):
             return []
+
+    @with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    def _list_messages_with_retry(
+        self, max_results: int, query: Optional[str]
+    ) -> List[Dict]:
+        """List messages with retry logic."""
+        results = (
+            self.service.users()
+            .messages()
+            .list(userId="me", maxResults=max_results, q=query or "")
+            .execute()
+        )
+        return results.get("messages", [])
 
     def get_message(self, message_id: str) -> Optional[Dict]:
         """Get a specific message."""
@@ -79,15 +86,19 @@ class GmailClient:
             return None
 
         try:
-            message = (
-                self.service.users()
-                .messages()
-                .get(userId="me", id=message_id, format="full")
-                .execute()
-            )
-            return message
-        except Exception:
+            return self._get_message_with_retry(message_id)
+        except (MaxRetriesError, Exception):
             return None
+
+    @with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    def _get_message_with_retry(self, message_id: str) -> Dict:
+        """Get message with retry logic."""
+        return (
+            self.service.users()
+            .messages()
+            .get(userId="me", id=message_id, format="full")
+            .execute()
+        )
 
     def extract_email_body(self, message: Dict) -> str:
         """Extract email body from message."""

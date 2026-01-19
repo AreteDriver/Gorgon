@@ -6,6 +6,30 @@ import sys
 from datetime import datetime
 from typing import Any, Dict
 
+from test_ai.utils.validation import sanitize_log_message
+
+
+class SanitizingFilter(logging.Filter):
+    """Filter that sanitizes sensitive data from log messages.
+
+    Removes API keys, tokens, and other secrets from log output.
+    """
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        """Sanitize the log message."""
+        if record.msg:
+            record.msg = sanitize_log_message(str(record.msg))
+        if record.args:
+            # Sanitize any string arguments
+            sanitized_args = []
+            for arg in record.args:
+                if isinstance(arg, str):
+                    sanitized_args.append(sanitize_log_message(arg))
+                else:
+                    sanitized_args.append(arg)
+            record.args = tuple(sanitized_args)
+        return True
+
 
 class JSONFormatter(logging.Formatter):
     """Format log records as JSON for structured logging."""
@@ -50,12 +74,15 @@ class TextFormatter(logging.Formatter):
         )
 
 
-def configure_logging(level: str = "INFO", format: str = "text") -> None:
+def configure_logging(
+    level: str = "INFO", format: str = "text", sanitize_logs: bool = True
+) -> None:
     """Configure application logging.
 
     Args:
         level: Log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
         format: Log format ('text' or 'json')
+        sanitize_logs: If True, redact sensitive data (API keys, tokens) from logs
     """
     # Get root logger
     root_logger = logging.getLogger()
@@ -74,6 +101,10 @@ def configure_logging(level: str = "INFO", format: str = "text") -> None:
         console_handler.setFormatter(JSONFormatter())
     else:
         console_handler.setFormatter(TextFormatter())
+
+    # Add sanitization filter if enabled
+    if sanitize_logs:
+        console_handler.addFilter(SanitizingFilter())
 
     root_logger.addHandler(console_handler)
 

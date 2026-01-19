@@ -1,10 +1,15 @@
 """Prompt template management."""
 
 import json
+import logging
 from typing import Dict, List, Optional
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from test_ai.config import get_settings
+from test_ai.utils.validation import validate_identifier, PathValidator
+from test_ai.errors import ValidationError
+
+logger = logging.getLogger(__name__)
 
 
 class PromptTemplate(BaseModel):
@@ -21,6 +26,12 @@ class PromptTemplate(BaseModel):
     model: str = Field("gpt-4o-mini", description="Default model to use")
     temperature: float = Field(0.7, description="Default temperature")
 
+    @field_validator("id")
+    @classmethod
+    def validate_template_id(cls, v: str) -> str:
+        """Validate template ID is safe for use as filename."""
+        return validate_identifier(v, name="template_id")
+
     def format(self, **kwargs) -> str:
         """Format the prompt with variables."""
         return self.user_prompt.format(**kwargs)
@@ -33,25 +44,49 @@ class PromptTemplateManager:
         settings = get_settings()
         self.templates_dir = settings.prompts_dir
         self.templates_dir.mkdir(parents=True, exist_ok=True)
+        self._path_validator = PathValidator(
+            self.templates_dir,
+            allowed_extensions={".json"},
+        )
+
+    def _get_template_path(self, template_id: str):
+        """Get validated path for a template ID."""
+        # Validate the ID first
+        validate_identifier(template_id, name="template_id")
+        return self.templates_dir / f"{template_id}.json"
 
     def save_template(self, template: PromptTemplate) -> bool:
-        """Save a template to disk."""
+        """Save a template to disk.
+
+        The template ID is validated to prevent path traversal.
+        """
         try:
-            file_path = self.templates_dir / f"{template.id}.json"
+            file_path = self._get_template_path(template.id)
             with open(file_path, "w") as f:
                 json.dump(template.model_dump(), f, indent=2)
             return True
-        except Exception:
+        except ValidationError as e:
+            logger.error(f"Template ID validation failed: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"Failed to save template: {e}")
             return False
 
     def load_template(self, template_id: str) -> Optional[PromptTemplate]:
-        """Load a template from disk."""
+        """Load a template from disk.
+
+        The template ID is validated to prevent path traversal.
+        """
         try:
-            file_path = self.templates_dir / f"{template_id}.json"
+            file_path = self._get_template_path(template_id)
             with open(file_path, "r") as f:
                 data = json.load(f)
             return PromptTemplate(**data)
-        except Exception:
+        except ValidationError as e:
+            logger.error(f"Template ID validation failed: {e}")
+            return None
+        except Exception as e:
+            logger.debug(f"Failed to load template {template_id}: {e}")
             return None
 
     def list_templates(self) -> List[Dict]:
@@ -73,12 +108,19 @@ class PromptTemplateManager:
         return templates
 
     def delete_template(self, template_id: str) -> bool:
-        """Delete a template."""
+        """Delete a template.
+
+        The template ID is validated to prevent path traversal.
+        """
         try:
-            file_path = self.templates_dir / f"{template_id}.json"
+            file_path = self._get_template_path(template_id)
             file_path.unlink()
             return True
-        except Exception:
+        except ValidationError as e:
+            logger.error(f"Template ID validation failed: {e}")
+            return False
+        except Exception as e:
+            logger.debug(f"Failed to delete template {template_id}: {e}")
             return False
 
     def create_default_templates(self):
