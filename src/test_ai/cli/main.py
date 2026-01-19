@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 from pathlib import Path
 from typing import Optional
 
@@ -11,10 +13,13 @@ from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
 from rich.progress import Progress, SpinnerColumn, TextColumn
+from rich.live import Live
+from rich.spinner import Spinner
+from rich.text import Text
 
 app = typer.Typer(
     name="gorgon",
-    help="Multi-agent orchestration framework for production AI workflows",
+    help="Your personal army of AI agents for development workflows",
     add_completion=False,
 )
 console = Console()
@@ -30,6 +35,129 @@ def get_workflow_engine():
         console.print(f"[red]Missing dependencies:[/red] {e}")
         console.print("Run: pip install pydantic-settings")
         raise typer.Exit(1)
+
+
+def get_claude_client():
+    """Get Claude Code client for direct agent execution."""
+    try:
+        from test_ai.api_clients import ClaudeCodeClient
+
+        client = ClaudeCodeClient()
+        if not client.is_configured():
+            console.print("[red]Claude not configured.[/red]")
+            console.print("Set ANTHROPIC_API_KEY environment variable.")
+            raise typer.Exit(1)
+        return client
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        raise typer.Exit(1)
+
+
+def get_workflow_executor(dry_run: bool = False):
+    """Get workflow executor with checkpoint and budget managers."""
+    try:
+        from test_ai.workflow.executor import WorkflowExecutor
+        from test_ai.state.checkpoint import CheckpointManager
+        from test_ai.budget import BudgetManager
+
+        checkpoint_mgr = CheckpointManager()
+        budget_mgr = BudgetManager()
+
+        return WorkflowExecutor(
+            checkpoint_manager=checkpoint_mgr,
+            budget_manager=budget_mgr,
+            dry_run=dry_run,
+        )
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        raise typer.Exit(1)
+
+
+def detect_codebase_context(path: Path = None) -> dict:
+    """Auto-detect codebase context for better agent prompts.
+
+    Returns context dict with:
+    - language: Primary language (python, rust, typescript, etc.)
+    - framework: Detected framework (fastapi, react, etc.)
+    - structure: Key directories and files
+    - readme: First 500 chars of README if present
+    """
+    path = path or Path.cwd()
+    context = {
+        "path": str(path),
+        "language": "unknown",
+        "framework": None,
+        "structure": [],
+        "readme": None,
+    }
+
+    # Detect language by files
+    if (path / "pyproject.toml").exists() or (path / "setup.py").exists():
+        context["language"] = "python"
+        if (path / "pyproject.toml").exists():
+            try:
+                content = (path / "pyproject.toml").read_text()
+                if "fastapi" in content.lower():
+                    context["framework"] = "fastapi"
+                elif "django" in content.lower():
+                    context["framework"] = "django"
+                elif "flask" in content.lower():
+                    context["framework"] = "flask"
+                elif "streamlit" in content.lower():
+                    context["framework"] = "streamlit"
+            except Exception:
+                pass
+    elif (path / "Cargo.toml").exists():
+        context["language"] = "rust"
+    elif (path / "package.json").exists():
+        context["language"] = "typescript"  # or javascript
+        try:
+            pkg = json.loads((path / "package.json").read_text())
+            deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+            if "react" in deps:
+                context["framework"] = "react"
+            elif "vue" in deps:
+                context["framework"] = "vue"
+            elif "next" in deps:
+                context["framework"] = "nextjs"
+        except Exception:
+            pass
+    elif (path / "go.mod").exists():
+        context["language"] = "go"
+
+    # Get key structure
+    structure = []
+    for item in path.iterdir():
+        if item.name.startswith("."):
+            continue
+        if item.is_dir() and item.name in ("src", "lib", "app", "tests", "docs"):
+            structure.append(f"{item.name}/")
+        elif item.is_file() and item.suffix in (".py", ".rs", ".ts", ".js", ".go"):
+            structure.append(item.name)
+    context["structure"] = structure[:20]  # Limit
+
+    # Get README
+    for readme_name in ("README.md", "README.rst", "README.txt", "README"):
+        readme_path = path / readme_name
+        if readme_path.exists():
+            try:
+                context["readme"] = readme_path.read_text()[:500]
+            except Exception:
+                pass
+            break
+
+    return context
+
+
+def format_context_for_prompt(context: dict) -> str:
+    """Format codebase context for agent prompts."""
+    lines = [f"Codebase: {context['path']}"]
+    lines.append(f"Language: {context['language']}")
+    if context["framework"]:
+        lines.append(f"Framework: {context['framework']}")
+    if context["structure"]:
+        lines.append(f"Structure: {', '.join(context['structure'][:10])}")
+    return "\n".join(lines)
 
 
 def get_tracker():
@@ -451,7 +579,497 @@ def init(
 def version():
     """Show Gorgon version."""
     console.print("[bold]Gorgon[/bold] v0.3.0")
-    console.print("[dim]Multi-agent orchestration framework[/dim]")
+    console.print("[dim]Your personal army of AI agents[/dim]")
+
+
+# =============================================================================
+# INTERACTIVE AGENT COMMANDS - Your Personal Army
+# =============================================================================
+
+
+@app.command("do")
+def do_task(
+    task: str = typer.Argument(
+        ...,
+        help="Natural language description of what you want to do",
+    ),
+    workflow: str = typer.Option(
+        "feature-build",
+        "--workflow",
+        "-w",
+        help="Workflow to use (feature-build, bug-fix, refactor)",
+    ),
+    dry_run: bool = typer.Option(
+        False,
+        "--dry-run",
+        help="Show what would happen without executing",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output results as JSON",
+    ),
+):
+    """Execute a development task using your agent army.
+
+    Examples:
+        gorgon do "add user authentication"
+        gorgon do "fix the login bug" --workflow bug-fix
+        gorgon do "refactor the database module" --workflow refactor
+    """
+    from test_ai.workflow.loader import load_workflow
+
+    # Detect codebase context
+    context = detect_codebase_context()
+    context_str = format_context_for_prompt(context)
+
+    console.print(
+        Panel(
+            f"[bold]{task}[/bold]\n\n"
+            f"[dim]{context_str}[/dim]",
+            title="🐍 Gorgon Task",
+            border_style="cyan",
+        )
+    )
+
+    # Load workflow
+    workflows_dir = Path(__file__).parent.parent.parent.parent / "workflows"
+    workflow_path = workflows_dir / f"{workflow}.yaml"
+
+    if not workflow_path.exists():
+        console.print(f"[red]Workflow not found:[/red] {workflow}")
+        console.print(f"\nAvailable workflows in {workflows_dir}:")
+        for wf in workflows_dir.glob("*.yaml"):
+            console.print(f"  • {wf.stem}")
+        raise typer.Exit(1)
+
+    try:
+        wf_config = load_workflow(workflow_path, validate_path=False)
+    except Exception as e:
+        console.print(f"[red]Failed to load workflow:[/red] {e}")
+        raise typer.Exit(1)
+
+    console.print(f"\n[dim]Using workflow:[/dim] {wf_config.name}")
+    console.print(f"[dim]Steps:[/dim] {len(wf_config.steps)}")
+
+    if dry_run:
+        console.print("\n[yellow]Dry run - showing plan without executing[/yellow]")
+        for i, step in enumerate(wf_config.steps, 1):
+            role = step.params.get("role", step.type)
+            console.print(f"  {i}. [{step.type}] {step.id} ({role})")
+        raise typer.Exit(0)
+
+    # Execute workflow
+    executor = get_workflow_executor(dry_run=False)
+
+    inputs = {
+        "feature_request": task,
+        "codebase_path": context["path"],
+        "task_description": task,
+        "context": context_str,
+    }
+
+    console.print()
+    with console.status("[bold cyan]Agents working...", spinner="dots"):
+        result = executor.execute(wf_config, inputs=inputs)
+
+    # Display results
+    if json_output:
+        print(json.dumps(result.to_dict(), indent=2))
+        return
+
+    status_color = "green" if result.status == "success" else "red"
+    console.print(f"\n[{status_color}]Status: {result.status}[/{status_color}]")
+
+    if result.steps:
+        console.print("\n[bold]Agent Activity:[/bold]")
+        for step in result.steps:
+            icon = "✓" if step.status.value == "success" else "✗" if step.status.value == "failed" else "○"
+            role = step.output.get("role", step.step_id) if step.output else step.step_id
+            tokens = step.tokens_used
+            console.print(f"  {icon} {role}: {step.status.value} ({tokens:,} tokens)")
+
+    if result.error:
+        console.print(f"\n[red]Error:[/red] {result.error}")
+
+    console.print(f"\n[dim]Total tokens: {result.total_tokens:,}[/dim]")
+
+
+@app.command()
+def plan(
+    task: str = typer.Argument(
+        ...,
+        help="What do you want to plan?",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON",
+    ),
+):
+    """Run the Planner agent to break down a task.
+
+    Example:
+        gorgon plan "add OAuth2 authentication to the API"
+    """
+    client = get_claude_client()
+    context = detect_codebase_context()
+    context_str = format_context_for_prompt(context)
+
+    console.print(
+        Panel(
+            f"[bold]Planning:[/bold] {task}",
+            title="🗺️ Planner Agent",
+            border_style="blue",
+        )
+    )
+
+    prompt = f"""Analyze and create a detailed implementation plan for:
+
+{task}
+
+{context_str}
+
+Provide:
+1. Task breakdown with clear steps
+2. Files that need to be created or modified
+3. Dependencies and order of operations
+4. Potential risks and how to mitigate them
+5. Success criteria for the implementation"""
+
+    with console.status("[bold blue]Planner thinking...", spinner="dots"):
+        result = client.execute_agent(
+            role="planner",
+            task=prompt,
+            context=context_str,
+        )
+
+    if json_output:
+        print(json.dumps(result, indent=2))
+        return
+
+    if result.get("success"):
+        console.print("\n[bold]Implementation Plan:[/bold]\n")
+        console.print(result.get("output", "No output"))
+    else:
+        console.print(f"\n[red]Error:[/red] {result.get('error', 'Unknown error')}")
+
+
+@app.command()
+def build(
+    description: str = typer.Argument(
+        ...,
+        help="What to build",
+    ),
+    plan: Optional[str] = typer.Option(
+        None,
+        "--plan",
+        "-p",
+        help="Path to a plan file or inline plan",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON",
+    ),
+):
+    """Run the Builder agent to implement code.
+
+    Example:
+        gorgon build "user authentication module"
+        gorgon build "login endpoint" --plan "1. Create route 2. Add validation"
+    """
+    client = get_claude_client()
+    context = detect_codebase_context()
+    context_str = format_context_for_prompt(context)
+
+    console.print(
+        Panel(
+            f"[bold]Building:[/bold] {description}",
+            title="🔨 Builder Agent",
+            border_style="green",
+        )
+    )
+
+    # Load plan if provided as file
+    plan_text = ""
+    if plan:
+        plan_path = Path(plan)
+        if plan_path.exists():
+            plan_text = plan_path.read_text()
+        else:
+            plan_text = plan
+
+    prompt = f"""Implement the following:
+
+{description}
+
+{context_str}
+"""
+    if plan_text:
+        prompt += f"""
+Based on this plan:
+{plan_text}
+"""
+
+    prompt += """
+Write production-quality code with:
+- Type hints (for Python)
+- Error handling
+- Clear documentation
+- Following existing project patterns"""
+
+    with console.status("[bold green]Builder coding...", spinner="dots"):
+        result = client.execute_agent(
+            role="builder",
+            task=prompt,
+            context=context_str,
+        )
+
+    if json_output:
+        print(json.dumps(result, indent=2))
+        return
+
+    if result.get("success"):
+        console.print("\n[bold]Implementation:[/bold]\n")
+        console.print(result.get("output", "No output"))
+    else:
+        console.print(f"\n[red]Error:[/red] {result.get('error', 'Unknown error')}")
+
+
+@app.command()
+def test(
+    target: str = typer.Argument(
+        ".",
+        help="File or module to test",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON",
+    ),
+):
+    """Run the Tester agent to create tests.
+
+    Example:
+        gorgon test src/auth/login.py
+        gorgon test "the new user registration flow"
+    """
+    client = get_claude_client()
+    context = detect_codebase_context()
+    context_str = format_context_for_prompt(context)
+
+    # Check if target is a file
+    target_path = Path(target)
+    code_context = ""
+    if target_path.exists() and target_path.is_file():
+        try:
+            code_context = f"\nCode to test:\n```\n{target_path.read_text()[:5000]}\n```"
+        except Exception:
+            pass
+
+    console.print(
+        Panel(
+            f"[bold]Testing:[/bold] {target}",
+            title="🧪 Tester Agent",
+            border_style="yellow",
+        )
+    )
+
+    prompt = f"""Create comprehensive tests for:
+
+{target}
+
+{context_str}
+{code_context}
+
+Write tests that include:
+- Unit tests for individual functions
+- Edge cases and error conditions
+- Integration tests where appropriate
+- Clear test names that describe behavior
+- Following the project's existing test patterns (pytest for Python)"""
+
+    with console.status("[bold yellow]Tester analyzing...", spinner="dots"):
+        result = client.execute_agent(
+            role="tester",
+            task=prompt,
+            context=context_str,
+        )
+
+    if json_output:
+        print(json.dumps(result, indent=2))
+        return
+
+    if result.get("success"):
+        console.print("\n[bold]Generated Tests:[/bold]\n")
+        console.print(result.get("output", "No output"))
+    else:
+        console.print(f"\n[red]Error:[/red] {result.get('error', 'Unknown error')}")
+
+
+@app.command()
+def review(
+    target: str = typer.Argument(
+        ".",
+        help="File, directory, or git diff to review",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON",
+    ),
+):
+    """Run the Reviewer agent for code review.
+
+    Example:
+        gorgon review src/auth/
+        gorgon review HEAD~1  # Review last commit
+    """
+    client = get_claude_client()
+    context = detect_codebase_context()
+    context_str = format_context_for_prompt(context)
+
+    # Check if target is a git ref
+    code_context = ""
+    if target.startswith("HEAD") or target.startswith("origin/"):
+        try:
+            diff = subprocess.run(
+                ["git", "diff", target],
+                capture_output=True,
+                text=True,
+                cwd=context["path"],
+            )
+            if diff.returncode == 0:
+                code_context = f"\nGit diff:\n```diff\n{diff.stdout[:8000]}\n```"
+        except Exception:
+            pass
+    else:
+        target_path = Path(target)
+        if target_path.exists():
+            if target_path.is_file():
+                try:
+                    code_context = f"\nCode to review:\n```\n{target_path.read_text()[:8000]}\n```"
+                except Exception:
+                    pass
+            elif target_path.is_dir():
+                files = list(target_path.rglob("*.py"))[:5]
+                code_snippets = []
+                for f in files:
+                    try:
+                        code_snippets.append(f"# {f}\n{f.read_text()[:2000]}")
+                    except Exception:
+                        pass
+                if code_snippets:
+                    code_context = f"\nFiles to review:\n```\n{'---'.join(code_snippets)}\n```"
+
+    console.print(
+        Panel(
+            f"[bold]Reviewing:[/bold] {target}",
+            title="🔍 Reviewer Agent",
+            border_style="magenta",
+        )
+    )
+
+    prompt = f"""Review the following code:
+
+{target}
+
+{context_str}
+{code_context}
+
+Evaluate:
+1. Code quality and readability
+2. Security concerns (OWASP top 10, input validation, etc.)
+3. Performance implications
+4. Error handling completeness
+5. Test coverage gaps
+6. Adherence to project patterns
+
+Provide:
+- Approval recommendation (approved/needs_changes/rejected)
+- Score (1-10)
+- Specific findings with severity (critical/warning/info)
+- Actionable improvement suggestions"""
+
+    with console.status("[bold magenta]Reviewer analyzing...", spinner="dots"):
+        result = client.execute_agent(
+            role="reviewer",
+            task=prompt,
+            context=context_str,
+        )
+
+    if json_output:
+        print(json.dumps(result, indent=2))
+        return
+
+    if result.get("success"):
+        console.print("\n[bold]Code Review:[/bold]\n")
+        console.print(result.get("output", "No output"))
+    else:
+        console.print(f"\n[red]Error:[/red] {result.get('error', 'Unknown error')}")
+
+
+@app.command()
+def ask(
+    question: str = typer.Argument(
+        ...,
+        help="Question about your codebase",
+    ),
+    json_output: bool = typer.Option(
+        False,
+        "--json",
+        "-j",
+        help="Output as JSON",
+    ),
+):
+    """Ask a question about your codebase.
+
+    Example:
+        gorgon ask "how does the authentication system work?"
+        gorgon ask "what are the main API endpoints?"
+    """
+    client = get_claude_client()
+    context = detect_codebase_context()
+    context_str = format_context_for_prompt(context)
+
+    console.print(
+        Panel(
+            f"[bold]{question}[/bold]",
+            title="❓ Question",
+            border_style="cyan",
+        )
+    )
+
+    prompt = f"""Answer this question about the codebase:
+
+{question}
+
+{context_str}
+
+Provide a clear, helpful answer based on the codebase context.
+If you need to reference specific files or code, mention them explicitly."""
+
+    with console.status("[bold cyan]Thinking...", spinner="dots"):
+        result = client.generate_completion(
+            prompt=prompt,
+            system_prompt="You are a helpful assistant analyzing a software codebase. Be concise and specific.",
+        )
+
+    if json_output:
+        print(json.dumps({"question": question, "answer": result}, indent=2))
+        return
+
+    if result:
+        console.print("\n[bold]Answer:[/bold]\n")
+        console.print(result)
+    else:
+        console.print("[red]No response received[/red]")
 
 
 # Schedule commands
