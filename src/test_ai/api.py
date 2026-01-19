@@ -1,6 +1,9 @@
 """FastAPI backend for AI Workflow Orchestrator."""
 
+import asyncio
 import logging
+import signal
+import threading
 import time
 import uuid
 from contextlib import asynccontextmanager
@@ -39,6 +42,7 @@ from test_ai.state import (
     SQLiteBackend,
     PostgresBackend,
 )
+from test_ai.utils.circuit_breaker import get_all_circuit_stats, reset_all_circuits
 
 logger = logging.getLogger(__name__)
 
@@ -50,15 +54,57 @@ schedule_manager: ScheduleManager | None = None
 webhook_manager: WebhookManager | None = None
 job_manager: JobManager | None = None
 
+# Application state for health checks and graceful shutdown
+_app_state = {
+    "ready": False,
+    "shutting_down": False,
+    "start_time": None,
+    "active_requests": 0,
+}
+_state_lock = asyncio.Lock()
+
+
+async def _increment_active_requests():
+    """Increment active request counter."""
+    async with _state_lock:
+        _app_state["active_requests"] += 1
+
+
+async def _decrement_active_requests():
+    """Decrement active request counter."""
+    async with _state_lock:
+        _app_state["active_requests"] -= 1
+
+
+def _handle_shutdown_signal(signum, frame):
+    """Handle shutdown signals gracefully."""
+    logger.info(f"Received signal {signum}, initiating graceful shutdown...")
+    _app_state["shutting_down"] = True
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Manage component lifecycles."""
+    """Manage component lifecycles with graceful shutdown."""
     global schedule_manager, webhook_manager, job_manager
+
+    # Reset application state at startup
+    _app_state["ready"] = False
+    _app_state["shutting_down"] = False
+    _app_state["active_requests"] = 0
+    _app_state["start_time"] = datetime.now()
 
     # Configure logging
     settings = get_settings()
-    configure_logging(level=settings.log_level, format=settings.log_format)
+    configure_logging(
+        level=settings.log_level,
+        format=settings.log_format,
+        sanitize_logs=settings.sanitize_logs,
+    )
+
+    # Register signal handlers for graceful shutdown (only in main thread)
+    if threading.current_thread() is threading.main_thread():
+        signal.signal(signal.SIGTERM, _handle_shutdown_signal)
+        signal.signal(signal.SIGINT, _handle_shutdown_signal)
 
     # Get shared database backend
     backend = get_database()
@@ -81,25 +127,69 @@ async def lifespan(app: FastAPI):
     job_manager = JobManager(backend=backend)
 
     schedule_manager.start()
+
+    # Mark application as ready
+    _app_state["ready"] = True
+    logger.info("Application startup complete - ready to serve requests")
+
     yield
+
+    # Begin graceful shutdown
+    logger.info("Beginning graceful shutdown...")
+    _app_state["shutting_down"] = True
+    _app_state["ready"] = False
+
+    # Wait for active requests to complete (with timeout)
+    shutdown_timeout = 30  # seconds
+    start = time.monotonic()
+    while _app_state["active_requests"] > 0:
+        if time.monotonic() - start > shutdown_timeout:
+            logger.warning(
+                f"Shutdown timeout reached with {_app_state['active_requests']} "
+                "active requests still running"
+            )
+            break
+        await asyncio.sleep(0.1)
+
+    # Shutdown managers
     schedule_manager.shutdown()
     job_manager.shutdown()
+
+    # Reset circuit breakers
+    reset_all_circuits()
+
+    logger.info("Graceful shutdown complete")
 
 
 app = FastAPI(title="AI Workflow Orchestrator", version="0.1.0", lifespan=lifespan)
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
-    """Middleware to log all API requests with timing and request IDs."""
+    """Middleware to log all API requests with timing and request IDs.
+
+    Also tracks active requests for graceful shutdown and rejects new
+    requests during shutdown.
+    """
 
     async def dispatch(self, request: Request, call_next) -> Response:
+        # Reject requests during shutdown (except health checks)
+        path = request.url.path
+        if _app_state["shutting_down"] and not path.startswith("/health"):
+            return JSONResponse(
+                status_code=503,
+                content={"detail": "Service shutting down"},
+                headers={"Retry-After": "30"},
+            )
+
         # Generate unique request ID
         request_id = str(uuid.uuid4())[:8]
 
         # Get client info
         client_ip = request.client.host if request.client else "unknown"
         method = request.method
-        path = request.url.path
+
+        # Track active requests for graceful shutdown
+        await _increment_active_requests()
 
         # Log request start with structured fields
         start_time = time.perf_counter()
@@ -131,6 +221,8 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
                 },
             )
             raise
+        finally:
+            await _decrement_active_requests()
 
         # Calculate duration
         duration_ms = (time.perf_counter() - start_time) * 1000
@@ -268,10 +360,13 @@ def create_workflow(workflow: Workflow, authorization: Optional[str] = Header(No
 
 
 @v1_router.post("/workflows/execute")
+@limiter.limit("10/minute")
 def execute_workflow(
-    request: WorkflowExecuteRequest, authorization: Optional[str] = Header(None)
+    request_obj: Request,
+    request: WorkflowExecuteRequest,
+    authorization: Optional[str] = Header(None),
 ):
-    """Execute a workflow."""
+    """Execute a workflow. Rate limited to 10 executions/minute per IP."""
     verify_auth(authorization)
 
     workflow = workflow_engine.load_workflow(request.workflow_id)
@@ -590,10 +685,13 @@ async def trigger_webhook(
 
 # Job endpoints (async workflow execution)
 @v1_router.post("/jobs")
+@limiter.limit("20/minute")
 def submit_job(
-    request: WorkflowExecuteRequest, authorization: Optional[str] = Header(None)
+    request_obj: Request,
+    request: WorkflowExecuteRequest,
+    authorization: Optional[str] = Header(None),
 ):
-    """Submit a workflow for async execution. Returns immediately with job ID."""
+    """Submit a workflow for async execution. Rate limited to 20 jobs/minute per IP."""
     verify_auth(authorization)
 
     try:
@@ -692,8 +790,45 @@ def cleanup_jobs(max_age_hours: int = 24, authorization: Optional[str] = Header(
 
 @app.get("/health")
 def health_check():
-    """Health check endpoint."""
+    """Basic health check (liveness probe).
+
+    Returns 200 if the application process is running.
+    Use for Kubernetes liveness probes.
+    """
     return {"status": "healthy", "timestamp": datetime.now().isoformat()}
+
+
+@app.get("/health/live")
+def liveness_check():
+    """Liveness probe - is the process alive?
+
+    Returns 200 as long as the process is running.
+    Use for Kubernetes livenessProbe.
+    """
+    return {"status": "alive"}
+
+
+@app.get("/health/ready")
+def readiness_check():
+    """Readiness probe - is the application ready to serve traffic?
+
+    Returns 200 if the application is fully initialized and not shutting down.
+    Returns 503 if the application is not ready or is shutting down.
+    Use for Kubernetes readinessProbe.
+    """
+    if not _app_state["ready"]:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "not_ready", "reason": "Application not initialized"},
+        )
+
+    if _app_state["shutting_down"]:
+        raise HTTPException(
+            status_code=503,
+            detail={"status": "not_ready", "reason": "Application shutting down"},
+        )
+
+    return {"status": "ready"}
 
 
 @app.get("/health/db")
@@ -737,6 +872,67 @@ def database_health_check():
                 "timestamp": datetime.now().isoformat(),
             },
         )
+
+
+@app.get("/health/full")
+def full_health_check():
+    """Comprehensive health check with all subsystem statuses.
+
+    Checks application state, database, and circuit breakers.
+    Useful for detailed monitoring and debugging.
+    """
+    health = {
+        "status": "healthy",
+        "timestamp": datetime.now().isoformat(),
+        "uptime_seconds": None,
+        "application": {
+            "ready": _app_state["ready"],
+            "shutting_down": _app_state["shutting_down"],
+            "active_requests": _app_state["active_requests"],
+        },
+        "database": None,
+        "circuit_breakers": get_all_circuit_stats(),
+    }
+
+    # Calculate uptime
+    if _app_state["start_time"]:
+        uptime = datetime.now() - _app_state["start_time"]
+        health["uptime_seconds"] = uptime.total_seconds()
+
+    # Check database
+    try:
+        backend = get_database()
+        backend.fetchone("SELECT 1 AS ping")
+
+        if isinstance(backend, PostgresBackend):
+            backend_type = "postgresql"
+        elif isinstance(backend, SQLiteBackend):
+            backend_type = "sqlite"
+        else:
+            backend_type = "unknown"
+
+        health["database"] = {
+            "status": "connected",
+            "backend": backend_type,
+        }
+    except Exception as e:
+        health["database"] = {
+            "status": "disconnected",
+            "error": str(e),
+        }
+        health["status"] = "degraded"
+
+    # Check if any circuit breakers are open
+    for name, stats in health["circuit_breakers"].items():
+        if stats["state"] == "open":
+            health["status"] = "degraded"
+            break
+
+    # Check if shutting down
+    if _app_state["shutting_down"]:
+        health["status"] = "shutting_down"
+
+    return health
 
 
 # Include versioned API router

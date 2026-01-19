@@ -11,6 +11,15 @@ from test_ai.utils.validation import (
     sanitize_log_message,
     PathValidator,
 )
+from test_ai.utils.circuit_breaker import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerError,
+    CircuitState,
+    get_circuit_breaker,
+    get_all_circuit_stats,
+    reset_all_circuits,
+)
 
 __all__ = [
     # Retry utilities
@@ -25,4 +34,12 @@ __all__ = [
     "validate_workflow_params",
     "sanitize_log_message",
     "PathValidator",
+    # Circuit breaker utilities
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitBreakerError",
+    "CircuitState",
+    "get_circuit_breaker",
+    "get_all_circuit_stats",
+    "reset_all_circuits",
 ]
