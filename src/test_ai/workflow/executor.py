@@ -215,26 +215,18 @@ class WorkflowExecutor:
         """
         self._handlers[step_type] = handler
 
-    def execute(
-        self,
-        workflow: WorkflowConfig,
-        inputs: dict = None,
-        resume_from: str = None,
-    ) -> ExecutionResult:
-        """Execute a workflow.
+    def _validate_workflow_inputs(
+        self, workflow: WorkflowConfig, result: ExecutionResult
+    ) -> bool:
+        """Validate required workflow inputs, applying defaults where available.
 
         Args:
-            workflow: WorkflowConfig to execute
-            inputs: Input values for the workflow
-            resume_from: Optional step ID to resume from
+            workflow: WorkflowConfig to validate
+            result: ExecutionResult to update on failure
 
         Returns:
-            ExecutionResult with status and outputs
+            True if valid, False if missing required input
         """
-        result = ExecutionResult(workflow_name=workflow.name)
-        self._context = inputs.copy() if inputs else {}
-
-        # Validate required inputs
         for input_name, input_spec in workflow.inputs.items():
             if input_spec.get("required", False) and input_name not in self._context:
                 if "default" in input_spec:
@@ -242,100 +234,156 @@ class WorkflowExecutor:
                 else:
                     result.status = "failed"
                     result.error = f"Missing required input: {input_name}"
-                    return result
+                    return False
+        return True
 
-        # Start workflow in checkpoint manager
-        workflow_id = None
-        if self.checkpoint_manager:
-            workflow_id = self.checkpoint_manager.start_workflow(
-                workflow.name,
-                config={"inputs": self._context},
-            )
-        self._current_workflow_id = workflow_id
+    def _find_resume_index(self, workflow: WorkflowConfig, resume_from: str) -> int:
+        """Find the step index to resume from.
 
-        # Find resume point
-        start_index = 0
-        if resume_from:
-            for i, step in enumerate(workflow.steps):
-                if step.id == resume_from:
-                    start_index = i
-                    break
+        Args:
+            workflow: WorkflowConfig containing steps
+            resume_from: Step ID to resume from
 
-        # Execute steps
-        try:
-            for i, step in enumerate(workflow.steps[start_index:], start=start_index):
-                # Check budget before execution
-                if self.budget_manager:
-                    if not self.budget_manager.can_allocate(
-                        step.params.get("estimated_tokens", 1000)
-                    ):
-                        result.status = "failed"
-                        result.error = "Token budget exceeded"
-                        break
+        Returns:
+            Index of the step to resume from, or 0 if not found
+        """
+        if not resume_from:
+            return 0
+        for i, step in enumerate(workflow.steps):
+            if step.id == resume_from:
+                return i
+        return 0
 
-                step_result = self._execute_step(step, workflow_id)
-                result.steps.append(step_result)
-                result.total_tokens += step_result.tokens_used
-                result.total_duration_ms += step_result.duration_ms
+    def _handle_step_failure(
+        self,
+        step: StepConfig,
+        step_result: StepResult,
+        result: ExecutionResult,
+        workflow_id: str | None,
+    ) -> str:
+        """Handle step failure based on on_failure strategy.
 
-                # Record tokens in budget manager
-                if self.budget_manager and step_result.tokens_used > 0:
-                    self.budget_manager.record_usage(step.id, step_result.tokens_used)
+        Args:
+            step: The failed step configuration
+            step_result: The step result to potentially update
+            result: The workflow result to update on abort
+            workflow_id: Current workflow ID
 
-                # Handle step failure
-                if step_result.status == StepStatus.FAILED:
-                    # Notify error callback
-                    if self.error_callback:
-                        try:
-                            self.error_callback(
-                                step.id,
-                                workflow_id or "",
-                                Exception(step_result.error or "Unknown error"),
-                            )
-                        except Exception as cb_err:
-                            logger.warning(f"Error callback failed: {cb_err}")
+        Returns:
+            Action to take: "abort", "skip", "continue", or "recovered"
+        """
+        # Notify error callback
+        if self.error_callback:
+            try:
+                self.error_callback(
+                    step.id,
+                    workflow_id or "",
+                    Exception(step_result.error or "Unknown error"),
+                )
+            except Exception as cb_err:
+                logger.warning(f"Error callback failed: {cb_err}")
 
-                    if step.on_failure == "abort":
-                        result.status = "failed"
-                        result.error = f"Step '{step.id}' failed: {step_result.error}"
-                        break
-                    elif step.on_failure == "skip":
-                        continue
-                    elif step.on_failure == "continue_with_default":
-                        # Use default output values
-                        step_result.status = StepStatus.SUCCESS
-                        step_result.output = step.default_output.copy()
-                        logger.info(f"Step '{step.id}' failed, using default output")
-                    elif step.on_failure == "fallback" and step.fallback:
-                        # Execute fallback strategy
-                        fallback_output = self._execute_fallback(
-                            step, step_result.error, workflow_id
-                        )
-                        if fallback_output is not None:
-                            step_result.status = StepStatus.SUCCESS
-                            step_result.output = fallback_output
-                            logger.info(f"Step '{step.id}' recovered via fallback")
-                        else:
-                            result.status = "failed"
-                            result.error = (
-                                f"Step '{step.id}' failed and fallback failed"
-                            )
-                            break
-
-                # Store outputs in context
-                for output_key in step.outputs:
-                    if output_key in step_result.output:
-                        self._context[output_key] = step_result.output[output_key]
-
-            else:
-                # All steps completed
-                result.status = "success"
-
-        except Exception as e:
+        if step.on_failure == "abort":
             result.status = "failed"
-            result.error = str(e)
+            result.error = f"Step '{step.id}' failed: {step_result.error}"
+            return "abort"
+
+        if step.on_failure == "skip":
+            return "skip"
+
+        if step.on_failure == "continue_with_default":
+            step_result.status = StepStatus.SUCCESS
+            step_result.output = step.default_output.copy()
+            logger.info(f"Step '{step.id}' failed, using default output")
+            return "continue"
+
+        if step.on_failure == "fallback" and step.fallback:
+            fallback_output = self._execute_fallback(step, step_result.error, workflow_id)
+            if fallback_output is not None:
+                step_result.status = StepStatus.SUCCESS
+                step_result.output = fallback_output
+                logger.info(f"Step '{step.id}' recovered via fallback")
+                return "recovered"
+            result.status = "failed"
+            result.error = f"Step '{step.id}' failed and fallback failed"
+            return "abort"
+
+        # Default: abort
+        result.status = "failed"
+        result.error = f"Step '{step.id}' failed: {step_result.error}"
+        return "abort"
+
+    async def _handle_step_failure_async(
+        self,
+        step: StepConfig,
+        step_result: StepResult,
+        result: ExecutionResult,
+        workflow_id: str | None,
+    ) -> str:
+        """Async version of _handle_step_failure."""
+        # Notify error callback
+        if self.error_callback:
+            try:
+                self.error_callback(
+                    step.id,
+                    workflow_id or "",
+                    Exception(step_result.error or "Unknown error"),
+                )
+            except Exception as cb_err:
+                logger.warning(f"Error callback failed: {cb_err}")
+
+        if step.on_failure == "abort":
+            result.status = "failed"
+            result.error = f"Step '{step.id}' failed: {step_result.error}"
+            return "abort"
+
+        if step.on_failure == "skip":
+            return "skip"
+
+        if step.on_failure == "continue_with_default":
+            step_result.status = StepStatus.SUCCESS
+            step_result.output = step.default_output.copy()
+            logger.info(f"Step '{step.id}' failed, using default output")
+            return "continue"
+
+        if step.on_failure == "fallback" and step.fallback:
+            fallback_output = await self._execute_fallback_async(
+                step, step_result.error, workflow_id
+            )
+            if fallback_output is not None:
+                step_result.status = StepStatus.SUCCESS
+                step_result.output = fallback_output
+                logger.info(f"Step '{step.id}' recovered via fallback")
+                return "recovered"
+            result.status = "failed"
+            result.error = f"Step '{step.id}' failed and fallback failed"
+            return "abort"
+
+        # Default: abort
+        result.status = "failed"
+        result.error = f"Step '{step.id}' failed: {step_result.error}"
+        return "abort"
+
+    def _finalize_workflow(
+        self,
+        result: ExecutionResult,
+        workflow: WorkflowConfig,
+        workflow_id: str | None,
+        error: Exception | None = None,
+    ) -> None:
+        """Finalize workflow execution - update checkpoints and collect outputs.
+
+        Args:
+            result: ExecutionResult to finalize
+            workflow: WorkflowConfig with output definitions
+            workflow_id: Current workflow ID
+            error: Exception if workflow failed with error
+        """
+        if error:
+            result.status = "failed"
+            result.error = str(error)
             if self.checkpoint_manager and workflow_id:
-                self.checkpoint_manager.fail_workflow(str(e), workflow_id)
+                self.checkpoint_manager.fail_workflow(str(error), workflow_id)
         else:
             if self.checkpoint_manager and workflow_id:
                 if result.status == "success":
@@ -358,6 +406,82 @@ class WorkflowExecutor:
         # Clear workflow ID
         self._current_workflow_id = None
 
+    def execute(
+        self,
+        workflow: WorkflowConfig,
+        inputs: dict = None,
+        resume_from: str = None,
+    ) -> ExecutionResult:
+        """Execute a workflow.
+
+        Args:
+            workflow: WorkflowConfig to execute
+            inputs: Input values for the workflow
+            resume_from: Optional step ID to resume from
+
+        Returns:
+            ExecutionResult with status and outputs
+        """
+        result = ExecutionResult(workflow_name=workflow.name)
+        self._context = inputs.copy() if inputs else {}
+
+        if not self._validate_workflow_inputs(workflow, result):
+            return result
+
+        # Start workflow in checkpoint manager
+        workflow_id = None
+        if self.checkpoint_manager:
+            workflow_id = self.checkpoint_manager.start_workflow(
+                workflow.name,
+                config={"inputs": self._context},
+            )
+        self._current_workflow_id = workflow_id
+
+        start_index = self._find_resume_index(workflow, resume_from)
+
+        # Execute steps
+        error = None
+        try:
+            for step in workflow.steps[start_index:]:
+                # Check budget before execution
+                if self.budget_manager and not self.budget_manager.can_allocate(
+                    step.params.get("estimated_tokens", 1000)
+                ):
+                    result.status = "failed"
+                    result.error = "Token budget exceeded"
+                    break
+
+                step_result = self._execute_step(step, workflow_id)
+                result.steps.append(step_result)
+                result.total_tokens += step_result.tokens_used
+                result.total_duration_ms += step_result.duration_ms
+
+                # Record tokens in budget manager
+                if self.budget_manager and step_result.tokens_used > 0:
+                    self.budget_manager.record_usage(step.id, step_result.tokens_used)
+
+                # Handle step failure
+                if step_result.status == StepStatus.FAILED:
+                    action = self._handle_step_failure(
+                        step, step_result, result, workflow_id
+                    )
+                    if action == "abort":
+                        break
+                    if action == "skip":
+                        continue
+
+                # Store outputs in context
+                for output_key in step.outputs:
+                    if output_key in step_result.output:
+                        self._context[output_key] = step_result.output[output_key]
+            else:
+                # All steps completed
+                result.status = "success"
+
+        except Exception as e:
+            error = e
+
+        self._finalize_workflow(result, workflow, workflow_id, error)
         return result
 
     async def execute_async(
@@ -381,15 +505,8 @@ class WorkflowExecutor:
         result = ExecutionResult(workflow_name=workflow.name)
         self._context = inputs.copy() if inputs else {}
 
-        # Validate required inputs
-        for input_name, input_spec in workflow.inputs.items():
-            if input_spec.get("required", False) and input_name not in self._context:
-                if "default" in input_spec:
-                    self._context[input_name] = input_spec["default"]
-                else:
-                    result.status = "failed"
-                    result.error = f"Missing required input: {input_name}"
-                    return result
+        if not self._validate_workflow_inputs(workflow, result):
+            return result
 
         # Start workflow in checkpoint manager
         workflow_id = None
@@ -400,25 +517,19 @@ class WorkflowExecutor:
             )
         self._current_workflow_id = workflow_id
 
-        # Find resume point
-        start_index = 0
-        if resume_from:
-            for i, step in enumerate(workflow.steps):
-                if step.id == resume_from:
-                    start_index = i
-                    break
+        start_index = self._find_resume_index(workflow, resume_from)
 
         # Execute steps
+        error = None
         try:
-            for i, step in enumerate(workflow.steps[start_index:], start=start_index):
+            for step in workflow.steps[start_index:]:
                 # Check budget before execution
-                if self.budget_manager:
-                    if not self.budget_manager.can_allocate(
-                        step.params.get("estimated_tokens", 1000)
-                    ):
-                        result.status = "failed"
-                        result.error = "Token budget exceeded"
-                        break
+                if self.budget_manager and not self.budget_manager.can_allocate(
+                    step.params.get("estimated_tokens", 1000)
+                ):
+                    result.status = "failed"
+                    result.error = "Token budget exceeded"
+                    break
 
                 step_result = await self._execute_step_async(step, workflow_id)
                 result.steps.append(step_result)
@@ -431,80 +542,26 @@ class WorkflowExecutor:
 
                 # Handle step failure
                 if step_result.status == StepStatus.FAILED:
-                    # Notify error callback
-                    if self.error_callback:
-                        try:
-                            self.error_callback(
-                                step.id,
-                                workflow_id or "",
-                                Exception(step_result.error or "Unknown error"),
-                            )
-                        except Exception as cb_err:
-                            logger.warning(f"Error callback failed: {cb_err}")
-
-                    if step.on_failure == "abort":
-                        result.status = "failed"
-                        result.error = f"Step '{step.id}' failed: {step_result.error}"
+                    action = await self._handle_step_failure_async(
+                        step, step_result, result, workflow_id
+                    )
+                    if action == "abort":
                         break
-                    elif step.on_failure == "skip":
+                    if action == "skip":
                         continue
-                    elif step.on_failure == "continue_with_default":
-                        # Use default output values
-                        step_result.status = StepStatus.SUCCESS
-                        step_result.output = step.default_output.copy()
-                        logger.info(f"Step '{step.id}' failed, using default output")
-                    elif step.on_failure == "fallback" and step.fallback:
-                        # Execute fallback strategy
-                        fallback_output = await self._execute_fallback_async(
-                            step, step_result.error, workflow_id
-                        )
-                        if fallback_output is not None:
-                            step_result.status = StepStatus.SUCCESS
-                            step_result.output = fallback_output
-                            logger.info(f"Step '{step.id}' recovered via fallback")
-                        else:
-                            result.status = "failed"
-                            result.error = (
-                                f"Step '{step.id}' failed and fallback failed"
-                            )
-                            break
 
                 # Store outputs in context
                 for output_key in step.outputs:
                     if output_key in step_result.output:
                         self._context[output_key] = step_result.output[output_key]
-
             else:
                 # All steps completed
                 result.status = "success"
 
         except Exception as e:
-            result.status = "failed"
-            result.error = str(e)
-            if self.checkpoint_manager and workflow_id:
-                self.checkpoint_manager.fail_workflow(str(e), workflow_id)
-        else:
-            if self.checkpoint_manager and workflow_id:
-                if result.status == "success":
-                    self.checkpoint_manager.complete_workflow(workflow_id)
-                else:
-                    self.checkpoint_manager.fail_workflow(
-                        result.error or "Unknown error", workflow_id
-                    )
+            error = e
 
-        # Collect workflow outputs
-        for output_name in workflow.outputs:
-            if output_name in self._context:
-                result.outputs[output_name] = self._context[output_name]
-
-        result.completed_at = datetime.now(timezone.utc)
-        result.total_duration_ms = int(
-            (result.completed_at - result.started_at).total_seconds() * 1000
-        )
-
-        # Clear workflow ID
-        self._current_workflow_id = None
-
+        self._finalize_workflow(result, workflow, workflow_id, error)
         return result
 
     async def _execute_step_async(

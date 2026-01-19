@@ -100,6 +100,42 @@ class ParallelExecutor:
         self.max_workers = max_workers
         self.timeout = timeout
 
+    def _get_ready_tasks(
+        self,
+        pending: dict[str, ParallelTask],
+        completed_ids: set[str],
+    ) -> list[ParallelTask]:
+        """Get tasks whose dependencies are satisfied.
+
+        Args:
+            pending: Dictionary of pending tasks
+            completed_ids: Set of completed task IDs
+
+        Returns:
+            List of tasks ready to execute
+        """
+        return [
+            task
+            for task in pending.values()
+            if all(dep in completed_ids for dep in task.dependencies)
+        ]
+
+    def _cancel_pending_tasks(
+        self,
+        pending: dict[str, ParallelTask],
+        result: ParallelResult,
+    ) -> None:
+        """Mark remaining pending tasks as cancelled.
+
+        Args:
+            pending: Dictionary of pending tasks
+            result: ParallelResult to update
+        """
+        for task_id, task in list(pending.items()):
+            if task_id not in result.tasks:
+                result.cancelled.append(task_id)
+                result.tasks[task_id] = task
+
     def analyze_dependencies(
         self,
         steps: list[dict],
@@ -191,6 +227,64 @@ class ParallelExecutor:
         else:
             raise ValueError(f"Unknown strategy: {self.strategy}")
 
+    def _cancel_threaded_futures(
+        self,
+        futures: dict,
+        exclude_future: Any,
+        pending: dict[str, ParallelTask],
+        result: ParallelResult,
+    ) -> None:
+        """Cancel pending thread futures.
+
+        Args:
+            futures: Dict mapping futures to tasks
+            exclude_future: Future to exclude from cancellation
+            pending: Dict of pending tasks to update
+            result: ParallelResult to update
+        """
+        for f, t in futures.items():
+            if f != exclude_future and not f.done():
+                cancelled = f.cancel()
+                if cancelled:
+                    result.cancelled.append(t.id)
+                    result.tasks[t.id] = t
+                    if t.id in pending:
+                        del pending[t.id]
+
+    def _process_threaded_future(
+        self,
+        future: Any,
+        task: ParallelTask,
+        result: ParallelResult,
+        on_complete: Callable[[str, Any], None] | None,
+        on_error: Callable[[str, Exception], None] | None,
+    ) -> bool:
+        """Process a completed thread future.
+
+        Args:
+            future: Completed future
+            task: Associated task
+            result: ParallelResult to update
+            on_complete: Success callback
+            on_error: Error callback
+
+        Returns:
+            True if task failed, False otherwise
+        """
+        task.completed_at = datetime.now(timezone.utc)
+        try:
+            task.result = future.result()
+            result.successful.append(task.id)
+            if on_complete:
+                on_complete(task.id, task.result)
+            return False
+        except Exception as e:
+            task.error = e
+            result.failed.append(task.id)
+            if on_error:
+                on_error(task.id, e)
+            return True
+
     def _execute_threaded(
         self,
         tasks: list[ParallelTask],
@@ -202,7 +296,6 @@ class ParallelExecutor:
         result = ParallelResult()
         start_time = datetime.now(timezone.utc)
 
-        # Build dependency graph
         pending = {t.id: t for t in tasks}
         completed_ids: set[str] = set()
         should_cancel = False
@@ -211,54 +304,32 @@ class ParallelExecutor:
             max_workers=self.max_workers
         ) as executor:
             while pending and not should_cancel:
-                # Find ready tasks
-                ready = [
-                    task
-                    for task in pending.values()
-                    if all(dep in completed_ids for dep in task.dependencies)
-                ]
+                ready = self._get_ready_tasks(pending, completed_ids)
 
                 if not ready:
-                    if pending and not should_cancel:
+                    if pending:
                         raise ValueError("Deadlock: no tasks ready but some pending")
                     break
 
-                # Submit ready tasks
                 futures = {}
                 for task in ready:
                     task.started_at = datetime.now(timezone.utc)
                     future = executor.submit(task.handler, *task.args, **task.kwargs)
                     futures[future] = task
 
-                # Wait for completion
                 for future in concurrent.futures.as_completed(
                     futures, timeout=self.timeout
                 ):
                     task = futures[future]
-                    task.completed_at = datetime.now(timezone.utc)
+                    failed = self._process_threaded_future(
+                        future, task, result, on_complete, on_error
+                    )
 
-                    try:
-                        task.result = future.result()
-                        result.successful.append(task.id)
-                        if on_complete:
-                            on_complete(task.id, task.result)
-                    except Exception as e:
-                        task.error = e
-                        result.failed.append(task.id)
-                        if on_error:
-                            on_error(task.id, e)
-
-                        # Cancel remaining futures if fail_fast
-                        if fail_fast:
-                            should_cancel = True
-                            # Cancel pending futures (not yet started)
-                            for f, t in futures.items():
-                                if f != future and not f.done():
-                                    cancelled = f.cancel()
-                                    if cancelled:
-                                        result.cancelled.append(t.id)
-                                        result.tasks[t.id] = t
-                                        del pending[t.id]
+                    if failed and fail_fast:
+                        should_cancel = True
+                        self._cancel_threaded_futures(
+                            futures, future, pending, result
+                        )
 
                     result.tasks[task.id] = task
                     completed_ids.add(task.id)
@@ -268,17 +339,104 @@ class ParallelExecutor:
                     if should_cancel:
                         break
 
-            # Mark any remaining pending tasks as cancelled
             if should_cancel and pending:
-                for task_id, task in list(pending.items()):
-                    if task_id not in result.tasks:
-                        result.cancelled.append(task_id)
-                        result.tasks[task_id] = task
+                self._cancel_pending_tasks(pending, result)
 
         result.total_duration_ms = int(
             (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
         )
         return result
+
+    async def _run_single_task(
+        self, task: ParallelTask
+    ) -> tuple[str, Any, Exception | None]:
+        """Execute a single task asynchronously.
+
+        Args:
+            task: Task to execute
+
+        Returns:
+            Tuple of (task_id, result, error)
+        """
+        task.started_at = datetime.now(timezone.utc)
+        try:
+            if asyncio.iscoroutinefunction(task.handler):
+                res = await task.handler(*task.args, **task.kwargs)
+            else:
+                loop = asyncio.get_event_loop()
+                res = await loop.run_in_executor(
+                    None, lambda: task.handler(*task.args, **task.kwargs)
+                )
+            task.completed_at = datetime.now(timezone.utc)
+            return task.id, res, None
+        except asyncio.CancelledError:
+            task.completed_at = datetime.now(timezone.utc)
+            raise
+        except Exception as e:
+            task.completed_at = datetime.now(timezone.utc)
+            return task.id, None, e
+
+    def _cancel_async_tasks(
+        self,
+        async_tasks: dict,
+        exclude_id: str,
+        pending: dict[str, ParallelTask],
+        result: ParallelResult,
+    ) -> None:
+        """Cancel running async tasks except the specified one.
+
+        Args:
+            async_tasks: Dict mapping asyncio tasks to ParallelTasks
+            exclude_id: Task ID to exclude from cancellation
+            pending: Dict of pending tasks to update
+            result: ParallelResult to update
+        """
+        for async_task, ptask in async_tasks.items():
+            if ptask.id != exclude_id and not async_task.done():
+                async_task.cancel()
+                result.cancelled.append(ptask.id)
+                result.tasks[ptask.id] = ptask
+                if ptask.id in pending:
+                    del pending[ptask.id]
+
+    def _record_task_completion(
+        self,
+        task_id: str,
+        res: Any,
+        err: Exception | None,
+        task: ParallelTask,
+        result: ParallelResult,
+        on_complete: Callable[[str, Any], None] | None,
+        on_error: Callable[[str, Exception], None] | None,
+    ) -> bool:
+        """Record task completion and invoke callbacks.
+
+        Args:
+            task_id: ID of completed task
+            res: Task result
+            err: Task error if any
+            task: The ParallelTask
+            result: ParallelResult to update
+            on_complete: Success callback
+            on_error: Error callback
+
+        Returns:
+            True if task failed, False otherwise
+        """
+        task.result = res
+        task.error = err
+        result.tasks[task_id] = task
+
+        if err:
+            result.failed.append(task_id)
+            if on_error:
+                on_error(task_id, err)
+            return True
+
+        result.successful.append(task_id)
+        if on_complete:
+            on_complete(task_id, res)
+        return False
 
     async def _execute_async(
         self,
@@ -294,94 +452,46 @@ class ParallelExecutor:
         pending = {t.id: t for t in tasks}
         completed_ids: set[str] = set()
         should_cancel = False
+        semaphore = asyncio.Semaphore(self.max_workers)
+
+        async def bounded_run(task: ParallelTask):
+            async with semaphore:
+                return await asyncio.wait_for(
+                    self._run_single_task(task), timeout=self.timeout
+                )
 
         while pending and not should_cancel:
-            ready = [
-                task
-                for task in pending.values()
-                if all(dep in completed_ids for dep in task.dependencies)
-            ]
+            ready = self._get_ready_tasks(pending, completed_ids)
 
             if not ready:
-                if pending and not should_cancel:
+                if pending:
                     raise ValueError("Deadlock: no tasks ready but some pending")
                 break
 
-            # Create async tasks
-            async def run_task(task: ParallelTask) -> tuple[str, Any, Exception | None]:
-                task.started_at = datetime.now(timezone.utc)
-                try:
-                    if asyncio.iscoroutinefunction(task.handler):
-                        res = await task.handler(*task.args, **task.kwargs)
-                    else:
-                        # Run sync function in executor
-                        loop = asyncio.get_event_loop()
-                        res = await loop.run_in_executor(
-                            None, lambda: task.handler(*task.args, **task.kwargs)
-                        )
-                    task.completed_at = datetime.now(timezone.utc)
-                    return task.id, res, None
-                except asyncio.CancelledError:
-                    task.completed_at = datetime.now(timezone.utc)
-                    raise
-                except Exception as e:
-                    task.completed_at = datetime.now(timezone.utc)
-                    return task.id, None, e
-
-            # Run all ready tasks concurrently
-            semaphore = asyncio.Semaphore(self.max_workers)
-
-            async def bounded_run(task: ParallelTask):
-                async with semaphore:
-                    return await asyncio.wait_for(run_task(task), timeout=self.timeout)
-
-            # Create asyncio tasks
             async_tasks = {
                 asyncio.create_task(bounded_run(task)): task for task in ready
             }
 
-            # Process as they complete
-            first_error = None
             for coro in asyncio.as_completed(async_tasks.keys()):
                 try:
                     item = await coro
-                except asyncio.CancelledError:
+                except (asyncio.CancelledError, Exception):
                     continue
-                except Exception as e:
-                    # Timeout or other error
-                    item = None
-                    if fail_fast and first_error is None:
-                        first_error = e
 
                 if item is None:
                     continue
 
                 task_id, res, err = item
                 task = pending[task_id]
-                task.result = res
-                task.error = err
 
-                if err:
-                    result.failed.append(task_id)
-                    if on_error:
-                        on_error(task_id, err)
+                failed = self._record_task_completion(
+                    task_id, res, err, task, result, on_complete, on_error
+                )
 
-                    # Cancel remaining tasks if fail_fast
-                    if fail_fast:
-                        should_cancel = True
-                        for async_task, ptask in async_tasks.items():
-                            if ptask.id != task_id and not async_task.done():
-                                async_task.cancel()
-                                result.cancelled.append(ptask.id)
-                                result.tasks[ptask.id] = ptask
-                                if ptask.id in pending:
-                                    del pending[ptask.id]
-                else:
-                    result.successful.append(task_id)
-                    if on_complete:
-                        on_complete(task_id, res)
+                if failed and fail_fast:
+                    should_cancel = True
+                    self._cancel_async_tasks(async_tasks, task_id, pending, result)
 
-                result.tasks[task_id] = task
                 completed_ids.add(task_id)
                 if task_id in pending:
                     del pending[task_id]
@@ -389,12 +499,8 @@ class ParallelExecutor:
                 if should_cancel:
                     break
 
-        # Mark any remaining pending tasks as cancelled
         if should_cancel and pending:
-            for task_id, task in list(pending.items()):
-                if task_id not in result.tasks:
-                    result.cancelled.append(task_id)
-                    result.tasks[task_id] = task
+            self._cancel_pending_tasks(pending, result)
 
         result.total_duration_ms = int(
             (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
@@ -423,14 +529,10 @@ class ParallelExecutor:
             max_workers=self.max_workers
         ) as executor:
             while pending and not should_cancel:
-                ready = [
-                    task
-                    for task in pending.values()
-                    if all(dep in completed_ids for dep in task.dependencies)
-                ]
+                ready = self._get_ready_tasks(pending, completed_ids)
 
                 if not ready:
-                    if pending and not should_cancel:
+                    if pending:
                         raise ValueError("Deadlock: no tasks ready but some pending")
                     break
 
@@ -444,29 +546,15 @@ class ParallelExecutor:
                     futures, timeout=self.timeout
                 ):
                     task = futures[future]
-                    task.completed_at = datetime.now(timezone.utc)
+                    failed = self._process_threaded_future(
+                        future, task, result, on_complete, on_error
+                    )
 
-                    try:
-                        task.result = future.result()
-                        result.successful.append(task.id)
-                        if on_complete:
-                            on_complete(task.id, task.result)
-                    except Exception as e:
-                        task.error = e
-                        result.failed.append(task.id)
-                        if on_error:
-                            on_error(task.id, e)
-
-                        # Cancel remaining futures if fail_fast
-                        if fail_fast:
-                            should_cancel = True
-                            for f, t in futures.items():
-                                if f != future and not f.done():
-                                    cancelled = f.cancel()
-                                    if cancelled:
-                                        result.cancelled.append(t.id)
-                                        result.tasks[t.id] = t
-                                        del pending[t.id]
+                    if failed and fail_fast:
+                        should_cancel = True
+                        self._cancel_threaded_futures(
+                            futures, future, pending, result
+                        )
 
                     result.tasks[task.id] = task
                     completed_ids.add(task.id)
@@ -476,12 +564,8 @@ class ParallelExecutor:
                     if should_cancel:
                         break
 
-            # Mark any remaining pending tasks as cancelled
             if should_cancel and pending:
-                for task_id, task in list(pending.items()):
-                    if task_id not in result.tasks:
-                        result.cancelled.append(task_id)
-                        result.tasks[task_id] = task
+                self._cancel_pending_tasks(pending, result)
 
         result.total_duration_ms = int(
             (datetime.now(timezone.utc) - start_time).total_seconds() * 1000
