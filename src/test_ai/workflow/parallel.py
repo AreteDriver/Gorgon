@@ -32,6 +32,7 @@ class ParallelTask:
     error: Exception | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    retries: int = 0  # Track retry attempts used
 
     @property
     def duration_ms(self) -> int | None:
@@ -55,6 +56,7 @@ class ParallelResult:
     failed: list[str] = field(default_factory=list)
     cancelled: list[str] = field(default_factory=list)
     total_duration_ms: int = 0
+    total_retries: int = 0  # Sum of all task retries
 
     @property
     def all_succeeded(self) -> bool:

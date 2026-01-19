@@ -141,7 +141,9 @@ class TestExecutorParallelConcurrency:
         # If running sequentially: 4 * 0.1 = 0.4s
         # If running in parallel: ~0.1s + overhead
         # Allow generous margin for CI/test environments
-        assert elapsed < 0.35, f"Expected < 0.35s, got {elapsed}s (not running in parallel?)"
+        assert elapsed < 0.35, (
+            f"Expected < 0.35s, got {elapsed}s (not running in parallel?)"
+        )
 
 
 class TestExecutorParallelDependencies:
@@ -769,9 +771,7 @@ class TestExecutorParallelCheckpoints:
                 ),
             ],
         )
-        executor = WorkflowExecutor(
-            checkpoint_manager=checkpoint_manager, dry_run=True
-        )
+        executor = WorkflowExecutor(checkpoint_manager=checkpoint_manager, dry_run=True)
         result = executor.execute(workflow)
 
         assert result.status == "success"
@@ -837,7 +837,11 @@ class TestExecutorParallelCheckpoints:
         assert "parallel_step.third" in stage_names
 
         # All should be successful
-        for stage in ["parallel_step.first", "parallel_step.second", "parallel_step.third"]:
+        for stage in [
+            "parallel_step.first",
+            "parallel_step.second",
+            "parallel_step.third",
+        ]:
             cp = next(c for c in checkpoints if c["stage"] == stage)
             assert cp["status"] == "success"
 
@@ -1142,6 +1146,294 @@ class TestExecutorParallelBudget:
         stats = budget_manager.get_stats()
         assert "parallel_step.first" in stats["agents"]
         assert "parallel_step.second" in stats["agents"]
+
+
+class TestExecutorParallelRetry:
+    """Tests for retry logic in parallel sub-step execution."""
+
+    def test_retry_on_transient_failure(self):
+        """Sub-step retries on transient failure."""
+        # Create a workflow with a step that fails then succeeds
+        # We'll use a custom handler to simulate this
+        call_count = {"count": 0}
+
+        def flaky_handler(step, context):
+            call_count["count"] += 1
+            if call_count["count"] < 2:
+                raise RuntimeError("Transient failure")
+            return {"stdout": "success", "returncode": 0}
+
+        workflow = WorkflowConfig(
+            name="Retry Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "flaky_task",
+                                "type": "custom_flaky",
+                                "max_retries": 3,
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        executor.register_handler("custom_flaky", flaky_handler)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        # Handler was called twice (failed once, then succeeded)
+        assert call_count["count"] == 2
+        parallel_results = result.steps[0].output["parallel_results"]
+        assert "flaky_task" in parallel_results
+        assert parallel_results["flaky_task"]["retries"] == 1
+
+    def test_retry_respects_max_retries(self):
+        """Sub-step stops after max_retries is reached."""
+        call_count = {"count": 0}
+
+        def always_fails(step, context):
+            call_count["count"] += 1
+            raise RuntimeError("Always fails")
+
+        workflow = WorkflowConfig(
+            name="Max Retries Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "failing_task",
+                                "type": "always_fail",
+                                "max_retries": 2,  # Will try 3 times total (1 + 2 retries)
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        executor.register_handler("always_fail", always_fails)
+        result = executor.execute(workflow)
+
+        # Workflow succeeds (fail_fast=False), but sub-step failed
+        assert result.status == "success"
+        # 1 initial + 2 retries = 3 calls
+        assert call_count["count"] == 3
+        output = result.steps[0].output
+        assert "failing_task" in output["failed"]
+
+    def test_retry_exponential_backoff(self):
+        """Retries use exponential backoff timing."""
+        call_times = []
+
+        def record_time_and_fail(step, context):
+            call_times.append(time.time())
+            raise RuntimeError("Fail for timing")
+
+        workflow = WorkflowConfig(
+            name="Backoff Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "timed_task",
+                                "type": "timed_fail",
+                                "max_retries": 2,
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        executor.register_handler("timed_fail", record_time_and_fail)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        assert len(call_times) == 3
+
+        # Check delays - exponential backoff: 2^0=1s, 2^1=2s
+        # First retry after ~1s, second after ~2s
+        delay1 = call_times[1] - call_times[0]
+        delay2 = call_times[2] - call_times[1]
+
+        # Allow generous margins for CI
+        assert delay1 >= 0.9, f"First delay {delay1}s should be ~1s"
+        assert delay2 >= 1.8, f"Second delay {delay2}s should be ~2s"
+
+    def test_retry_success_after_failures(self):
+        """Sub-step succeeds on retry after initial failures."""
+        attempts = {"n": 0}
+
+        def succeeds_on_third(step, context):
+            attempts["n"] += 1
+            if attempts["n"] < 3:
+                raise RuntimeError(f"Attempt {attempts['n']} failed")
+            return {"result": "success", "attempt": attempts["n"]}
+
+        workflow = WorkflowConfig(
+            name="Eventually Success Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "eventual_success",
+                                "type": "third_time_charm",
+                                "max_retries": 3,
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        executor.register_handler("third_time_charm", succeeds_on_third)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        parallel_results = result.steps[0].output["parallel_results"]
+        assert "eventual_success" in result.steps[0].output["successful"]
+        assert parallel_results["eventual_success"]["result"] == "success"
+        assert parallel_results["eventual_success"]["retries"] == 2
+
+    def test_retry_tracking_in_output(self):
+        """Output includes retry count for successful steps."""
+        workflow = WorkflowConfig(
+            name="Retry Tracking Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "echo_task",
+                                "type": "shell",
+                                "params": {"command": "echo success"},
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        parallel_results = result.steps[0].output["parallel_results"]
+        # Successful on first try, so retries=0
+        assert parallel_results["echo_task"]["retries"] == 0
+
+    def test_no_retry_when_max_retries_zero(self):
+        """No retry when max_retries=0."""
+        call_count = {"count": 0}
+
+        def fail_once(step, context):
+            call_count["count"] += 1
+            raise RuntimeError("Single failure")
+
+        workflow = WorkflowConfig(
+            name="No Retry Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "no_retry_task",
+                                "type": "fail_once",
+                                "max_retries": 0,  # No retries
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        executor.register_handler("fail_once", fail_once)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"  # fail_fast=False
+        # Only one attempt, no retries
+        assert call_count["count"] == 1
+        assert "no_retry_task" in result.steps[0].output["failed"]
+
+    def test_total_retries_aggregated(self):
+        """total_retries sums retries from all sub-steps."""
+        call_counts = {"task1": 0, "task2": 0}
+
+        def fail_twice_task1(step, context):
+            call_counts["task1"] += 1
+            if call_counts["task1"] < 3:
+                raise RuntimeError("Task1 fail")
+            return {"done": True}
+
+        def fail_once_task2(step, context):
+            call_counts["task2"] += 1
+            if call_counts["task2"] < 2:
+                raise RuntimeError("Task2 fail")
+            return {"done": True}
+
+        workflow = WorkflowConfig(
+            name="Aggregate Retries Test",
+            version="1.0",
+            description="",
+            steps=[
+                StepConfig(
+                    id="parallel_step",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "task1",
+                                "type": "task1_handler",
+                                "max_retries": 3,
+                            },
+                            {
+                                "id": "task2",
+                                "type": "task2_handler",
+                                "max_retries": 3,
+                            },
+                        ],
+                    },
+                ),
+            ],
+        )
+        executor = WorkflowExecutor()
+        executor.register_handler("task1_handler", fail_twice_task1)
+        executor.register_handler("task2_handler", fail_once_task2)
+        result = executor.execute(workflow)
+
+        assert result.status == "success"
+        output = result.steps[0].output
+        # task1 had 2 retries, task2 had 1 retry = 3 total
+        assert output["total_retries"] == 3
 
 
 class TestExecutorParallelCancellation:

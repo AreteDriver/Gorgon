@@ -424,57 +424,80 @@ class WorkflowExecutor:
         parent_step_id = step.id
 
         def make_handler(sub_step: StepConfig):
-            """Create a handler closure for a sub-step."""
+            """Create a handler closure for a sub-step with retry support."""
 
             def handler():
                 nonlocal total_tokens, first_error, context_updates
 
-                # Track timing for checkpoint
+                # Track timing for checkpoint (across all retries)
                 start_time = time.time()
                 stage_name = f"{parent_step_id}.{sub_step.id}"
                 output = None
                 error_msg = None
                 tokens_used = 0
+                retries_used = 0
+                max_retries = sub_step.max_retries
+                last_exception = None
 
                 try:
-                    # Check budget before execution if configured
-                    estimated_tokens = sub_step.params.get("estimated_tokens", 1000)
-                    if self.budget_manager:
-                        if not self.budget_manager.can_allocate(
-                            estimated_tokens, agent_id=stage_name
-                        ):
-                            raise RuntimeError(
-                                f"Budget exceeded for sub-step '{sub_step.id}'"
+                    for attempt in range(max_retries + 1):
+                        try:
+                            # Check budget before each attempt if configured
+                            estimated_tokens = sub_step.params.get(
+                                "estimated_tokens", 1000
                             )
+                            if self.budget_manager:
+                                if not self.budget_manager.can_allocate(
+                                    estimated_tokens, agent_id=stage_name
+                                ):
+                                    raise RuntimeError(
+                                        f"Budget exceeded for sub-step '{sub_step.id}'"
+                                    )
 
-                    # Get current context snapshot plus any updates from completed deps
-                    step_context = context.copy()
-                    step_context.update(context_updates)
+                            # Get current context snapshot plus any updates
+                            step_context = context.copy()
+                            step_context.update(context_updates)
 
-                    # Get the appropriate handler for this step type
-                    step_handler = self._handlers.get(sub_step.type)
-                    if not step_handler:
-                        raise ValueError(f"Unknown step type: {sub_step.type}")
+                            # Get the appropriate handler for this step type
+                            step_handler = self._handlers.get(sub_step.type)
+                            if not step_handler:
+                                raise ValueError(f"Unknown step type: {sub_step.type}")
 
-                    # Execute the step
-                    output = step_handler(sub_step, step_context)
+                            # Execute the step
+                            output = step_handler(sub_step, step_context)
 
-                    # Track tokens
-                    tokens_used = output.get("tokens_used", 0)
-                    total_tokens += tokens_used
+                            # Track tokens
+                            tokens_used = output.get("tokens_used", 0)
+                            total_tokens += tokens_used
 
-                    # Store outputs in context updates for dependent steps
-                    for output_key in sub_step.outputs:
-                        if output_key in output:
-                            context_updates[output_key] = output[output_key]
+                            # Store outputs in context updates for dependent steps
+                            for output_key in sub_step.outputs:
+                                if output_key in output:
+                                    context_updates[output_key] = output[output_key]
+
+                            # Success - add retries info
+                            output["retries"] = retries_used
+                            error_msg = None
+                            last_exception = None
+                            break
+
+                        except Exception as e:
+                            error_msg = str(e)
+                            last_exception = e
+                            retries_used = attempt + 1
+                            if attempt < max_retries:
+                                # Exponential backoff (same formula as main executor)
+                                time.sleep(min(2**attempt, 30))
+                            # Continue to finally block after last attempt
+
+                    # Re-raise if all retries exhausted
+                    if last_exception is not None:
+                        raise last_exception
 
                     return output
 
-                except Exception as e:
-                    error_msg = str(e)
-                    raise
-
                 finally:
+                    # Record final state after all retries complete
                     duration_ms = int((time.time() - start_time) * 1000)
 
                     # Record budget usage for sub-step (thread-safe)
@@ -488,6 +511,7 @@ class WorkflowExecutor:
                                 "sub_step": sub_step.id,
                                 "step_type": sub_step.type,
                                 "duration_ms": duration_ms,
+                                "retries": retries_used,
                             },
                         )
 
@@ -545,6 +569,11 @@ class WorkflowExecutor:
         # Merge successful outputs back into main context
         self._context.update(context_updates)
 
+        # Calculate total retries from results
+        total_retries = sum(
+            r.get("retries", 0) for r in results.values() if isinstance(r, dict)
+        )
+
         return {
             "parallel_results": results,
             "tokens_used": total_tokens,
@@ -552,6 +581,7 @@ class WorkflowExecutor:
             "failed": parallel_result.failed,
             "cancelled": parallel_result.cancelled,
             "duration_ms": parallel_result.total_duration_ms,
+            "total_retries": total_retries,
         }
 
     def _execute_claude_code(self, step: StepConfig, context: dict) -> dict:
