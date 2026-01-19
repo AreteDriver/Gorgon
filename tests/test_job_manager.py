@@ -1,6 +1,7 @@
 """Tests for JobManager database operations."""
 
 import os
+import shutil
 import sys
 import tempfile
 from datetime import datetime, timedelta
@@ -20,11 +21,15 @@ class TestJobManager:
     @pytest.fixture
     def backend(self):
         """Create a temporary SQLite backend."""
-        with tempfile.TemporaryDirectory() as tmpdir:
+        tmpdir = tempfile.mkdtemp()
+        try:
             db_path = os.path.join(tmpdir, "test.db")
             backend = SQLiteBackend(db_path=db_path)
             yield backend
             backend.close()
+        finally:
+            # Use ignore_errors to handle SQLite WAL/SHM files that may still be locked
+            shutil.rmtree(tmpdir, ignore_errors=True)
 
     @pytest.fixture
     def manager(self, backend):
