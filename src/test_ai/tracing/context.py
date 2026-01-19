@@ -282,9 +282,11 @@ def trace_context(
         yield trace
     except Exception as e:
         trace.end("error", str(e))
+        _trace_context.set(None)
         raise
     else:
         trace.end("ok")
+        _trace_context.set(None)
 
 
 @contextmanager
