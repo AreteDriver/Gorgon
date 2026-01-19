@@ -48,6 +48,7 @@ class StepConfig:
     max_retries: int = 3
     timeout_seconds: int = 300
     outputs: list[str] = field(default_factory=list)
+    depends_on: list[str] = field(default_factory=list)
 
     @classmethod
     def from_dict(cls, data: dict) -> StepConfig:
@@ -61,6 +62,11 @@ class StepConfig:
                 value=cond_data["value"],
             )
 
+        # Parse depends_on - supports string or list
+        depends_on = data.get("depends_on", [])
+        if isinstance(depends_on, str):
+            depends_on = [depends_on]
+
         return cls(
             id=data["id"],
             type=data["type"],
@@ -70,6 +76,7 @@ class StepConfig:
             max_retries=data.get("max_retries", 3),
             timeout_seconds=data.get("timeout_seconds", 300),
             outputs=data.get("outputs", []),
+            depends_on=depends_on,
         )
 
 
@@ -184,6 +191,12 @@ WORKFLOW_SCHEMA = {
                     "outputs": {
                         "type": "array",
                         "items": {"type": "string"},
+                    },
+                    "depends_on": {
+                        "oneOf": [
+                            {"type": "string"},
+                            {"type": "array", "items": {"type": "string"}},
+                        ]
                     },
                 },
             },
@@ -345,6 +358,16 @@ def _validate_step(step: dict, index: int) -> list[str]:
     if "timeout_seconds" in step:
         if not isinstance(step["timeout_seconds"], int) or step["timeout_seconds"] < 1:
             errors.append(f"{prefix}: timeout_seconds must be a positive integer")
+
+    # Validate depends_on
+    if "depends_on" in step:
+        deps = step["depends_on"]
+        if isinstance(deps, str):
+            deps = [deps]
+        if not isinstance(deps, list):
+            errors.append(f"{prefix}: depends_on must be a string or list of strings")
+        elif not all(isinstance(d, str) for d in deps):
+            errors.append(f"{prefix}: all depends_on values must be strings")
 
     return errors
 

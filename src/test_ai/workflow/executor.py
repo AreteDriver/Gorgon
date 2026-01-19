@@ -10,6 +10,7 @@ from enum import Enum
 from typing import Callable
 
 from .loader import WorkflowConfig, StepConfig
+from .parallel import ParallelExecutor, ParallelTask, ParallelStrategy
 
 # Lazy-loaded API clients to avoid circular imports
 _claude_client = None
@@ -146,6 +147,7 @@ class WorkflowExecutor:
             "openai": self._execute_openai,
         }
         self._context: dict = {}
+        self._current_workflow_id: str | None = None
 
     def register_handler(self, step_type: str, handler: StepHandler) -> None:
         """Register a custom step handler.
@@ -192,6 +194,7 @@ class WorkflowExecutor:
                 workflow.name,
                 config={"inputs": self._context},
             )
+        self._current_workflow_id = workflow_id
 
         # Find resume point
         start_index = 0
@@ -263,6 +266,9 @@ class WorkflowExecutor:
         result.total_duration_ms = int(
             (result.completed_at - result.started_at).total_seconds() * 1000
         )
+
+        # Clear workflow ID
+        self._current_workflow_id = None
 
         return result
 
@@ -367,25 +373,160 @@ class WorkflowExecutor:
         return {"checkpoint": step.id}
 
     def _execute_parallel(self, step: StepConfig, context: dict) -> dict:
-        """Execute parallel sub-steps.
+        """Execute parallel sub-steps using ParallelExecutor.
 
-        Note: Actual parallel execution would require async/threading.
-        This is a placeholder that executes sequentially.
+        Params:
+            steps: List of sub-step configurations
+            strategy: "threading" | "asyncio" (default: "threading")
+            max_workers: int (default: 4)
+            fail_fast: bool - if True, abort on first failure (default: False)
+
+        Checkpointing:
+            Each sub-step is checkpointed with stage name "{parent_step_id}.{sub_step_id}"
+            using checkpoint_now() for thread safety.
         """
         sub_steps = step.params.get("steps", [])
-        results = {}
+        strategy_str = step.params.get("strategy", "threading")
+        max_workers = step.params.get("max_workers", 4)
+        fail_fast = step.params.get("fail_fast", False)
 
+        if not sub_steps:
+            return {"parallel_results": {}, "tokens_used": 0}
+
+        # Map strategy string to enum
+        strategy_map = {
+            "threading": ParallelStrategy.THREADING,
+            "asyncio": ParallelStrategy.ASYNCIO,
+            "process": ParallelStrategy.PROCESS,
+        }
+        strategy = strategy_map.get(strategy_str, ParallelStrategy.THREADING)
+
+        # Create executor
+        executor = ParallelExecutor(
+            strategy=strategy,
+            max_workers=max_workers,
+            timeout=step.timeout_seconds,
+        )
+
+        # Parse sub-steps and collect dependencies
+        parsed_steps: dict[str, StepConfig] = {}
         for sub_step_data in sub_steps:
             sub_step = StepConfig.from_dict(sub_step_data)
-            handler = self._handlers.get(sub_step.type)
-            if handler:
-                try:
-                    output = handler(sub_step, context)
-                    results[sub_step.id] = output
-                except Exception as e:
-                    results[sub_step.id] = {"error": str(e)}
+            parsed_steps[sub_step.id] = sub_step
 
-        return {"parallel_results": results}
+        # Shared state for results and context updates
+        results: dict[str, dict] = {}
+        total_tokens = 0
+        first_error: Exception | None = None
+        context_updates: dict[str, any] = {}
+
+        # Parent step ID for compound checkpoint stage names
+        parent_step_id = step.id
+
+        def make_handler(sub_step: StepConfig):
+            """Create a handler closure for a sub-step."""
+
+            def handler():
+                nonlocal total_tokens, first_error, context_updates
+
+                # Track timing for checkpoint
+                start_time = time.time()
+                stage_name = f"{parent_step_id}.{sub_step.id}"
+                output = None
+                error_msg = None
+
+                try:
+                    # Get current context snapshot plus any updates from completed deps
+                    step_context = context.copy()
+                    step_context.update(context_updates)
+
+                    # Get the appropriate handler for this step type
+                    step_handler = self._handlers.get(sub_step.type)
+                    if not step_handler:
+                        raise ValueError(f"Unknown step type: {sub_step.type}")
+
+                    # Execute the step
+                    output = step_handler(sub_step, step_context)
+
+                    # Track tokens
+                    tokens = output.get("tokens_used", 0)
+                    total_tokens += tokens
+
+                    # Store outputs in context updates for dependent steps
+                    for output_key in sub_step.outputs:
+                        if output_key in output:
+                            context_updates[output_key] = output[output_key]
+
+                    return output
+
+                except Exception as e:
+                    error_msg = str(e)
+                    raise
+
+                finally:
+                    # Checkpoint the sub-step (thread-safe via checkpoint_now)
+                    if self.checkpoint_manager and self._current_workflow_id:
+                        duration_ms = int((time.time() - start_time) * 1000)
+                        tokens_used = output.get("tokens_used", 0) if output else 0
+
+                        self.checkpoint_manager.checkpoint_now(
+                            stage=stage_name,
+                            status="success" if error_msg is None else "failed",
+                            input_data=sub_step.params,
+                            output_data=output if output else {"error": error_msg},
+                            tokens_used=tokens_used,
+                            duration_ms=duration_ms,
+                            workflow_id=self._current_workflow_id,
+                        )
+
+            return handler
+
+        # Create parallel tasks
+        tasks = []
+        for sub_step_id, sub_step in parsed_steps.items():
+            task = ParallelTask(
+                id=sub_step_id,
+                step_id=sub_step_id,
+                handler=make_handler(sub_step),
+                dependencies=sub_step.depends_on,
+            )
+            tasks.append(task)
+
+        # Callbacks for completion and error handling
+        def on_complete(task_id: str, result: any):
+            results[task_id] = result
+
+        def on_error(task_id: str, error: Exception):
+            nonlocal first_error
+            results[task_id] = {"error": str(error)}
+            if first_error is None:
+                first_error = error
+
+        # Execute in parallel
+        try:
+            parallel_result = executor.execute_parallel(
+                tasks=tasks,
+                on_complete=on_complete,
+                on_error=on_error,
+            )
+        except ValueError as e:
+            # Dependency resolution error (circular deps, deadlock)
+            raise RuntimeError(f"Parallel execution failed: {e}")
+
+        # Check for failures if fail_fast mode
+        if fail_fast and first_error is not None:
+            raise RuntimeError(f"Parallel step failed: {first_error}")
+
+        # Merge successful outputs back into main context
+        self._context.update(context_updates)
+
+        return {
+            "parallel_results": results,
+            "tokens_used": total_tokens,
+            "successful": parallel_result.successful,
+            "failed": parallel_result.failed,
+            "duration_ms": parallel_result.total_duration_ms,
+        }
 
     def _execute_claude_code(self, step: StepConfig, context: dict) -> dict:
         """Execute a Claude Code step using the Anthropic API.
