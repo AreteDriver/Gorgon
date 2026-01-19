@@ -123,6 +123,87 @@ def get_workflow_executor(dry_run: bool = False):
         raise typer.Exit(1)
 
 
+def _detect_python_framework(path: Path) -> str | None:
+    """Detect Python framework from pyproject.toml."""
+    pyproject = path / "pyproject.toml"
+    if not pyproject.exists():
+        return None
+    try:
+        content = pyproject.read_text().lower()
+        frameworks = [
+            ("fastapi", "fastapi"),
+            ("django", "django"),
+            ("flask", "flask"),
+            ("streamlit", "streamlit"),
+        ]
+        for keyword, framework in frameworks:
+            if keyword in content:
+                return framework
+    except Exception:
+        pass
+    return None
+
+
+def _detect_js_framework(path: Path) -> str | None:
+    """Detect JavaScript/TypeScript framework from package.json."""
+    try:
+        pkg = json.loads((path / "package.json").read_text())
+        deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
+        frameworks = [("react", "react"), ("vue", "vue"), ("next", "nextjs")]
+        for keyword, framework in frameworks:
+            if keyword in deps:
+                return framework
+    except Exception:
+        pass
+    return None
+
+
+def _detect_language_and_framework(path: Path) -> tuple[str, str | None]:
+    """Detect primary language and framework.
+
+    Returns:
+        Tuple of (language, framework)
+    """
+    if (path / "pyproject.toml").exists() or (path / "setup.py").exists():
+        return "python", _detect_python_framework(path)
+    if (path / "Cargo.toml").exists():
+        return "rust", None
+    if (path / "package.json").exists():
+        return "typescript", _detect_js_framework(path)
+    if (path / "go.mod").exists():
+        return "go", None
+    return "unknown", None
+
+
+def _get_key_structure(path: Path, limit: int = 20) -> list[str]:
+    """Get key directories and files in the codebase."""
+    structure = []
+    key_dirs = {"src", "lib", "app", "tests", "docs"}
+    code_exts = {".py", ".rs", ".ts", ".js", ".go"}
+
+    for item in path.iterdir():
+        if item.name.startswith("."):
+            continue
+        if item.is_dir() and item.name in key_dirs:
+            structure.append(f"{item.name}/")
+        elif item.is_file() and item.suffix in code_exts:
+            structure.append(item.name)
+    return structure[:limit]
+
+
+def _get_readme_content(path: Path, max_chars: int = 500) -> str | None:
+    """Get README content if present."""
+    readme_names = ("README.md", "README.rst", "README.txt", "README")
+    for name in readme_names:
+        readme_path = path / name
+        if readme_path.exists():
+            try:
+                return readme_path.read_text()[:max_chars]
+            except Exception:
+                pass
+    return None
+
+
 def detect_codebase_context(path: Path = None) -> dict:
     """Auto-detect codebase context for better agent prompts.
 
@@ -133,70 +214,15 @@ def detect_codebase_context(path: Path = None) -> dict:
     - readme: First 500 chars of README if present
     """
     path = path or Path.cwd()
-    context = {
+    language, framework = _detect_language_and_framework(path)
+
+    return {
         "path": str(path),
-        "language": "unknown",
-        "framework": None,
-        "structure": [],
-        "readme": None,
+        "language": language,
+        "framework": framework,
+        "structure": _get_key_structure(path),
+        "readme": _get_readme_content(path),
     }
-
-    # Detect language by files
-    if (path / "pyproject.toml").exists() or (path / "setup.py").exists():
-        context["language"] = "python"
-        if (path / "pyproject.toml").exists():
-            try:
-                content = (path / "pyproject.toml").read_text()
-                if "fastapi" in content.lower():
-                    context["framework"] = "fastapi"
-                elif "django" in content.lower():
-                    context["framework"] = "django"
-                elif "flask" in content.lower():
-                    context["framework"] = "flask"
-                elif "streamlit" in content.lower():
-                    context["framework"] = "streamlit"
-            except Exception:
-                pass
-    elif (path / "Cargo.toml").exists():
-        context["language"] = "rust"
-    elif (path / "package.json").exists():
-        context["language"] = "typescript"  # or javascript
-        try:
-            pkg = json.loads((path / "package.json").read_text())
-            deps = {**pkg.get("dependencies", {}), **pkg.get("devDependencies", {})}
-            if "react" in deps:
-                context["framework"] = "react"
-            elif "vue" in deps:
-                context["framework"] = "vue"
-            elif "next" in deps:
-                context["framework"] = "nextjs"
-        except Exception:
-            pass
-    elif (path / "go.mod").exists():
-        context["language"] = "go"
-
-    # Get key structure
-    structure = []
-    for item in path.iterdir():
-        if item.name.startswith("."):
-            continue
-        if item.is_dir() and item.name in ("src", "lib", "app", "tests", "docs"):
-            structure.append(f"{item.name}/")
-        elif item.is_file() and item.suffix in (".py", ".rs", ".ts", ".js", ".go"):
-            structure.append(item.name)
-    context["structure"] = structure[:20]  # Limit
-
-    # Get README
-    for readme_name in ("README.md", "README.rst", "README.txt", "README"):
-        readme_path = path / readme_name
-        if readme_path.exists():
-            try:
-                context["readme"] = readme_path.read_text()[:500]
-            except Exception:
-                pass
-            break
-
-    return context
 
 
 def format_context_for_prompt(context: dict) -> str:
@@ -218,6 +244,95 @@ def get_tracker():
         return _get_tracker()
     except ImportError:
         return None
+
+
+def _parse_cli_variables(var: list[str]) -> dict:
+    """Parse CLI variables in key=value format."""
+    variables = {}
+    for v in var:
+        if "=" in v:
+            key, value = v.split("=", 1)
+            variables[key] = value
+        else:
+            console.print(f"[red]Invalid variable format: {v}[/red]")
+            console.print("Use: --var key=value")
+            raise typer.Exit(1)
+    return variables
+
+
+def _load_workflow_from_source(
+    workflow: str, engine
+) -> tuple[str, dict, Path | None]:
+    """Load workflow from file or by ID.
+
+    Returns:
+        Tuple of (workflow_id, workflow_data, workflow_path_or_None)
+    """
+    workflow_path = Path(workflow)
+    if workflow_path.exists() and workflow_path.suffix == ".json":
+        try:
+            with open(workflow_path) as f:
+                workflow_data = json.load(f)
+            workflow_id = workflow_data.get("id", workflow_path.stem)
+            console.print(f"[dim]Loading workflow from:[/dim] {workflow_path}")
+            return workflow_id, workflow_data, workflow_path
+        except json.JSONDecodeError as e:
+            console.print(f"[red]Invalid JSON in workflow file:[/red] {e}")
+            raise typer.Exit(1)
+
+    loaded = engine.load_workflow(workflow)
+    if not loaded:
+        console.print(f"[red]Workflow not found:[/red] {workflow}")
+        console.print("\nAvailable workflows:")
+        list_workflows_table(engine)
+        raise typer.Exit(1)
+    return workflow, loaded.model_dump(), None
+
+
+def _display_workflow_preview(
+    workflow_id: str, workflow_data: dict, variables: dict
+) -> None:
+    """Display workflow information preview."""
+    console.print(
+        Panel(
+            f"[bold]{workflow_data.get('name', workflow_id)}[/bold]\n"
+            f"[dim]{workflow_data.get('description', 'No description')}[/dim]",
+            title="Workflow",
+            border_style="blue",
+        )
+    )
+
+    if workflow_data.get("steps"):
+        console.print(f"\n[dim]Steps:[/dim] {len(workflow_data['steps'])}")
+        for step in workflow_data["steps"]:
+            console.print(
+                f"  • {step['id']} ({step['type']}:{step.get('action', 'N/A')})"
+            )
+
+    if variables:
+        console.print("\n[dim]Variables:[/dim]")
+        for k, v in variables.items():
+            console.print(f"  {k} = {v}")
+
+
+def _output_run_results(result, json_output: bool) -> None:
+    """Output workflow execution results."""
+    if json_output:
+        print(json.dumps(result.model_dump(mode="json"), indent=2))
+        return
+
+    status_color = "green" if result.status == "completed" else "red"
+    console.print(f"\n[{status_color}]Status: {result.status}[/{status_color}]")
+
+    if result.step_results:
+        console.print("\n[dim]Step Results:[/dim]")
+        for step_id, step_result in result.step_results.items():
+            status = step_result.get("status", "unknown")
+            icon = "✓" if status == "success" else "✗"
+            console.print(f"  {icon} {step_id}: {status}")
+
+    if result.error:
+        console.print(f"\n[red]Error:[/red] {result.error}")
 
 
 @app.command()
@@ -246,68 +361,17 @@ def run(
 ):
     """Run a workflow by ID or from a JSON file."""
     engine = get_workflow_engine()
-
-    # Parse variables
-    variables = {}
-    for v in var:
-        if "=" in v:
-            key, value = v.split("=", 1)
-            variables[key] = value
-        else:
-            console.print(f"[red]Invalid variable format: {v}[/red]")
-            console.print("Use: --var key=value")
-            raise typer.Exit(1)
-
-    # Load workflow
-    workflow_path = Path(workflow)
-    if workflow_path.exists() and workflow_path.suffix == ".json":
-        # Load from file
-        try:
-            with open(workflow_path) as f:
-                workflow_data = json.load(f)
-            workflow_id = workflow_data.get("id", workflow_path.stem)
-            console.print(f"[dim]Loading workflow from:[/dim] {workflow_path}")
-        except json.JSONDecodeError as e:
-            console.print(f"[red]Invalid JSON in workflow file:[/red] {e}")
-            raise typer.Exit(1)
-    else:
-        # Load by ID from engine
-        workflow_id = workflow
-        loaded = engine.load_workflow(workflow_id)
-        if not loaded:
-            console.print(f"[red]Workflow not found:[/red] {workflow_id}")
-            console.print("\nAvailable workflows:")
-            list_workflows_table(engine)
-            raise typer.Exit(1)
-        workflow_data = loaded.model_dump()
-
-    # Show workflow info
-    console.print(
-        Panel(
-            f"[bold]{workflow_data.get('name', workflow_id)}[/bold]\n"
-            f"[dim]{workflow_data.get('description', 'No description')}[/dim]",
-            title="Workflow",
-            border_style="blue",
-        )
+    variables = _parse_cli_variables(var)
+    workflow_id, workflow_data, workflow_path = _load_workflow_from_source(
+        workflow, engine
     )
 
-    if workflow_data.get("steps"):
-        console.print(f"\n[dim]Steps:[/dim] {len(workflow_data['steps'])}")
-        for step in workflow_data["steps"]:
-            console.print(
-                f"  • {step['id']} ({step['type']}:{step.get('action', 'N/A')})"
-            )
-
-    if variables:
-        console.print("\n[dim]Variables:[/dim]")
-        for k, v in variables.items():
-            console.print(f"  {k} = {v}")
+    _display_workflow_preview(workflow_id, workflow_data, variables)
 
     if dry_run:
         console.print("\n[yellow]Dry run - workflow not executed[/yellow]")
         raise typer.Exit(0)
 
-    # Execute workflow
     console.print()
     with Progress(
         SpinnerColumn(),
@@ -317,45 +381,22 @@ def run(
         task = progress.add_task("Executing workflow...", total=None)
 
         try:
-            # Load and execute
-            wf = (
-                engine.load_workflow(workflow_id)
-                if not workflow_path.exists()
-                else None
-            )
-            if wf:
+            if workflow_path is None:
+                wf = engine.load_workflow(workflow_id)
                 wf.variables = variables
-                result = engine.execute_workflow(wf)
             else:
-                # Execute from file
                 from test_ai.orchestrator import Workflow
-
                 wf = Workflow(**workflow_data)
                 wf.variables = variables
-                result = engine.execute_workflow(wf)
 
+            result = engine.execute_workflow(wf)
             progress.update(task, description="Complete!")
         except Exception as e:
             progress.stop()
             console.print(f"\n[red]Execution failed:[/red] {e}")
             raise typer.Exit(1)
 
-    # Output results
-    if json_output:
-        print(json.dumps(result.model_dump(mode="json"), indent=2))
-    else:
-        status_color = "green" if result.status == "completed" else "red"
-        console.print(f"\n[{status_color}]Status: {result.status}[/{status_color}]")
-
-        if result.step_results:
-            console.print("\n[dim]Step Results:[/dim]")
-            for step_id, step_result in result.step_results.items():
-                status = step_result.get("status", "unknown")
-                icon = "✓" if status == "success" else "✗"
-                console.print(f"  {icon} {step_id}: {status}")
-
-        if result.error:
-            console.print(f"\n[red]Error:[/red] {result.error}")
+    _output_run_results(result, json_output)
 
 
 @app.command("list")
@@ -408,26 +449,10 @@ def list_workflows_table(engine):
     console.print(table)
 
 
-@app.command()
-def validate(
-    workflow_file: Path = typer.Argument(
-        ...,
-        help="Path to workflow JSON file",
-        exists=True,
-    ),
-):
-    """Validate a workflow JSON file."""
-    try:
-        with open(workflow_file) as f:
-            data = json.load(f)
-    except json.JSONDecodeError as e:
-        console.print(f"[red]Invalid JSON:[/red] {e}")
-        raise typer.Exit(1)
-
+def _validate_cli_required_fields(data: dict) -> tuple[list[str], list[str]]:
+    """Validate required workflow fields for CLI."""
     errors = []
     warnings = []
-
-    # Required fields
     if "id" not in data:
         errors.append("Missing required field: id")
     if "steps" not in data:
@@ -436,38 +461,53 @@ def validate(
         errors.append("'steps' must be a list")
     elif len(data["steps"]) == 0:
         warnings.append("Workflow has no steps")
+    return errors, warnings
 
-    # Validate steps
-    step_ids = set()
-    for i, step in enumerate(data.get("steps", [])):
-        step_prefix = f"Step {i + 1}"
+
+def _validate_cli_steps(steps: list) -> tuple[list[str], list[str], set[str]]:
+    """Validate workflow steps for CLI."""
+    errors = []
+    warnings = []
+    step_ids: set[str] = set()
+    valid_types = {"claude_code", "openai", "transform", "condition"}
+
+    for i, step in enumerate(steps):
+        prefix = f"Step {i + 1}"
 
         if "id" not in step:
-            errors.append(f"{step_prefix}: Missing 'id'")
+            errors.append(f"{prefix}: Missing 'id'")
         else:
             if step["id"] in step_ids:
-                errors.append(f"{step_prefix}: Duplicate step ID '{step['id']}'")
+                errors.append(f"{prefix}: Duplicate step ID '{step['id']}'")
             step_ids.add(step["id"])
 
         if "type" not in step:
-            errors.append(f"{step_prefix}: Missing 'type'")
-        elif step["type"] not in ["claude_code", "openai", "transform", "condition"]:
-            warnings.append(f"{step_prefix}: Unknown step type '{step['type']}'")
+            errors.append(f"{prefix}: Missing 'type'")
+        elif step["type"] not in valid_types:
+            warnings.append(f"{prefix}: Unknown step type '{step['type']}'")
 
         if "action" not in step:
-            errors.append(f"{step_prefix}: Missing 'action'")
+            errors.append(f"{prefix}: Missing 'action'")
 
-        # next_step references are validated in the loop below
+    return errors, warnings, step_ids
 
-    # Validate next_step references
-    for step in data.get("steps", []):
+
+def _validate_cli_next_step_refs(steps: list, step_ids: set[str]) -> list[str]:
+    """Validate next_step references in workflow."""
+    errors = []
+    for step in steps:
         if "next_step" in step and step["next_step"]:
             if step["next_step"] not in step_ids:
                 errors.append(
                     f"Step '{step.get('id', '?')}': next_step '{step['next_step']}' not found"
                 )
+    return errors
 
-    # Output results
+
+def _output_validation_results(
+    errors: list[str], warnings: list[str], workflow_file: Path
+) -> None:
+    """Output validation results to console."""
     if errors:
         console.print(
             Panel(
@@ -493,6 +533,34 @@ def validate(
     else:
         console.print("\n[red]✗ Validation failed[/red]")
         raise typer.Exit(1)
+
+
+@app.command()
+def validate(
+    workflow_file: Path = typer.Argument(
+        ...,
+        help="Path to workflow JSON file",
+        exists=True,
+    ),
+):
+    """Validate a workflow JSON file."""
+    try:
+        with open(workflow_file) as f:
+            data = json.load(f)
+    except json.JSONDecodeError as e:
+        console.print(f"[red]Invalid JSON:[/red] {e}")
+        raise typer.Exit(1)
+
+    errors, warnings = _validate_cli_required_fields(data)
+
+    steps = data.get("steps", [])
+    if isinstance(steps, list):
+        step_errors, step_warnings, step_ids = _validate_cli_steps(steps)
+        errors.extend(step_errors)
+        warnings.extend(step_warnings)
+        errors.extend(_validate_cli_next_step_refs(steps, step_ids))
+
+    _output_validation_results(errors, warnings, workflow_file)
 
 
 @app.command()

@@ -312,54 +312,40 @@ def load_workflow(
     return WorkflowConfig.from_dict(data)
 
 
-def validate_workflow(data: dict) -> list[str]:
-    """Validate workflow data against schema.
+def _validate_workflow_steps(data: dict) -> list[str]:
+    """Validate workflow steps field."""
+    if "steps" not in data:
+        return ["Missing required field: steps"]
+    if not isinstance(data["steps"], list):
+        return ["Field 'steps' must be a list"]
+    if len(data["steps"]) == 0:
+        return ["Workflow must have at least one step"]
 
-    Args:
-        data: Workflow dictionary
+    errors = []
+    step_ids: set[str] = set()
+    for i, step in enumerate(data["steps"]):
+        errors.extend(_validate_step(step, i))
+        step_id = step.get("id")
+        if step_id in step_ids:
+            errors.append(f"Duplicate step ID: {step_id}")
+        elif step_id:
+            step_ids.add(step_id)
+    return errors
 
-    Returns:
-        List of validation errors (empty if valid)
-    """
+
+def _validate_workflow_optional_fields(data: dict) -> list[str]:
+    """Validate optional workflow fields (inputs, outputs, budget, timeout)."""
     errors = []
 
-    # Required fields
-    if "name" not in data:
-        errors.append("Missing required field: name")
-    elif not isinstance(data["name"], str) or not data["name"].strip():
-        errors.append("Field 'name' must be a non-empty string")
-
-    if "steps" not in data:
-        errors.append("Missing required field: steps")
-    elif not isinstance(data["steps"], list):
-        errors.append("Field 'steps' must be a list")
-    elif len(data["steps"]) == 0:
-        errors.append("Workflow must have at least one step")
-    else:
-        step_ids = set()
-        for i, step in enumerate(data["steps"]):
-            step_errors = _validate_step(step, i)
-            errors.extend(step_errors)
-
-            # Check for duplicate IDs
-            step_id = step.get("id")
-            if step_id in step_ids:
-                errors.append(f"Duplicate step ID: {step_id}")
-            elif step_id:
-                step_ids.add(step_id)
-
-    # Validate inputs schema
     if "inputs" in data and not isinstance(data["inputs"], dict):
         errors.append("Field 'inputs' must be an object")
 
-    # Validate outputs
     if "outputs" in data:
         if not isinstance(data["outputs"], list):
             errors.append("Field 'outputs' must be a list")
         elif not all(isinstance(o, str) for o in data["outputs"]):
             errors.append("All output names must be strings")
 
-    # Validate budget and timeout
     if "token_budget" in data:
         if not isinstance(data["token_budget"], int) or data["token_budget"] < 1000:
             errors.append("token_budget must be an integer >= 1000")
@@ -371,58 +357,61 @@ def validate_workflow(data: dict) -> list[str]:
     return errors
 
 
-def _validate_step(step: dict, index: int) -> list[str]:
-    """Validate a single workflow step."""
+def validate_workflow(data: dict) -> list[str]:
+    """Validate workflow data against schema.
+
+    Args:
+        data: Workflow dictionary
+
+    Returns:
+        List of validation errors (empty if valid)
+    """
     errors = []
-    prefix = f"Step {index + 1}"
 
-    if not isinstance(step, dict):
-        return [f"{prefix}: must be an object"]
+    # Validate name field
+    if "name" not in data:
+        errors.append("Missing required field: name")
+    elif not isinstance(data["name"], str) or not data["name"].strip():
+        errors.append("Field 'name' must be a non-empty string")
 
-    # Required fields
-    if "id" not in step:
-        errors.append(f"{prefix}: missing required field 'id'")
-    elif not isinstance(step["id"], str) or not step["id"].strip():
-        errors.append(f"{prefix}: 'id' must be a non-empty string")
-    else:
-        prefix = f"Step '{step['id']}'"
+    errors.extend(_validate_workflow_steps(data))
+    errors.extend(_validate_workflow_optional_fields(data))
 
-    if "type" not in step:
-        errors.append(f"{prefix}: missing required field 'type'")
-    elif step["type"] not in (
-        "claude_code",
-        "openai",
-        "shell",
-        "parallel",
-        "checkpoint",
-    ):
-        errors.append(f"{prefix}: invalid type '{step['type']}'")
+    return errors
 
-    # Validate condition if present
-    if "condition" in step:
-        cond = step["condition"]
-        if not isinstance(cond, dict):
-            errors.append(f"{prefix}: condition must be an object")
-        else:
-            for req in ("field", "operator", "value"):
-                if req not in cond:
-                    errors.append(f"{prefix}: condition missing '{req}'")
-            if "operator" in cond and cond["operator"] not in (
-                "equals",
-                "not_equals",
-                "contains",
-                "greater_than",
-                "less_than",
-            ):
-                errors.append(
-                    f"{prefix}: invalid condition operator '{cond['operator']}'"
-                )
 
-    # Validate on_failure
-    if "on_failure" in step and step["on_failure"] not in ("abort", "skip", "retry"):
+VALID_STEP_TYPES = frozenset({"claude_code", "openai", "shell", "parallel", "checkpoint"})
+VALID_OPERATORS = frozenset({"equals", "not_equals", "contains", "greater_than", "less_than"})
+VALID_ON_FAILURE = frozenset({"abort", "skip", "retry"})
+
+
+def _validate_step_condition(step: dict, prefix: str) -> list[str]:
+    """Validate step condition if present."""
+    if "condition" not in step:
+        return []
+
+    errors = []
+    cond = step["condition"]
+    if not isinstance(cond, dict):
+        return [f"{prefix}: condition must be an object"]
+
+    for req in ("field", "operator", "value"):
+        if req not in cond:
+            errors.append(f"{prefix}: condition missing '{req}'")
+
+    if "operator" in cond and cond["operator"] not in VALID_OPERATORS:
+        errors.append(f"{prefix}: invalid condition operator '{cond['operator']}'")
+
+    return errors
+
+
+def _validate_step_optional_fields(step: dict, prefix: str) -> list[str]:
+    """Validate optional step fields (on_failure, max_retries, timeout, depends_on)."""
+    errors = []
+
+    if "on_failure" in step and step["on_failure"] not in VALID_ON_FAILURE:
         errors.append(f"{prefix}: invalid on_failure value '{step['on_failure']}'")
 
-    # Validate retries and timeout
     if "max_retries" in step:
         if not isinstance(step["max_retries"], int) or step["max_retries"] < 0:
             errors.append(f"{prefix}: max_retries must be a non-negative integer")
@@ -431,7 +420,6 @@ def _validate_step(step: dict, index: int) -> list[str]:
         if not isinstance(step["timeout_seconds"], int) or step["timeout_seconds"] < 1:
             errors.append(f"{prefix}: timeout_seconds must be a positive integer")
 
-    # Validate depends_on
     if "depends_on" in step:
         deps = step["depends_on"]
         if isinstance(deps, str):
@@ -440,6 +428,35 @@ def _validate_step(step: dict, index: int) -> list[str]:
             errors.append(f"{prefix}: depends_on must be a string or list of strings")
         elif not all(isinstance(d, str) for d in deps):
             errors.append(f"{prefix}: all depends_on values must be strings")
+
+    return errors
+
+
+def _validate_step(step: dict, index: int) -> list[str]:
+    """Validate a single workflow step."""
+    prefix = f"Step {index + 1}"
+
+    if not isinstance(step, dict):
+        return [f"{prefix}: must be an object"]
+
+    errors = []
+
+    # Validate id field
+    if "id" not in step:
+        errors.append(f"{prefix}: missing required field 'id'")
+    elif not isinstance(step["id"], str) or not step["id"].strip():
+        errors.append(f"{prefix}: 'id' must be a non-empty string")
+    else:
+        prefix = f"Step '{step['id']}'"
+
+    # Validate type field
+    if "type" not in step:
+        errors.append(f"{prefix}: missing required field 'type'")
+    elif step["type"] not in VALID_STEP_TYPES:
+        errors.append(f"{prefix}: invalid type '{step['type']}'")
+
+    errors.extend(_validate_step_condition(step, prefix))
+    errors.extend(_validate_step_optional_fields(step, prefix))
 
     return errors
 
