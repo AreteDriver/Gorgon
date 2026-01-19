@@ -112,9 +112,7 @@ class TestCircuitBreakerRecovery:
 
     def test_recovery_timeout_enters_half_open(self):
         """After recovery timeout, circuit enters half-open state."""
-        breaker = CircuitBreaker(
-            name="test", failure_threshold=2, recovery_timeout=0.1
-        )
+        breaker = CircuitBreaker(name="test", failure_threshold=2, recovery_timeout=0.1)
 
         def fail():
             raise ValueError("error")
@@ -160,9 +158,7 @@ class TestCircuitBreakerRecovery:
 
     def test_failure_in_half_open_reopens_circuit(self):
         """Failure in half-open state reopens the circuit."""
-        breaker = CircuitBreaker(
-            name="test", failure_threshold=2, recovery_timeout=0.1
-        )
+        breaker = CircuitBreaker(name="test", failure_threshold=2, recovery_timeout=0.1)
 
         def fail():
             raise ValueError("error")

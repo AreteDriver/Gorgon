@@ -154,16 +154,24 @@ class TestCheckpointResumeE2E:
         checkpoint_stages = [(cp["stage"], cp["status"]) for cp in checkpoints]
 
         # We should have checkpoints for step1 (success) and step2_failing (failed)
-        assert len(checkpoints) >= 2, f"Expected 2+ checkpoints, got: {checkpoint_stages}"
+        assert len(checkpoints) >= 2, (
+            f"Expected 2+ checkpoints, got: {checkpoint_stages}"
+        )
 
         # Find checkpoint for step1
         step1_cp = next((cp for cp in checkpoints if cp["stage"] == "step1"), None)
-        assert step1_cp is not None, f"Missing step1 checkpoint. Found: {checkpoint_stages}"
+        assert step1_cp is not None, (
+            f"Missing step1 checkpoint. Found: {checkpoint_stages}"
+        )
         assert step1_cp["status"] == "success"
 
         # Find checkpoint for step2_failing
-        step2_cp = next((cp for cp in checkpoints if cp["stage"] == "step2_failing"), None)
-        assert step2_cp is not None, f"Missing step2_failing checkpoint. Found: {checkpoint_stages}"
+        step2_cp = next(
+            (cp for cp in checkpoints if cp["stage"] == "step2_failing"), None
+        )
+        assert step2_cp is not None, (
+            f"Missing step2_failing checkpoint. Found: {checkpoint_stages}"
+        )
         assert step2_cp["status"] == "failed"
 
     def test_resume_from_specific_step(self, checkpoint_manager, test_workflow):
@@ -245,7 +253,9 @@ class TestCheckpointResumeE2E:
     def test_resume_integration_with_persistence(self, checkpoint_manager):
         """Test the full resume() method integration."""
         # Create and partially complete a workflow
-        wf_id = checkpoint_manager.start_workflow("resume_test", config={"key": "value"})
+        wf_id = checkpoint_manager.start_workflow(
+            "resume_test", config={"key": "value"}
+        )
 
         # Checkpoint a stage
         checkpoint_manager.checkpoint_now(

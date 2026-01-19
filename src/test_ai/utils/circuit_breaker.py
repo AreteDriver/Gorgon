@@ -329,7 +329,9 @@ def get_circuit_breaker(
 def get_all_circuit_stats() -> dict[str, dict[str, Any]]:
     """Get statistics for all circuit breakers."""
     with _breakers_lock:
-        return {name: breaker.get_stats() for name, breaker in _circuit_breakers.items()}
+        return {
+            name: breaker.get_stats() for name, breaker in _circuit_breakers.items()
+        }
 
 
 def reset_all_circuits() -> None:

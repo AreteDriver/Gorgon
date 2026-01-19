@@ -50,12 +50,8 @@ class Settings(BaseSettings):
         description="Production mode - enables strict security validation",
     )
     log_level: str = Field("INFO", description="Logging level")
-    log_format: str = Field(
-        "text", description="Log format: 'text' or 'json'"
-    )
-    sanitize_logs: bool = Field(
-        True, description="Sanitize sensitive data from logs"
-    )
+    log_format: str = Field("text", description="Log format: 'text' or 'json'")
+    sanitize_logs: bool = Field(True, description="Sanitize sensitive data from logs")
 
     # Paths
     base_dir: Path = Field(

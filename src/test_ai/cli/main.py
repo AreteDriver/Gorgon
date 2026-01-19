@@ -622,8 +622,7 @@ def do_task(
 
     console.print(
         Panel(
-            f"[bold]{task}[/bold]\n\n"
-            f"[dim]{context_str}[/dim]",
+            f"[bold]{task}[/bold]\n\n[dim]{context_str}[/dim]",
             title="🐍 Gorgon Task",
             border_style="cyan",
         )
@@ -681,8 +680,16 @@ def do_task(
     if result.steps:
         console.print("\n[bold]Agent Activity:[/bold]")
         for step in result.steps:
-            icon = "✓" if step.status.value == "success" else "✗" if step.status.value == "failed" else "○"
-            role = step.output.get("role", step.step_id) if step.output else step.step_id
+            icon = (
+                "✓"
+                if step.status.value == "success"
+                else "✗"
+                if step.status.value == "failed"
+                else "○"
+            )
+            role = (
+                step.output.get("role", step.step_id) if step.output else step.step_id
+            )
             tokens = step.tokens_used
             console.print(f"  {icon} {role}: {step.status.value} ({tokens:,} tokens)")
 
@@ -864,7 +871,9 @@ def test(
     code_context = ""
     if target_path.exists() and target_path.is_file():
         try:
-            code_context = f"\nCode to test:\n```\n{target_path.read_text()[:5000]}\n```"
+            code_context = (
+                f"\nCode to test:\n```\n{target_path.read_text()[:5000]}\n```"
+            )
         except Exception:
             pass
 
@@ -950,7 +959,9 @@ def review(
         if target_path.exists():
             if target_path.is_file():
                 try:
-                    code_context = f"\nCode to review:\n```\n{target_path.read_text()[:8000]}\n```"
+                    code_context = (
+                        f"\nCode to review:\n```\n{target_path.read_text()[:8000]}\n```"
+                    )
                 except Exception:
                     pass
             elif target_path.is_dir():
@@ -962,7 +973,9 @@ def review(
                     except Exception:
                         pass
                 if code_snippets:
-                    code_context = f"\nFiles to review:\n```\n{'---'.join(code_snippets)}\n```"
+                    code_context = (
+                        f"\nFiles to review:\n```\n{'---'.join(code_snippets)}\n```"
+                    )
 
     console.print(
         Panel(

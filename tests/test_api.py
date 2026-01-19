@@ -80,7 +80,9 @@ def client(backend):
 @pytest.fixture
 def auth_headers(client):
     """Get authentication headers."""
-    response = client.post("/v1/auth/login", json={"user_id": "test", "password": "demo"})
+    response = client.post(
+        "/v1/auth/login", json={"user_id": "test", "password": "demo"}
+    )
     token = response.json()["access_token"]
     return {"Authorization": f"Bearer {token}"}
 
@@ -491,12 +493,8 @@ class TestRateLimiting:
                         ) as mock_job_engine:
                             mock_workflow = MagicMock()
                             mock_workflow.variables = {}
-                            mock_sched_engine.return_value.load_workflow.return_value = (
-                                mock_workflow
-                            )
-                            mock_webhook_engine.return_value.load_workflow.return_value = (
-                                mock_workflow
-                            )
+                            mock_sched_engine.return_value.load_workflow.return_value = mock_workflow
+                            mock_webhook_engine.return_value.load_workflow.return_value = mock_workflow
                             mock_job_engine.return_value.load_workflow.return_value = (
                                 mock_workflow
                             )
