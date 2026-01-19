@@ -1,6 +1,8 @@
 """Settings and configuration management."""
 
 import logging
+import os
+import secrets
 import warnings
 from functools import lru_cache
 from pathlib import Path
@@ -14,6 +16,10 @@ logger = logging.getLogger(__name__)
 # Insecure default values that should not be used in production
 _INSECURE_SECRET_KEY = "change-me-in-production"
 _INSECURE_DATABASE_URL = "sqlite:///gorgon-state.db"
+
+# Minimum requirements for secure configuration
+_MIN_SECRET_KEY_LENGTH = 32
+_MIN_SECRET_KEY_ENTROPY_BITS = 128
 
 
 class Settings(BaseSettings):
@@ -48,6 +54,10 @@ class Settings(BaseSettings):
     production: bool = Field(
         False,
         description="Production mode - enables strict security validation",
+    )
+    require_secure_config: bool = Field(
+        False,
+        description="Require secure SECRET_KEY and DATABASE_URL even in dev mode",
     )
     log_level: str = Field("INFO", description="Logging level")
     log_format: str = Field("text", description="Log format: 'text' or 'json'")
@@ -92,11 +102,44 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = Field(
         60, description="Access token expiration in minutes"
     )
+    # API credentials (comma-separated user:password_hash pairs)
+    # Generate hash with: python -c "from hashlib import sha256; print(sha256(b'your_password').hexdigest())"
+    api_credentials: Optional[str] = Field(
+        None,
+        description="API credentials as 'user1:hash1,user2:hash2'. Hash passwords with SHA-256.",
+    )
+    allow_demo_auth: bool = Field(
+        True,
+        description="Allow demo authentication (user: any, password: 'demo'). Disable in production.",
+    )
+
+    # Shell execution limits
+    shell_timeout_seconds: int = Field(
+        300,
+        description="Maximum execution time for shell commands in seconds (default: 5 minutes)",
+    )
+    shell_max_output_bytes: int = Field(
+        10 * 1024 * 1024,
+        description="Maximum output size for shell commands in bytes (default: 10MB)",
+    )
+    shell_allowed_commands: Optional[str] = Field(
+        None,
+        description="Comma-separated list of allowed shell commands (empty = all allowed)",
+    )
 
     @property
     def has_secure_secret_key(self) -> bool:
-        """Check if secret key has been changed from insecure default."""
-        return self.secret_key != _INSECURE_SECRET_KEY
+        """Check if secret key meets security requirements.
+
+        Requirements:
+        - Not the insecure default value
+        - At least 32 characters long
+        """
+        if self.secret_key == _INSECURE_SECRET_KEY:
+            return False
+        if len(self.secret_key) < _MIN_SECRET_KEY_LENGTH:
+            return False
+        return True
 
     @property
     def has_secure_database(self) -> bool:
@@ -107,6 +150,48 @@ class Settings(BaseSettings):
     def is_production_safe(self) -> bool:
         """Check if configuration is safe for production use."""
         return self.has_secure_secret_key and self.has_secure_database
+
+    @staticmethod
+    def generate_secret_key() -> str:
+        """Generate a cryptographically secure secret key."""
+        return secrets.token_urlsafe(48)  # 64 characters, 384 bits of entropy
+
+    def get_credentials_map(self) -> dict[str, str]:
+        """Parse API credentials into a username -> password_hash map."""
+        if not self.api_credentials:
+            return {}
+
+        credentials = {}
+        for pair in self.api_credentials.split(","):
+            pair = pair.strip()
+            if ":" in pair:
+                username, password_hash = pair.split(":", 1)
+                credentials[username.strip()] = password_hash.strip()
+        return credentials
+
+    def verify_credentials(self, username: str, password: str) -> bool:
+        """Verify username and password against configured credentials.
+
+        Args:
+            username: The username to verify
+            password: The plaintext password to verify
+
+        Returns:
+            True if credentials are valid, False otherwise
+        """
+        from hashlib import sha256
+
+        # Check configured credentials first
+        credentials = self.get_credentials_map()
+        if username in credentials:
+            password_hash = sha256(password.encode()).hexdigest()
+            return secrets.compare_digest(credentials[username], password_hash)
+
+        # Fall back to demo auth if allowed
+        if self.allow_demo_auth and password == "demo":
+            return True
+
+        return False
 
     def model_post_init(self, __context) -> None:
         """Ensure directories exist and validate production config."""
@@ -126,10 +211,19 @@ class Settings(BaseSettings):
         issues = []
 
         if not self.has_secure_secret_key:
-            msg = (
-                "SECRET_KEY is using insecure default value. "
-                "Set SECRET_KEY environment variable to a secure random string."
-            )
+            if self.secret_key == _INSECURE_SECRET_KEY:
+                msg = (
+                    "SECRET_KEY is using insecure default value. "
+                    f"Set SECRET_KEY environment variable to a secure random string "
+                    f"(minimum {_MIN_SECRET_KEY_LENGTH} characters). "
+                    f"Generate one with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
+            else:
+                msg = (
+                    f"SECRET_KEY is too short ({len(self.secret_key)} chars). "
+                    f"Minimum length is {_MIN_SECRET_KEY_LENGTH} characters. "
+                    f"Generate a secure key with: python -c \"import secrets; print(secrets.token_urlsafe(48))\""
+                )
             issues.append(msg)
 
         if not self.has_secure_database:
@@ -144,17 +238,29 @@ class Settings(BaseSettings):
             msg = "DEBUG mode is enabled in production. Set DEBUG=false."
             issues.append(msg)
 
+        if self.allow_demo_auth and self.production:
+            msg = (
+                "Demo authentication is enabled in production. "
+                "Set ALLOW_DEMO_AUTH=false and configure API_CREDENTIALS."
+            )
+            issues.append(msg)
+
+        # Determine if we should enforce or warn
+        enforce_security = self.production or self.require_secure_config
+
         if issues:
-            if self.production:
-                # In production mode, raise error for insecure config
+            if enforce_security:
+                # In production or when require_secure_config is set, raise error
+                mode = "production" if self.production else "secure config"
                 raise ValueError(
-                    "Production mode enabled with insecure configuration:\n"
+                    f"Insecure configuration not allowed ({mode} mode enabled):\n"
                     + "\n".join(f"  - {issue}" for issue in issues)
                 )
             else:
-                # In dev mode, just warn
+                # In dev mode, warn loudly
                 for issue in issues:
                     warnings.warn(f"Security: {issue}", stacklevel=3)
+                    logger.warning("SECURITY WARNING: %s", issue)
 
 
 @lru_cache()

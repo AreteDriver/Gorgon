@@ -792,15 +792,34 @@ class WorkflowExecutor:
         return None
 
     def _execute_shell(self, step: StepConfig, context: dict) -> dict:
-        """Execute a shell command step.
+        """Execute a shell command step with resource limits.
 
         Security: Variables are escaped using shlex.quote to prevent injection.
         Set allow_dangerous=True in params to skip dangerous pattern checks.
         Set escape_variables=False to disable escaping (use with extreme caution).
+
+        Resource limits (configurable via settings):
+        - Timeout: SHELL_TIMEOUT_SECONDS (default: 300s / 5 minutes)
+        - Output size: SHELL_MAX_OUTPUT_BYTES (default: 10MB)
+        - Command whitelist: SHELL_ALLOWED_COMMANDS (optional)
         """
+        from test_ai.config import get_settings
+
+        settings = get_settings()
         command = step.params.get("command", "")
         if not command:
             raise ValueError("Shell step requires 'command' parameter")
+
+        # Check command whitelist if configured
+        if settings.shell_allowed_commands:
+            allowed = [c.strip() for c in settings.shell_allowed_commands.split(",")]
+            # Extract the base command (first word before space or pipe)
+            base_cmd = command.split()[0].split("/")[-1] if command.split() else ""
+            if base_cmd not in allowed:
+                raise ValueError(
+                    f"Command '{base_cmd}' not in allowed list. "
+                    f"Allowed commands: {', '.join(allowed)}"
+                )
 
         # Validate command template (before substitution)
         allow_dangerous = step.params.get("allow_dangerous", False)
@@ -810,24 +829,59 @@ class WorkflowExecutor:
         escape_variables = step.params.get("escape_variables", True)
         command = substitute_shell_variables(command, context, escape=escape_variables)
 
-        logger.debug("Executing shell command: %s", command[:200])
+        # Determine timeout: use step timeout if set, otherwise use global setting
+        timeout = step.timeout_seconds or settings.shell_timeout_seconds
 
-        result = subprocess.run(
-            command,
-            shell=True,
-            capture_output=True,
-            text=True,
-            timeout=step.timeout_seconds,
+        logger.debug(
+            "Executing shell command (timeout=%ds): %s",
+            timeout,
+            command[:200],
         )
+
+        try:
+            result = subprocess.run(
+                command,
+                shell=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        except subprocess.TimeoutExpired as e:
+            raise RuntimeError(
+                f"Command timed out after {timeout} seconds. "
+                f"Partial stdout: {e.stdout[:500] if e.stdout else 'None'}... "
+                f"Partial stderr: {e.stderr[:500] if e.stderr else 'None'}..."
+            )
+
+        # Check output size limits
+        max_output = settings.shell_max_output_bytes
+        stdout = result.stdout or ""
+        stderr = result.stderr or ""
+
+        if len(stdout.encode()) > max_output:
+            logger.warning(
+                "Shell stdout truncated from %d to %d bytes",
+                len(stdout.encode()),
+                max_output,
+            )
+            stdout = stdout[:max_output] + "\n... [OUTPUT TRUNCATED]"
+
+        if len(stderr.encode()) > max_output:
+            logger.warning(
+                "Shell stderr truncated from %d to %d bytes",
+                len(stderr.encode()),
+                max_output,
+            )
+            stderr = stderr[:max_output] + "\n... [OUTPUT TRUNCATED]"
 
         if result.returncode != 0 and not step.params.get("allow_failure", False):
             raise RuntimeError(
-                f"Command failed with code {result.returncode}: {result.stderr}"
+                f"Command failed with code {result.returncode}: {stderr[:1000]}"
             )
 
         return {
-            "stdout": result.stdout,
-            "stderr": result.stderr,
+            "stdout": stdout,
+            "stderr": stderr,
             "returncode": result.returncode,
         }
 

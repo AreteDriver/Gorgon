@@ -322,11 +322,28 @@ def root():
 @v1_router.post("/auth/login", response_model=LoginResponse)
 @limiter.limit("5/minute")
 def login(request: Request, login_request: LoginRequest):
-    """Login endpoint (simplified). Rate limited to 5 requests/minute per IP."""
-    if login_request.password == "demo":
+    """Login endpoint. Rate limited to 5 requests/minute per IP.
+
+    Authentication methods (in priority order):
+    1. Configured credentials via API_CREDENTIALS env var
+    2. Demo auth (password='demo') if ALLOW_DEMO_AUTH=true (default in dev)
+
+    Configure credentials:
+        API_CREDENTIALS='user1:sha256hash1,user2:sha256hash2'
+        Generate hash: python -c "from hashlib import sha256; print(sha256(b'password').hexdigest())"
+    """
+    settings = get_settings()
+
+    if settings.verify_credentials(login_request.user_id, login_request.password):
         token = create_access_token(login_request.user_id)
+        logger.info("User '%s' logged in successfully", login_request.user_id)
         return LoginResponse(access_token=token)
 
+    logger.warning(
+        "Failed login attempt for user '%s' from IP %s",
+        login_request.user_id,
+        get_remote_address(request),
+    )
     raise HTTPException(status_code=401, detail="Invalid credentials")
 
 
