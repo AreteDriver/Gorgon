@@ -531,11 +531,14 @@ class TestMainApp:
     def test_main_routes_to_dashboard(self, mock_streamlit):
         """Main app routes Dashboard page correctly."""
         mock_streamlit.session_state.clear()
-        mock_streamlit.sidebar.radio.return_value = "Dashboard"
+        mock_render = MagicMock()
 
         with (
             patch("test_ai.dashboard.app.render_sidebar") as mock_sidebar,
-            patch("test_ai.dashboard.app.render_dashboard_page") as mock_render,
+            patch.dict(
+                "test_ai.dashboard.app._PAGE_RENDERERS",
+                {"Dashboard": mock_render},
+            ),
         ):
             mock_sidebar.return_value = "Dashboard"
 
@@ -548,10 +551,14 @@ class TestMainApp:
     def test_main_routes_to_workflows(self, mock_streamlit):
         """Main app routes Workflows page correctly."""
         mock_streamlit.session_state.clear()
+        mock_render = MagicMock()
 
         with (
             patch("test_ai.dashboard.app.render_sidebar") as mock_sidebar,
-            patch("test_ai.dashboard.app.render_workflows_page") as mock_render,
+            patch.dict(
+                "test_ai.dashboard.app._PAGE_RENDERERS",
+                {"Workflows": mock_render},
+            ),
         ):
             mock_sidebar.return_value = "Workflows"
 
@@ -564,11 +571,14 @@ class TestMainApp:
     def test_main_routes_to_monitoring(self, mock_streamlit):
         """Main app routes Monitoring page correctly."""
         mock_streamlit.session_state.clear()
+        mock_render = MagicMock()
 
-        # Patch where render_monitoring_page is imported (in app.py)
         with (
             patch("test_ai.dashboard.app.render_sidebar") as mock_sidebar,
-            patch("test_ai.dashboard.app.render_monitoring_page") as mock_render,
+            patch.dict(
+                "test_ai.dashboard.app._PAGE_RENDERERS",
+                {"Monitoring": mock_render},
+            ),
         ):
             mock_sidebar.return_value = "Monitoring"
 
