@@ -190,7 +190,8 @@ class BruteForceProtection:
             minute_ago = now - 60
             hour_ago = now - 3600
 
-            if record.first_attempt < hour_ago:
+            # Initialize first_attempt if not set (0.0), or reset if window expired
+            if record.first_attempt == 0.0 or record.first_attempt < hour_ago:
                 # Reset hourly counter
                 record.attempts = 0
                 record.first_attempt = now

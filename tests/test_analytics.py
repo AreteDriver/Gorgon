@@ -688,7 +688,7 @@ class TestAnalyticsPipeline:
         # Stage 2 should receive stage 1 output
         assert context_log[1][2] == "stage1_output"
 
-    @patch("test_ai.orchestrators.analytics.pipeline.ClaudeCodeClient")
+    @patch("test_ai.api_clients.ClaudeCodeClient")
     def test_add_agent_stage(self, mock_client_class):
         """Test adding an agent-powered stage."""
         mock_client = MagicMock()
@@ -730,7 +730,7 @@ class TestPipelineBuilder:
         assert pipeline.pipeline_id == "threshold_alerts"
         assert len(pipeline._stages) == 3
 
-    @patch("test_ai.orchestrators.analytics.pipeline.ClaudeCodeClient")
+    @patch("test_ai.api_clients.ClaudeCodeClient")
     def test_full_analysis_pipeline(self, mock_client_class):
         """Test creating full analysis pipeline with agents."""
         mock_client_class.return_value = MagicMock()

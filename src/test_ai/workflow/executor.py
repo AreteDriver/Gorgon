@@ -1122,6 +1122,10 @@ class WorkflowExecutor:
                     )
                     total_tokens += tokens_used
                     return output
+                except Exception as e:
+                    # Capture error message for checkpoint recording
+                    error_msg = str(e)
+                    raise
                 finally:
                     duration_ms = int((time.time() - start_time) * 1000)
                     self._record_sub_step_metrics(

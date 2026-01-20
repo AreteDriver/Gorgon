@@ -175,7 +175,15 @@ class TrendAnalyzer(DataAnalyzer):
 
 
 def _get_nested_value(d: dict, path: str) -> Any:
-    """Get value from nested dict using dot notation."""
+    """Get value from nested dict using dot notation.
+
+    First checks for exact key match, then tries nested access.
+    """
+    # First try exact key match (handles keys with dots in them)
+    if path in d:
+        return d[path]
+
+    # Then try nested access
     current = d
     for key in path.split("."):
         if isinstance(current, dict) and key in current:
