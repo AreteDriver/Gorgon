@@ -10,6 +10,31 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 
+# Helper functions for creating mock context managers
+def _create_context_manager():
+    """Create a mock context manager."""
+    mock_cm = MagicMock()
+    mock_cm.__enter__ = MagicMock(return_value=mock_cm)
+    mock_cm.__exit__ = MagicMock(return_value=False)
+    return mock_cm
+
+
+def _create_columns(n):
+    """Create mock columns for st.columns."""
+    count = n if isinstance(n, int) else len(n)
+    return [_create_context_manager() for _ in range(count)]
+
+
+def _create_tabs(labels):
+    """Create mock tabs for st.tabs."""
+    return [_create_context_manager() for _ in labels]
+
+
+def _create_expander(label, **kwargs):
+    """Create mock expander for st.expander."""
+    return _create_context_manager()
+
+
 # Create mock streamlit module before importing dashboard
 @pytest.fixture(autouse=True)
 def mock_streamlit():
@@ -34,40 +59,10 @@ def mock_streamlit():
                 raise AttributeError(name)
 
     mock_st.session_state = SessionState()
-    mock_st.cache_resource = lambda f: f  # Pass through decorator
-
-    # Mock column context managers - return correct number based on arg
-    def create_columns(n):
-        cols = []
-        for _ in range(n if isinstance(n, int) else len(n)):
-            mock_col = MagicMock()
-            mock_col.__enter__ = MagicMock(return_value=mock_col)
-            mock_col.__exit__ = MagicMock(return_value=False)
-            cols.append(mock_col)
-        return cols
-
-    mock_st.columns.side_effect = create_columns
-
-    # Mock tabs context manager
-    def create_tabs(labels):
-        tabs = []
-        for _ in labels:
-            mock_tab = MagicMock()
-            mock_tab.__enter__ = MagicMock(return_value=mock_tab)
-            mock_tab.__exit__ = MagicMock(return_value=False)
-            tabs.append(mock_tab)
-        return tabs
-
-    mock_st.tabs.side_effect = create_tabs
-
-    # Mock expander context manager
-    def create_expander(label, **kwargs):
-        mock_expander = MagicMock()
-        mock_expander.__enter__ = MagicMock(return_value=mock_expander)
-        mock_expander.__exit__ = MagicMock(return_value=False)
-        return mock_expander
-
-    mock_st.expander.side_effect = create_expander
+    mock_st.cache_resource = lambda f: f
+    mock_st.columns.side_effect = _create_columns
+    mock_st.tabs.side_effect = _create_tabs
+    mock_st.expander.side_effect = _create_expander
 
     with patch.dict(sys.modules, {"streamlit": mock_st}):
         yield mock_st
