@@ -456,6 +456,7 @@ class TestExecutionTracker:
         reset_metrics_store()
         # Also reset the global tracker
         import test_ai.monitoring.tracker as tracker_module
+
         tracker_module._tracker = None
 
     def test_execution_tracker_creation(self):
@@ -674,6 +675,7 @@ class TestMonitoringIntegration:
         """Reset singletons before each test."""
         reset_metrics_store()
         import test_ai.monitoring.tracker as tracker_module
+
         tracker_module._tracker = None
 
     def test_full_workflow_with_multiple_steps(self):

@@ -84,11 +84,12 @@ class RetryStrategy:
 
     def get_delay(self, attempt: int) -> float:
         """Calculate delay for a given attempt number."""
-        delay = self.base_delay * (self.exponential_base ** attempt)
+        delay = self.base_delay * (self.exponential_base**attempt)
         delay = min(delay, self.max_delay)
 
         if self.jitter:
             import random
+
             delay *= 0.5 + random.random()  # 50-150% of calculated delay
 
         return delay
@@ -166,9 +167,12 @@ class WebhookDeliveryManager:
         self, payload: bytes, secret: str, algorithm: str = "sha256"
     ) -> str:
         """Generate HMAC signature for payload."""
-        return f"{algorithm}=" + hmac.new(
-            secret.encode(), payload, getattr(hashlib, algorithm)
-        ).hexdigest()
+        return (
+            f"{algorithm}="
+            + hmac.new(
+                secret.encode(), payload, getattr(hashlib, algorithm)
+            ).hexdigest()
+        )
 
     def deliver(
         self,
@@ -191,7 +195,9 @@ class WebhookDeliveryManager:
             WebhookDelivery with final status
         """
         headers = headers or {}
-        max_retries = max_retries if max_retries is not None else self.retry_strategy.max_retries
+        max_retries = (
+            max_retries if max_retries is not None else self.retry_strategy.max_retries
+        )
 
         delivery = WebhookDelivery(
             webhook_url=url,
@@ -204,7 +210,9 @@ class WebhookDeliveryManager:
         # Add signature if secret provided
         payload_bytes = json.dumps(payload).encode("utf-8")
         if secret:
-            headers["X-Webhook-Signature"] = self._generate_signature(payload_bytes, secret)
+            headers["X-Webhook-Signature"] = self._generate_signature(
+                payload_bytes, secret
+            )
 
         headers["Content-Type"] = "application/json"
 
@@ -214,7 +222,11 @@ class WebhookDeliveryManager:
         while delivery.attempt_count <= max_retries:
             delivery.attempt_count += 1
             delivery.last_attempt_at = datetime.now()
-            delivery.status = DeliveryStatus.RETRYING if delivery.attempt_count > 1 else DeliveryStatus.PENDING
+            delivery.status = (
+                DeliveryStatus.RETRYING
+                if delivery.attempt_count > 1
+                else DeliveryStatus.PENDING
+            )
 
             try:
                 response = client.post(
@@ -239,15 +251,21 @@ class WebhookDeliveryManager:
 
             except requests.exceptions.Timeout:
                 delivery.last_error = "Request timeout"
-                logger.warning(f"Webhook delivery timeout (attempt {delivery.attempt_count})")
+                logger.warning(
+                    f"Webhook delivery timeout (attempt {delivery.attempt_count})"
+                )
 
             except requests.exceptions.ConnectionError as e:
                 delivery.last_error = f"Connection error: {e}"
-                logger.warning(f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}")
+                logger.warning(
+                    f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}"
+                )
 
             except requests.exceptions.RequestException as e:
                 delivery.last_error = str(e)
-                logger.warning(f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}")
+                logger.warning(
+                    f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}"
+                )
 
             # Check if we should retry
             if delivery.attempt_count < max_retries:
@@ -263,7 +281,9 @@ class WebhookDeliveryManager:
         delivery.completed_at = datetime.now()
         self._save_delivery(delivery)
         self._add_to_dlq(delivery)
-        logger.error(f"Webhook delivery failed after {max_retries} retries, moved to DLQ: {url}")
+        logger.error(
+            f"Webhook delivery failed after {max_retries} retries, moved to DLQ: {url}"
+        )
 
         return delivery
 
@@ -288,7 +308,9 @@ class WebhookDeliveryManager:
             WebhookDelivery with final status
         """
         headers = headers or {}
-        max_retries = max_retries if max_retries is not None else self.retry_strategy.max_retries
+        max_retries = (
+            max_retries if max_retries is not None else self.retry_strategy.max_retries
+        )
 
         delivery = WebhookDelivery(
             webhook_url=url,
@@ -301,7 +323,9 @@ class WebhookDeliveryManager:
         # Add signature if secret provided
         payload_bytes = json.dumps(payload).encode("utf-8")
         if secret:
-            headers["X-Webhook-Signature"] = self._generate_signature(payload_bytes, secret)
+            headers["X-Webhook-Signature"] = self._generate_signature(
+                payload_bytes, secret
+            )
 
         headers["Content-Type"] = "application/json"
 
@@ -310,10 +334,16 @@ class WebhookDeliveryManager:
             while delivery.attempt_count <= max_retries:
                 delivery.attempt_count += 1
                 delivery.last_attempt_at = datetime.now()
-                delivery.status = DeliveryStatus.RETRYING if delivery.attempt_count > 1 else DeliveryStatus.PENDING
+                delivery.status = (
+                    DeliveryStatus.RETRYING
+                    if delivery.attempt_count > 1
+                    else DeliveryStatus.PENDING
+                )
 
                 try:
-                    response = await client.post(url, content=payload_bytes, headers=headers)
+                    response = await client.post(
+                        url, content=payload_bytes, headers=headers
+                    )
                     delivery.response_status = response.status_code
                     delivery.response_body = response.text[:1000]
 
@@ -328,15 +358,21 @@ class WebhookDeliveryManager:
 
                 except httpx.TimeoutException:
                     delivery.last_error = "Request timeout"
-                    logger.warning(f"Webhook delivery timeout (attempt {delivery.attempt_count})")
+                    logger.warning(
+                        f"Webhook delivery timeout (attempt {delivery.attempt_count})"
+                    )
 
                 except httpx.RequestError as e:
                     delivery.last_error = str(e)
-                    logger.warning(f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}")
+                    logger.warning(
+                        f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}"
+                    )
 
                 except Exception as e:
                     delivery.last_error = str(e)
-                    logger.warning(f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}")
+                    logger.warning(
+                        f"Webhook delivery failed (attempt {delivery.attempt_count}): {delivery.last_error}"
+                    )
 
                 # Check if we should retry
                 if delivery.attempt_count < max_retries:
@@ -352,7 +388,9 @@ class WebhookDeliveryManager:
         delivery.completed_at = datetime.now()
         self._save_delivery(delivery)
         self._add_to_dlq(delivery)
-        logger.error(f"Webhook delivery failed after {max_retries} retries, moved to DLQ: {url}")
+        logger.error(
+            f"Webhook delivery failed after {max_retries} retries, moved to DLQ: {url}"
+        )
 
         return delivery
 
@@ -378,10 +416,16 @@ class WebhookDeliveryManager:
                             delivery.attempt_count,
                             delivery.max_retries,
                             delivery.last_error,
-                            delivery.last_attempt_at.isoformat() if delivery.last_attempt_at else None,
-                            delivery.next_retry_at.isoformat() if delivery.next_retry_at else None,
+                            delivery.last_attempt_at.isoformat()
+                            if delivery.last_attempt_at
+                            else None,
+                            delivery.next_retry_at.isoformat()
+                            if delivery.next_retry_at
+                            else None,
                             delivery.created_at.isoformat(),
-                            delivery.completed_at.isoformat() if delivery.completed_at else None,
+                            delivery.completed_at.isoformat()
+                            if delivery.completed_at
+                            else None,
                             delivery.response_status,
                             delivery.response_body,
                         ),
@@ -403,9 +447,15 @@ class WebhookDeliveryManager:
                             delivery.status.value,
                             delivery.attempt_count,
                             delivery.last_error,
-                            delivery.last_attempt_at.isoformat() if delivery.last_attempt_at else None,
-                            delivery.next_retry_at.isoformat() if delivery.next_retry_at else None,
-                            delivery.completed_at.isoformat() if delivery.completed_at else None,
+                            delivery.last_attempt_at.isoformat()
+                            if delivery.last_attempt_at
+                            else None,
+                            delivery.next_retry_at.isoformat()
+                            if delivery.next_retry_at
+                            else None,
+                            delivery.completed_at.isoformat()
+                            if delivery.completed_at
+                            else None,
                             delivery.response_status,
                             delivery.response_body,
                             delivery.id,

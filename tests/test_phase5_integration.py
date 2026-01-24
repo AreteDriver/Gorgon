@@ -64,15 +64,15 @@ def client(backend):
                         mock_sched_engine.return_value.execute_workflow.return_value = (
                             mock_result
                         )
-                        mock_webhook_engine.return_value.execute_workflow.return_value = (
-                            mock_result
-                        )
+                        mock_webhook_engine.return_value.execute_workflow.return_value = mock_result
                         mock_job_engine.return_value.execute_workflow.return_value = (
                             mock_result
                         )
 
                         from test_ai.api import app, limiter
-                        from test_ai.security.brute_force import get_brute_force_protection
+                        from test_ai.security.brute_force import (
+                            get_brute_force_protection,
+                        )
 
                         # Disable slowapi rate limiting
                         limiter.enabled = False
@@ -109,7 +109,10 @@ class TestRequestSizeLimits:
         response = client.post(
             "/v1/auth/login",
             content=str(large_payload).encode(),
-            headers={"Content-Type": "application/json", "Content-Length": str(len(str(large_payload)))},
+            headers={
+                "Content-Type": "application/json",
+                "Content-Length": str(len(str(large_payload))),
+            },
         )
         assert response.status_code == 413
         assert "Request Entity Too Large" in response.json().get("error", "")
@@ -148,7 +151,7 @@ class TestBruteForceProtection:
                 response = client.post(
                     "/v1/auth/login", json={"user_id": "test", "password": "demo"}
                 )
-                assert response.status_code == 200, f"Request {i+1} should succeed"
+                assert response.status_code == 200, f"Request {i + 1} should succeed"
 
             # Next request should be blocked
             response = client.post(

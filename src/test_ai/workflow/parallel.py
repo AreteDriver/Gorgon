@@ -327,9 +327,7 @@ class ParallelExecutor:
 
                     if failed and fail_fast:
                         should_cancel = True
-                        self._cancel_threaded_futures(
-                            futures, future, pending, result
-                        )
+                        self._cancel_threaded_futures(futures, future, pending, result)
 
                     result.tasks[task.id] = task
                     completed_ids.add(task.id)
@@ -530,8 +528,16 @@ class ParallelExecutor:
 
                 task_id, res, err = item
                 should_cancel = self._process_completed_task(
-                    task_id, res, err, pending, result, completed_ids,
-                    on_complete, on_error, fail_fast, async_tasks
+                    task_id,
+                    res,
+                    err,
+                    pending,
+                    result,
+                    completed_ids,
+                    on_complete,
+                    on_error,
+                    fail_fast,
+                    async_tasks,
                 )
                 if should_cancel:
                     break
@@ -589,9 +595,7 @@ class ParallelExecutor:
 
                     if failed and fail_fast:
                         should_cancel = True
-                        self._cancel_threaded_futures(
-                            futures, future, pending, result
-                        )
+                        self._cancel_threaded_futures(futures, future, pending, result)
 
                     result.tasks[task.id] = task
                     completed_ids.add(task.id)

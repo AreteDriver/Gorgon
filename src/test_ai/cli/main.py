@@ -260,9 +260,7 @@ def _parse_cli_variables(var: list[str]) -> dict:
     return variables
 
 
-def _load_workflow_from_source(
-    workflow: str, engine
-) -> tuple[str, dict, Path | None]:
+def _load_workflow_from_source(workflow: str, engine) -> tuple[str, dict, Path | None]:
     """Load workflow from file or by ID.
 
     Returns:
@@ -386,6 +384,7 @@ def run(
                 wf.variables = variables
             else:
                 from test_ai.orchestrator import Workflow
+
                 wf = Workflow(**workflow_data)
                 wf.variables = variables
 

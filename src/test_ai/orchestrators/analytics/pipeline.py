@@ -314,7 +314,11 @@ class PipelineBuilder:
                 config={
                     "thresholds": {
                         "metrics.counters.error_count": {"warning": 5, "critical": 10},
-                        "summary.success_rate": {"warning": 90, "critical": 80, "direction": "below"},
+                        "summary.success_rate": {
+                            "warning": 90,
+                            "critical": 80,
+                            "direction": "below",
+                        },
                     }
                 },
             )
@@ -376,10 +380,19 @@ class PipelineBuilder:
                 config={
                     "thresholds": {
                         # Alert if any circuit is open
-                        "metrics.counters.circuit_openai_state": {"warning": 1, "critical": 1},
-                        "metrics.counters.circuit_anthropic_state": {"warning": 1, "critical": 1},
+                        "metrics.counters.circuit_openai_state": {
+                            "warning": 1,
+                            "critical": 1,
+                        },
+                        "metrics.counters.circuit_anthropic_state": {
+                            "warning": 1,
+                            "critical": 1,
+                        },
                         # Alert on high denial rates
-                        "metrics.counters.openai_requests_denied": {"warning": 10, "critical": 50},
+                        "metrics.counters.openai_requests_denied": {
+                            "warning": 10,
+                            "critical": 50,
+                        },
                     }
                 },
             )
@@ -405,11 +418,13 @@ class PipelineBuilder:
         pipeline = AnalyticsPipeline("operations_dashboard", use_agents=False)
 
         # Aggregate multiple data sources
-        collector = AggregateCollector([
-            ExecutionMetricsCollector(),
-            APIClientMetricsCollector(),
-            BudgetMetricsCollector(),
-        ])
+        collector = AggregateCollector(
+            [
+                ExecutionMetricsCollector(),
+                APIClientMetricsCollector(),
+                BudgetMetricsCollector(),
+            ]
+        )
 
         analyzer = CompositeAnalyzer([TrendAnalyzer(), ThresholdAnalyzer()])
         dashboard = DashboardBuilder()
@@ -422,7 +437,10 @@ class PipelineBuilder:
                 analyzer.analyze,
                 config={
                     "thresholds": {
-                        "execution_tracker.metrics.counters.error_count": {"warning": 5, "critical": 10},
+                        "execution_tracker.metrics.counters.error_count": {
+                            "warning": 5,
+                            "critical": 10,
+                        },
                         "budget_tracker.metrics.counters.budget_remaining": {
                             "warning": 10,
                             "critical": 5,

@@ -100,35 +100,39 @@ class TrendAnalyzer(DataAnalyzer):
 
         if avg_ms > 1000:
             elevated_severity = "warning"
-            findings.append({
-                "severity": "warning",
-                "category": "performance",
-                "message": f"Slow operation: {metric_name} averaging {avg_ms:.0f}ms",
-                "data": timing_data,
-            })
+            findings.append(
+                {
+                    "severity": "warning",
+                    "category": "performance",
+                    "message": f"Slow operation: {metric_name} averaging {avg_ms:.0f}ms",
+                    "data": timing_data,
+                }
+            )
             recommendations.append(f"Investigate performance of {metric_name}")
 
         if max_ms > avg_ms * 3 and count > 5:
-            findings.append({
-                "severity": "info",
-                "category": "variance",
-                "message": f"High variance in {metric_name}: max {max_ms:.0f}ms vs avg {avg_ms:.0f}ms",
-            })
+            findings.append(
+                {
+                    "severity": "info",
+                    "category": "variance",
+                    "message": f"High variance in {metric_name}: max {max_ms:.0f}ms vs avg {avg_ms:.0f}ms",
+                }
+            )
 
         return elevated_severity
 
-    def _analyze_error_counters(
-        self, counters: dict, findings: list
-    ) -> str | None:
+    def _analyze_error_counters(self, counters: dict, findings: list) -> str | None:
         """Analyze error counters. Returns severity if elevated."""
         elevated_severity = None
         for counter_name, value in counters.items():
             if "error" in counter_name.lower() and value > 0:
-                findings.append({
-                    "severity": "warning",
-                    "category": "errors",
-                    "message": f"Error counter {counter_name}: {value}",
-                })
+                findings.append(
+                    {
+                        "severity": "warning",
+                        "category": "errors",
+                        "message": f"Error counter {counter_name}: {value}",
+                    }
+                )
                 elevated_severity = "warning"
         return elevated_severity
 
@@ -158,11 +162,13 @@ class TrendAnalyzer(DataAnalyzer):
                 max_severity = severity
 
         if not findings:
-            findings.append({
-                "severity": "info",
-                "category": "trends",
-                "message": "No significant trends detected",
-            })
+            findings.append(
+                {
+                    "severity": "info",
+                    "category": "trends",
+                    "message": "No significant trends detected",
+                }
+            )
 
         return AnalysisResult(
             analyzer="trends",
@@ -210,32 +216,34 @@ class ThresholdAnalyzer(DataAnalyzer):
         direction = threshold_config.get("direction", "above")
 
         is_above = direction == "above"
-        exceeds_critical = (
-            critical_threshold is not None
-            and (value >= critical_threshold if is_above else value <= critical_threshold)
+        exceeds_critical = critical_threshold is not None and (
+            value >= critical_threshold if is_above else value <= critical_threshold
         )
-        exceeds_warning = (
-            warning_threshold is not None
-            and (value >= warning_threshold if is_above else value <= warning_threshold)
+        exceeds_warning = warning_threshold is not None and (
+            value >= warning_threshold if is_above else value <= warning_threshold
         )
 
         verb = "exceeds" if is_above else "below"
 
         if exceeds_critical:
-            findings.append({
-                "severity": "critical",
-                "category": "threshold",
-                "message": f"{metric_path} = {value} {verb} critical threshold {critical_threshold}",
-            })
+            findings.append(
+                {
+                    "severity": "critical",
+                    "category": "threshold",
+                    "message": f"{metric_path} = {value} {verb} critical threshold {critical_threshold}",
+                }
+            )
             recommendations.append(f"Investigate critical {metric_path}")
             return "critical"
 
         if exceeds_warning:
-            findings.append({
-                "severity": "warning",
-                "category": "threshold",
-                "message": f"{metric_path} = {value} {verb} warning threshold {warning_threshold}",
-            })
+            findings.append(
+                {
+                    "severity": "warning",
+                    "category": "threshold",
+                    "message": f"{metric_path} = {value} {verb} warning threshold {warning_threshold}",
+                }
+            )
             return "warning"
 
         return None
@@ -266,11 +274,13 @@ class ThresholdAnalyzer(DataAnalyzer):
                 max_severity = "warning"
 
         if not findings:
-            findings.append({
-                "severity": "info",
-                "category": "thresholds",
-                "message": "All metrics within acceptable thresholds",
-            })
+            findings.append(
+                {
+                    "severity": "info",
+                    "category": "thresholds",
+                    "message": "All metrics within acceptable thresholds",
+                }
+            )
 
         return AnalysisResult(
             analyzer="threshold",

@@ -453,6 +453,7 @@ def render_analytics_page():
             except Exception as e:
                 st.error(f"Pipeline failed: {e}")
                 import traceback
+
                 st.code(traceback.format_exc())
 
     st.divider()
@@ -487,7 +488,9 @@ def _render_pipeline_result(result, pipeline_name: str, pipelines: dict):
     """Render pipeline execution results."""
     # Header with status
     status_icon = "✅" if result.status == "completed" else "❌"
-    st.subheader(f"{status_icon} {pipelines.get(pipeline_name, {}).get('name', pipeline_name)}")
+    st.subheader(
+        f"{status_icon} {pipelines.get(pipeline_name, {}).get('name', pipeline_name)}"
+    )
 
     # Pipeline execution summary
     col1, col2, col3, col4 = st.columns(4)
@@ -500,7 +503,12 @@ def _render_pipeline_result(result, pipeline_name: str, pipelines: dict):
         st.metric("Duration", f"{total_duration:.1f}ms")
     with col4:
         errors = len(result.errors)
-        st.metric("Errors", errors, delta="OK" if errors == 0 else None, delta_color="normal" if errors == 0 else "inverse")
+        st.metric(
+            "Errors",
+            errors,
+            delta="OK" if errors == 0 else None,
+            delta_color="normal" if errors == 0 else "inverse",
+        )
 
     st.divider()
 
@@ -508,7 +516,9 @@ def _render_pipeline_result(result, pipeline_name: str, pipelines: dict):
     st.subheader("Pipeline Stages")
     for stage in result.stages:
         status_emoji = "✅" if stage.status == "success" else "❌"
-        with st.expander(f"{status_emoji} {stage.stage.value.upper()} - {stage.duration_ms:.1f}ms"):
+        with st.expander(
+            f"{status_emoji} {stage.stage.value.upper()} - {stage.duration_ms:.1f}ms"
+        ):
             if stage.error:
                 st.error(f"Error: {stage.error}")
             elif stage.output:
@@ -584,7 +594,9 @@ def _render_alert_output(output):
         for alert in output.alerts:
             sev = alert.get("severity", "info")
             icon = {"info": "ℹ️", "warning": "⚠️", "critical": "🚨"}.get(sev, "•")
-            st.markdown(f"{icon} **{alert.get('title', 'Alert')}**: {alert.get('message', '')}")
+            st.markdown(
+                f"{icon} **{alert.get('title', 'Alert')}**: {alert.get('message', '')}"
+            )
     else:
         st.success("No alerts triggered")
 
@@ -637,19 +649,28 @@ def _render_final_output(output):
     # Counters as bar chart
     counters = metrics.get("counters", {})
     if counters:
-        numeric_counters = {k: v for k, v in counters.items() if isinstance(v, (int, float)) and v > 0}
+        numeric_counters = {
+            k: v for k, v in counters.items() if isinstance(v, (int, float)) and v > 0
+        }
         if numeric_counters:
             st.markdown("### Key Metrics")
-            df = pd.DataFrame({"Metric": list(numeric_counters.keys()), "Value": list(numeric_counters.values())})
+            df = pd.DataFrame(
+                {
+                    "Metric": list(numeric_counters.keys()),
+                    "Value": list(numeric_counters.values()),
+                }
+            )
             st.bar_chart(df.set_index("Metric"))
 
     # Findings table
     if findings:
         st.markdown("### Analysis Findings")
-        findings_df = pd.DataFrame([
-            {"Severity": f.get("severity", "info"), "Finding": f.get("message", "")}
-            for f in findings
-        ])
+        findings_df = pd.DataFrame(
+            [
+                {"Severity": f.get("severity", "info"), "Finding": f.get("message", "")}
+                for f in findings
+            ]
+        )
         st.dataframe(findings_df, use_container_width=True)
 
     # Raw output expander

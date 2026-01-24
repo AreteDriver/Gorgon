@@ -345,7 +345,9 @@ class WorkflowExecutor:
             return "continue"
 
         if step.on_failure == "fallback" and step.fallback:
-            fallback_output = self._execute_fallback(step, step_result.error, workflow_id)
+            fallback_output = self._execute_fallback(
+                step, step_result.error, workflow_id
+            )
             if fallback_output is not None:
                 step_result.status = StepStatus.SUCCESS
                 step_result.output = fallback_output
@@ -950,9 +952,7 @@ class WorkflowExecutor:
         """Create a checkpoint (no-op if no checkpoint manager)."""
         return {"checkpoint": step.id}
 
-    def _check_sub_step_budget(
-        self, sub_step: StepConfig, stage_name: str
-    ) -> None:
+    def _check_sub_step_budget(self, sub_step: StepConfig, stage_name: str) -> None:
         """Check budget allocation for a sub-step.
 
         Raises:
@@ -1129,8 +1129,14 @@ class WorkflowExecutor:
                 finally:
                     duration_ms = int((time.time() - start_time) * 1000)
                     self._record_sub_step_metrics(
-                        stage_name, sub_step, parent_step_id, tokens_used,
-                        duration_ms, retries_used, output, error_msg
+                        stage_name,
+                        sub_step,
+                        parent_step_id,
+                        tokens_used,
+                        duration_ms,
+                        retries_used,
+                        output,
+                        error_msg,
                     )
 
             return handler

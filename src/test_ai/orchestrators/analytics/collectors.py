@@ -279,7 +279,9 @@ class HistoricalMetricsCollector(DataCollector):
         if not executions:
             return {}
 
-        durations = [e.get("duration_ms", 0) for e in executions if e.get("duration_ms")]
+        durations = [
+            e.get("duration_ms", 0) for e in executions if e.get("duration_ms")
+        ]
         if not durations:
             return {}
 
@@ -341,8 +343,12 @@ class APIClientMetricsCollector(DataCollector):
             bulkhead = stats.get("bulkhead", {})
 
             # Rate limit metrics
-            counters[f"{provider}_requests_allowed"] = rate_limit.get("requests_allowed", 0)
-            counters[f"{provider}_requests_denied"] = rate_limit.get("requests_denied", 0)
+            counters[f"{provider}_requests_allowed"] = rate_limit.get(
+                "requests_allowed", 0
+            )
+            counters[f"{provider}_requests_denied"] = rate_limit.get(
+                "requests_denied", 0
+            )
 
             # Bulkhead metrics
             counters[f"{provider}_concurrent_active"] = bulkhead.get("active", 0)
@@ -350,8 +356,12 @@ class APIClientMetricsCollector(DataCollector):
 
         # Circuit breaker metrics
         for circuit_name, circuit_state in circuit_stats.items():
-            counters[f"circuit_{circuit_name}_failures"] = circuit_state.get("failure_count", 0)
-            counters[f"circuit_{circuit_name}_state"] = 1 if circuit_state.get("state") == "open" else 0
+            counters[f"circuit_{circuit_name}_failures"] = circuit_state.get(
+                "failure_count", 0
+            )
+            counters[f"circuit_{circuit_name}_state"] = (
+                1 if circuit_state.get("state") == "open" else 0
+            )
 
         data = {
             "provider_stats": provider_stats,

@@ -69,20 +69,22 @@ class TestWebhookDeliveryManager:
         ):
             manager = WebhookDeliveryManager(
                 backend=backend,
-                retry_strategy=RetryStrategy(max_retries=2, base_delay=0.01, jitter=False),
+                retry_strategy=RetryStrategy(
+                    max_retries=2, base_delay=0.01, jitter=False
+                ),
                 timeout=1.0,
             )
             yield manager
 
     def test_init_creates_schema(self, backend):
         """Manager creates tables on init."""
-        with patch("test_ai.webhooks.webhook_delivery.get_database", return_value=backend):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_database", return_value=backend
+        ):
             WebhookDeliveryManager(backend=backend)
 
         # Check tables exist
-        tables = backend.fetchall(
-            "SELECT name FROM sqlite_master WHERE type='table'"
-        )
+        tables = backend.fetchall("SELECT name FROM sqlite_master WHERE type='table'")
         table_names = [t["name"] for t in tables]
         assert "webhook_deliveries" in table_names
         assert "webhook_dead_letter" in table_names
@@ -98,7 +100,10 @@ class TestWebhookDeliveryManager:
         mock_client = MagicMock()
         mock_client.post.return_value = mock_response
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             delivery = manager.deliver(
                 url="https://example.com/webhook",
                 payload={"event": "test"},
@@ -128,7 +133,10 @@ class TestWebhookDeliveryManager:
 
         mock_client.post.side_effect = side_effect
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             delivery = manager.deliver(
                 url="https://example.com/webhook",
                 payload={"event": "test"},
@@ -142,9 +150,14 @@ class TestWebhookDeliveryManager:
         import requests
 
         mock_client = MagicMock()
-        mock_client.post.side_effect = requests.exceptions.ConnectionError("Connection refused")
+        mock_client.post.side_effect = requests.exceptions.ConnectionError(
+            "Connection refused"
+        )
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             delivery = manager.deliver(
                 url="https://example.com/webhook",
                 payload={"event": "test"},
@@ -169,7 +182,10 @@ class TestWebhookDeliveryManager:
         mock_client = MagicMock()
         mock_client.post.return_value = mock_response
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             manager.deliver(
                 url="https://example.com/webhook",
                 payload={"event": "test"},
@@ -189,9 +205,14 @@ class TestWebhookDeliveryManager:
         mock_client = MagicMock()
 
         # First, create a failed delivery
-        mock_client.post.side_effect = requests.exceptions.ConnectionError("Connection refused")
+        mock_client.post.side_effect = requests.exceptions.ConnectionError(
+            "Connection refused"
+        )
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             manager.deliver(
                 url="https://example.com/webhook",
                 payload={"event": "test"},
@@ -209,7 +230,10 @@ class TestWebhookDeliveryManager:
         mock_client.post.side_effect = None
         mock_client.post.return_value = mock_response
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             delivery = manager.reprocess_dlq_item(dlq_items[0]["id"])
 
         assert delivery.status == DeliveryStatus.SUCCESS
@@ -228,7 +252,10 @@ class TestWebhookDeliveryManager:
         mock_client = MagicMock()
         mock_client.post.return_value = mock_response
 
-        with patch("test_ai.webhooks.webhook_delivery.get_sync_client", return_value=mock_client):
+        with patch(
+            "test_ai.webhooks.webhook_delivery.get_sync_client",
+            return_value=mock_client,
+        ):
             # Create 2 successful deliveries
             manager.deliver(url="https://example.com/1", payload={"n": 1})
             manager.deliver(url="https://example.com/2", payload={"n": 2})
@@ -258,7 +285,9 @@ class TestAsyncDelivery:
         ):
             manager = WebhookDeliveryManager(
                 backend=backend,
-                retry_strategy=RetryStrategy(max_retries=1, base_delay=0.01, jitter=False),
+                retry_strategy=RetryStrategy(
+                    max_retries=1, base_delay=0.01, jitter=False
+                ),
                 timeout=1.0,
             )
             yield manager
@@ -276,7 +305,9 @@ class TestAsyncDelivery:
         mock_client_instance = AsyncMock()
         mock_client_instance.post = AsyncMock(return_value=mock_response)
 
-        with patch("test_ai.webhooks.webhook_delivery.httpx.AsyncClient") as mock_client:
+        with patch(
+            "test_ai.webhooks.webhook_delivery.httpx.AsyncClient"
+        ) as mock_client:
             mock_client.return_value.__aenter__.return_value = mock_client_instance
             mock_client.return_value.__aexit__.return_value = None
 
@@ -299,7 +330,9 @@ class TestAsyncDelivery:
             side_effect=httpx.RequestError("Connection failed")
         )
 
-        with patch("test_ai.webhooks.webhook_delivery.httpx.AsyncClient") as mock_client:
+        with patch(
+            "test_ai.webhooks.webhook_delivery.httpx.AsyncClient"
+        ) as mock_client:
             mock_client.return_value.__aenter__.return_value = mock_client_instance
             mock_client.return_value.__aexit__.return_value = None
 

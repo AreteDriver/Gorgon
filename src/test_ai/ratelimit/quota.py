@@ -64,9 +64,7 @@ class QuotaUsage:
     period: QuotaPeriod
     limit: int
     used: int = 0
-    period_start: datetime = field(
-        default_factory=lambda: datetime.now(timezone.utc)
-    )
+    period_start: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
     @property
     def remaining(self) -> int:
@@ -129,24 +127,32 @@ class QuotaUsage:
             return max(0, 3600 - elapsed)
         elif self.period == QuotaPeriod.DAY:
             # Time until midnight UTC
-            tomorrow = now.replace(
-                hour=0, minute=0, second=0, microsecond=0
-            )
+            tomorrow = now.replace(hour=0, minute=0, second=0, microsecond=0)
             if now.hour > 0 or now.minute > 0:
                 from datetime import timedelta
+
                 tomorrow += timedelta(days=1)
             return (tomorrow - now).total_seconds()
         elif self.period == QuotaPeriod.MONTH:
             # Time until first of next month
             if now.month == 12:
                 next_month = now.replace(
-                    year=now.year + 1, month=1, day=1,
-                    hour=0, minute=0, second=0, microsecond=0
+                    year=now.year + 1,
+                    month=1,
+                    day=1,
+                    hour=0,
+                    minute=0,
+                    second=0,
+                    microsecond=0,
                 )
             else:
                 next_month = now.replace(
-                    month=now.month + 1, day=1,
-                    hour=0, minute=0, second=0, microsecond=0
+                    month=now.month + 1,
+                    day=1,
+                    hour=0,
+                    minute=0,
+                    second=0,
+                    microsecond=0,
                 )
             return (next_month - now).total_seconds()
 
@@ -296,10 +302,7 @@ class QuotaManager:
         Returns:
             Dict of provider usage
         """
-        return {
-            provider: self.get_usage(provider)
-            for provider in self._quotas.keys()
-        }
+        return {provider: self.get_usage(provider) for provider in self._quotas.keys()}
 
     def reset(self, provider: str, period: QuotaPeriod | None = None) -> None:
         """Reset quota usage for a provider.

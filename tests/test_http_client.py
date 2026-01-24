@@ -193,7 +193,9 @@ class TestIntegrationWithWebhook:
             db_path = os.path.join(tmpdir, "test.db")
             backend = SQLiteBackend(db_path=db_path)
 
-            with patch("test_ai.webhooks.webhook_delivery.get_database", return_value=backend):
+            with patch(
+                "test_ai.webhooks.webhook_delivery.get_database", return_value=backend
+            ):
                 manager = WebhookDeliveryManager(
                     backend=backend,
                     retry_strategy=RetryStrategy(max_retries=0),

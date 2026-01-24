@@ -323,7 +323,11 @@ class NotionClientWrapper:
         # Simple direct extractions
         simple_types = {"number", "checkbox", "url", "email", "phone_number"}
         if prop_type in simple_types:
-            return prop.get(prop_type) if prop_type != "checkbox" else prop.get("checkbox", False)
+            return (
+                prop.get(prop_type)
+                if prop_type != "checkbox"
+                else prop.get("checkbox", False)
+            )
 
         # Rich text types
         if prop_type in ("title", "rich_text"):

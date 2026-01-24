@@ -127,24 +127,14 @@ class Settings(BaseSettings):
     )
 
     # Rate Limiting (API clients)
-    ratelimit_openai_rpm: int = Field(
-        60, description="OpenAI requests per minute"
-    )
-    ratelimit_openai_tpm: int = Field(
-        90000, description="OpenAI tokens per minute"
-    )
+    ratelimit_openai_rpm: int = Field(60, description="OpenAI requests per minute")
+    ratelimit_openai_tpm: int = Field(90000, description="OpenAI tokens per minute")
     ratelimit_anthropic_rpm: int = Field(
         60, description="Anthropic requests per minute"
     )
-    ratelimit_github_rpm: int = Field(
-        30, description="GitHub requests per minute"
-    )
-    ratelimit_notion_rpm: int = Field(
-        30, description="Notion requests per minute"
-    )
-    ratelimit_gmail_rpm: int = Field(
-        30, description="Gmail requests per minute"
-    )
+    ratelimit_github_rpm: int = Field(30, description="GitHub requests per minute")
+    ratelimit_notion_rpm: int = Field(30, description="Notion requests per minute")
+    ratelimit_gmail_rpm: int = Field(30, description="Gmail requests per minute")
 
     # Bulkhead/Concurrency Limits (API clients)
     bulkhead_openai_concurrent: int = Field(
@@ -168,7 +158,8 @@ class Settings(BaseSettings):
 
     # Request Size Limits (API)
     request_max_body_size: int = Field(
-        10 * 1024 * 1024, description="Maximum request body size in bytes (default: 10MB)"
+        10 * 1024 * 1024,
+        description="Maximum request body size in bytes (default: 10MB)",
     )
     request_max_json_size: int = Field(
         1 * 1024 * 1024, description="Maximum JSON body size in bytes (default: 1MB)"
@@ -198,9 +189,7 @@ class Settings(BaseSettings):
     )
 
     # Distributed Tracing
-    tracing_enabled: bool = Field(
-        True, description="Enable distributed tracing"
-    )
+    tracing_enabled: bool = Field(True, description="Enable distributed tracing")
     tracing_service_name: str = Field(
         "gorgon-api", description="Service name for tracing"
     )

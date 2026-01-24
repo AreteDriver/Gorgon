@@ -158,7 +158,9 @@ async def lifespan(app: FastAPI):
         workflows_dir = settings.workflows_dir
         migrated = version_manager.migrate_existing_workflows(workflows_dir)
         if migrated:
-            logger.info(f"Migrated {len(migrated)} existing workflows to version control")
+            logger.info(
+                f"Migrated {len(migrated)} existing workflows to version control"
+            )
     except Exception as e:
         logger.warning(f"Workflow migration skipped: {e}")
 
@@ -309,7 +311,9 @@ brute_force_config = BruteForceConfig(
     max_block_seconds=_settings.brute_force_max_block_seconds,
     auth_paths=("/v1/auth/", "/auth/", "/login"),
 )
-app.add_middleware(BruteForceMiddleware, protection=get_brute_force_protection(brute_force_config))
+app.add_middleware(
+    BruteForceMiddleware, protection=get_brute_force_protection(brute_force_config)
+)
 
 # 4. RequestSizeLimitMiddleware - reject oversized requests early
 request_limit_config = RequestLimitConfig(
@@ -963,7 +967,9 @@ def compare_workflow_versions(
         raise bad_request(str(e))
 
 
-@v1_router.get("/workflows/{workflow_name}/versions/{version}", responses=CRUD_RESPONSES)
+@v1_router.get(
+    "/workflows/{workflow_name}/versions/{version}", responses=CRUD_RESPONSES
+)
 def get_workflow_version(
     workflow_name: str,
     version: str,
@@ -1275,7 +1281,9 @@ def metrics_endpoint():
         lines.append(f"gorgon_circuit_breaker_{safe_name}_state {state_value}")
 
         lines.append(f"# TYPE gorgon_circuit_breaker_{safe_name}_failures gauge")
-        lines.append(f"gorgon_circuit_breaker_{safe_name}_failures {stats['failure_count']}")
+        lines.append(
+            f"gorgon_circuit_breaker_{safe_name}_failures {stats['failure_count']}"
+        )
 
     from starlette.responses import PlainTextResponse
 

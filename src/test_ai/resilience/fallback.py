@@ -145,7 +145,7 @@ class FallbackChain:
         errors: List[Dict[str, Any]] = []
         attempts = 0
 
-        for handler in self._handlers[:self.config.max_attempts]:
+        for handler in self._handlers[: self.config.max_attempts]:
             attempts += 1
 
             try:
@@ -161,9 +161,7 @@ class FallbackChain:
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
 
-                    result = loop.run_until_complete(
-                        handler.handler(*args, **kwargs)
-                    )
+                    result = loop.run_until_complete(handler.handler(*args, **kwargs))
                 else:
                     result = handler.handler(*args, **kwargs)
 
@@ -190,30 +188,32 @@ class FallbackChain:
                 logger.warning(
                     f"Fallback chain '{self.name}' fast-failing on: {type(e).__name__}"
                 )
-                errors.append({
-                    "handler": handler.name,
-                    "error": str(e),
-                    "type": type(e).__name__,
-                    "fail_fast": True,
-                })
+                errors.append(
+                    {
+                        "handler": handler.name,
+                        "error": str(e),
+                        "type": type(e).__name__,
+                        "fail_fast": True,
+                    }
+                )
                 break
 
             except Exception as e:
                 logger.warning(
                     f"Fallback chain '{self.name}' handler '{handler.name}' failed: {e}"
                 )
-                errors.append({
-                    "handler": handler.name,
-                    "error": str(e),
-                    "type": type(e).__name__,
-                })
+                errors.append(
+                    {
+                        "handler": handler.name,
+                        "error": str(e),
+                        "type": type(e).__name__,
+                    }
+                )
 
                 if self.config.delay_between_fallbacks > 0:
                     time.sleep(self.config.delay_between_fallbacks)
 
-        logger.error(
-            f"Fallback chain '{self.name}' exhausted all {attempts} handlers"
-        )
+        logger.error(f"Fallback chain '{self.name}' exhausted all {attempts} handlers")
 
         return FallbackResult(
             success=False,
@@ -239,7 +239,7 @@ class FallbackChain:
         errors: List[Dict[str, Any]] = []
         attempts = 0
 
-        for handler in self._handlers[:self.config.max_attempts]:
+        for handler in self._handlers[: self.config.max_attempts]:
             attempts += 1
 
             try:
@@ -277,30 +277,32 @@ class FallbackChain:
                 logger.warning(
                     f"Fallback chain '{self.name}' fast-failing on: {type(e).__name__}"
                 )
-                errors.append({
-                    "handler": handler.name,
-                    "error": str(e),
-                    "type": type(e).__name__,
-                    "fail_fast": True,
-                })
+                errors.append(
+                    {
+                        "handler": handler.name,
+                        "error": str(e),
+                        "type": type(e).__name__,
+                        "fail_fast": True,
+                    }
+                )
                 break
 
             except Exception as e:
                 logger.warning(
                     f"Fallback chain '{self.name}' handler '{handler.name}' failed: {e}"
                 )
-                errors.append({
-                    "handler": handler.name,
-                    "error": str(e),
-                    "type": type(e).__name__,
-                })
+                errors.append(
+                    {
+                        "handler": handler.name,
+                        "error": str(e),
+                        "type": type(e).__name__,
+                    }
+                )
 
                 if self.config.delay_between_fallbacks > 0:
                     await asyncio.sleep(self.config.delay_between_fallbacks)
 
-        logger.error(
-            f"Fallback chain '{self.name}' exhausted all {attempts} handlers"
-        )
+        logger.error(f"Fallback chain '{self.name}' exhausted all {attempts} handlers")
 
         return FallbackResult(
             success=False,

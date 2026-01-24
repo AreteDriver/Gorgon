@@ -39,9 +39,7 @@ class HTTPClientConfig:
     max_retries: int = 3
     timeout: float = 30.0
     retry_backoff_factor: float = 0.5
-    retry_statuses: tuple = field(
-        default_factory=lambda: (429, 500, 502, 503, 504)
-    )
+    retry_statuses: tuple = field(default_factory=lambda: (429, 500, 502, 503, 504))
     headers: Dict[str, str] = field(default_factory=dict)
 
 
@@ -187,9 +185,7 @@ async def get_shared_async_client(
     if _async_client is None:
         cfg = config or _default_config
         _async_client = _create_async_client(cfg)
-        logger.info(
-            f"Created async HTTP client (max_connections={cfg.pool_maxsize})"
-        )
+        logger.info(f"Created async HTTP client (max_connections={cfg.pool_maxsize})")
 
     return _async_client
 

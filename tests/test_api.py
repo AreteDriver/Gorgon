@@ -32,7 +32,9 @@ def client(backend):
     actual_run_migrations(backend)
 
     with patch("test_ai.api.get_database", return_value=backend):
-        with patch("test_ai.api.run_migrations", return_value=[]):  # Skip in lifespan since we ran above
+        with patch(
+            "test_ai.api.run_migrations", return_value=[]
+        ):  # Skip in lifespan since we ran above
             with patch(
                 "test_ai.scheduler.schedule_manager.WorkflowEngine"
             ) as mock_sched_engine:
@@ -71,7 +73,9 @@ def client(backend):
                         )
 
                         from test_ai.api import app, limiter
-                        from test_ai.security.brute_force import get_brute_force_protection
+                        from test_ai.security.brute_force import (
+                            get_brute_force_protection,
+                        )
 
                         # Disable rate limiting for tests
                         limiter.enabled = False
@@ -544,7 +548,9 @@ class TestRateLimiting:
                             )
 
                             from test_ai.api import app, limiter
-                            from test_ai.security.brute_force import get_brute_force_protection
+                            from test_ai.security.brute_force import (
+                                get_brute_force_protection,
+                            )
 
                             # Enable rate limiting for this test
                             limiter.enabled = True
@@ -557,7 +563,9 @@ class TestRateLimiting:
                             protection._total_blocked = 0
                             protection._total_allowed = 0
                             # Temporarily increase auth limit to test slowapi limiter
-                            original_limit = protection.config.max_auth_attempts_per_minute
+                            original_limit = (
+                                protection.config.max_auth_attempts_per_minute
+                            )
                             protection.config.max_auth_attempts_per_minute = 10
 
                             from fastapi.testclient import TestClient
@@ -566,7 +574,9 @@ class TestRateLimiting:
                                 yield test_client
 
                             # Restore original limit
-                            protection.config.max_auth_attempts_per_minute = original_limit
+                            protection.config.max_auth_attempts_per_minute = (
+                                original_limit
+                            )
                             limiter.enabled = False
 
     def test_login_rate_limit(self, rate_limited_client):
@@ -659,7 +669,9 @@ class TestWorkflowVersioningAPI:
         data = response.json()
         assert data["version"] == "1.0.1"  # Auto-bumped patch
 
-    def test_save_version_duplicate_content_returns_existing(self, client, auth_headers):
+    def test_save_version_duplicate_content_returns_existing(
+        self, client, auth_headers
+    ):
         """Duplicate content returns existing version."""
         # Save initial
         client.post(
@@ -756,7 +768,10 @@ class TestWorkflowVersioningAPI:
         for i in range(5):
             client.post(
                 "/v1/workflows/test-workflow/versions",
-                json={"content": f"name: test\nversion: 1.0.{i}", "version": f"1.0.{i}"},
+                json={
+                    "content": f"name: test\nversion: 1.0.{i}",
+                    "version": f"1.0.{i}",
+                },
                 headers=auth_headers,
             )
 

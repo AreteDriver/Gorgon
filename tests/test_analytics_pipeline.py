@@ -405,7 +405,11 @@ class TestCompositeAnalyzer:
             {"metrics": {"counters": {"errors": 100}}},
             {
                 "analyzer_configs": {
-                    1: {"thresholds": {"metrics.counters.errors": {"warning": 5, "critical": 10}}}
+                    1: {
+                        "thresholds": {
+                            "metrics.counters.errors": {"warning": 5, "critical": 10}
+                        }
+                    }
                 }
             },
         )

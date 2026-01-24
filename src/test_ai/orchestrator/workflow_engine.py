@@ -187,7 +187,9 @@ class WorkflowEngine:
         simple_actions = {
             "create_page": lambda p: self.notion_client.create_page(**p),
             "append_to_page": lambda p: self.notion_client.append_to_page(**p),
-            "search_pages": lambda p: self.notion_client.search_pages(p.get("query", "")),
+            "search_pages": lambda p: self.notion_client.search_pages(
+                p.get("query", "")
+            ),
             "get_database_schema": lambda p: self.notion_client.get_database_schema(
                 p.get("database_id", "")
             ),
@@ -195,8 +197,12 @@ class WorkflowEngine:
             "read_page_content": lambda p: self.notion_client.read_page_content(
                 p.get("page_id", "")
             ),
-            "archive_page": lambda p: self.notion_client.archive_page(p.get("page_id", "")),
-            "delete_block": lambda p: self.notion_client.delete_block(p.get("block_id", "")),
+            "archive_page": lambda p: self.notion_client.archive_page(
+                p.get("page_id", "")
+            ),
+            "delete_block": lambda p: self.notion_client.delete_block(
+                p.get("block_id", "")
+            ),
         }
 
         # Complex actions with multiple params

@@ -534,7 +534,9 @@ class TestMainApp:
         mock_render = MagicMock()
         with (
             patch("test_ai.dashboard.app.render_sidebar") as mock_sidebar,
-            patch.dict("test_ai.dashboard.app._PAGE_RENDERERS", {"Dashboard": mock_render}),
+            patch.dict(
+                "test_ai.dashboard.app._PAGE_RENDERERS", {"Dashboard": mock_render}
+            ),
         ):
             mock_sidebar.return_value = "Dashboard"
 
@@ -550,7 +552,9 @@ class TestMainApp:
         mock_render = MagicMock()
         with (
             patch("test_ai.dashboard.app.render_sidebar") as mock_sidebar,
-            patch.dict("test_ai.dashboard.app._PAGE_RENDERERS", {"Workflows": mock_render}),
+            patch.dict(
+                "test_ai.dashboard.app._PAGE_RENDERERS", {"Workflows": mock_render}
+            ),
         ):
             mock_sidebar.return_value = "Workflows"
 
@@ -566,7 +570,9 @@ class TestMainApp:
         mock_render = MagicMock()
         with (
             patch("test_ai.dashboard.app.render_sidebar") as mock_sidebar,
-            patch.dict("test_ai.dashboard.app._PAGE_RENDERERS", {"Monitoring": mock_render}),
+            patch.dict(
+                "test_ai.dashboard.app._PAGE_RENDERERS", {"Monitoring": mock_render}
+            ),
         ):
             mock_sidebar.return_value = "Monitoring"
 

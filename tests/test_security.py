@@ -177,7 +177,7 @@ class TestBruteForceProtection:
             allowed, _ = protection.check_allowed("192.168.1.1")
             # First 3 should be allowed
             if i < 3:
-                assert allowed is True, f"Request {i+1} should be allowed"
+                assert allowed is True, f"Request {i + 1} should be allowed"
 
         # Fourth should be blocked
         allowed, retry_after = protection.check_allowed("192.168.1.1")

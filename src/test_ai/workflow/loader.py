@@ -380,8 +380,12 @@ def validate_workflow(data: dict) -> list[str]:
     return errors
 
 
-VALID_STEP_TYPES = frozenset({"claude_code", "openai", "shell", "parallel", "checkpoint"})
-VALID_OPERATORS = frozenset({"equals", "not_equals", "contains", "greater_than", "less_than"})
+VALID_STEP_TYPES = frozenset(
+    {"claude_code", "openai", "shell", "parallel", "checkpoint"}
+)
+VALID_OPERATORS = frozenset(
+    {"equals", "not_equals", "contains", "greater_than", "less_than"}
+)
 VALID_ON_FAILURE = frozenset({"abort", "skip", "retry"})
 
 

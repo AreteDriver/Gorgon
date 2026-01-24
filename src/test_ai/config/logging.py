@@ -36,10 +36,18 @@ class JSONFormatter(logging.Formatter):
 
     # Optional fields to extract from log records
     _OPTIONAL_FIELDS = (
-        "trace_id", "span_id", "parent_span_id",
-        "request_id", "method", "path",
-        "http.method", "http.path", "http.status_code",
-        "status_code", "duration_ms", "client_ip",
+        "trace_id",
+        "span_id",
+        "parent_span_id",
+        "request_id",
+        "method",
+        "path",
+        "http.method",
+        "http.path",
+        "http.status_code",
+        "status_code",
+        "duration_ms",
+        "client_ip",
     )
 
     def format(self, record: logging.LogRecord) -> str:

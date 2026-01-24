@@ -25,6 +25,7 @@ def _get_provider_configs() -> dict:
     """
     try:
         from test_ai.config import get_settings
+
         settings = get_settings()
         return {
             "openai": {

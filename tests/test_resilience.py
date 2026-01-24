@@ -207,6 +207,7 @@ class TestFallbackChain:
 
     def test_fallback_on_failure(self):
         """Falls back to second handler when first fails."""
+
         def failing_handler():
             raise ValueError("primary failed")
 
@@ -224,6 +225,7 @@ class TestFallbackChain:
 
     def test_all_handlers_fail(self):
         """Returns failure when all handlers fail."""
+
         def failing1():
             raise ValueError("fail 1")
 
@@ -243,6 +245,7 @@ class TestFallbackChain:
 
     def test_fail_fast_exceptions(self):
         """Stops on fail-fast exceptions."""
+
         def auth_error():
             raise PermissionError("unauthorized")
 
@@ -258,6 +261,7 @@ class TestFallbackChain:
 
     def test_passes_arguments(self):
         """Passes arguments to handlers."""
+
         def handler(x, y=0):
             return x + y
 
@@ -306,6 +310,7 @@ class TestFallbackChain:
     @pytest.mark.asyncio
     async def test_async_execution(self):
         """Async execution works correctly."""
+
         async def async_handler():
             return "async result"
 
@@ -320,6 +325,7 @@ class TestFallbackChain:
     @pytest.mark.asyncio
     async def test_async_fallback(self):
         """Async fallback works correctly."""
+
         async def failing_async():
             raise ValueError("async fail")
 
@@ -341,6 +347,7 @@ class TestFallbackDecorator:
 
     def test_returns_result_on_success(self):
         """Returns function result when successful."""
+
         @fallback("default")
         def get_value():
             return "real value"
@@ -349,6 +356,7 @@ class TestFallbackDecorator:
 
     def test_returns_fallback_on_exception(self):
         """Returns fallback value on exception."""
+
         @fallback("default")
         def failing_func():
             raise ValueError("oops")
@@ -357,6 +365,7 @@ class TestFallbackDecorator:
 
     def test_callable_fallback(self):
         """Fallback can be callable."""
+
         @fallback(lambda: "computed default")
         def failing_func():
             raise ValueError("oops")
@@ -365,6 +374,7 @@ class TestFallbackDecorator:
 
     def test_specific_exceptions(self):
         """Only catches specified exceptions."""
+
         @fallback("default", exceptions=(ValueError,))
         def func(raise_type):
             if raise_type:
@@ -381,6 +391,7 @@ class TestFallbackDecorator:
     @pytest.mark.asyncio
     async def test_async_fallback_decorator(self):
         """Async fallback decorator works."""
+
         @fallback("async default")
         async def async_failing():
             raise ValueError("async error")
@@ -394,12 +405,8 @@ class TestFallbackResult:
 
     def test_bool_conversion(self):
         """Result is truthy when successful."""
-        success = FallbackResult(
-            success=True, value="x", source="h", attempts=1
-        )
-        failure = FallbackResult(
-            success=False, value=None, source="", attempts=1
-        )
+        success = FallbackResult(success=True, value="x", source="h", attempts=1)
+        failure = FallbackResult(success=False, value=None, source="", attempts=1)
 
         assert bool(success) is True
         assert bool(failure) is False
@@ -492,6 +499,7 @@ class TestLimitConcurrencyDecorator:
 
     def test_sync_function(self):
         """Decorates sync functions."""
+
         @limit_concurrency(max_concurrent=3, name="test-sync")
         def my_func():
             return "result"
@@ -502,6 +510,7 @@ class TestLimitConcurrencyDecorator:
     @pytest.mark.asyncio
     async def test_async_function(self):
         """Decorates async functions."""
+
         @limit_concurrency(max_concurrent=3, name="test-async")
         async def my_async_func():
             return "async result"

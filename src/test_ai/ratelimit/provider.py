@@ -301,7 +301,8 @@ def configure_provider_limits(
 
     config = ProviderLimitConfig(
         provider=provider_lower,
-        requests_per_second=requests_per_second or existing.get("requests_per_second", 10.0),
+        requests_per_second=requests_per_second
+        or existing.get("requests_per_second", 10.0),
         burst_size=burst_size or existing.get("burst_size", 20),
         requests_per_minute=requests_per_minute or existing.get("requests_per_minute"),
         requests_per_hour=requests_per_hour or existing.get("requests_per_hour"),
