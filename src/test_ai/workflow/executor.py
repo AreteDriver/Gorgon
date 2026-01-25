@@ -296,10 +296,23 @@ class WorkflowExecutor:
         Args:
             step: Step with output keys
             step_result: Step result containing outputs
+
+        For AI steps (claude_code, openai), the handler returns 'response' as the key.
+        If the workflow defines custom output names, we map 'response' to the first
+        output name, allowing intuitive workflow syntax like:
+            outputs:
+              - situation_analysis
+        instead of forcing:
+            outputs:
+              - response
         """
-        for output_key in step.outputs:
+        for i, output_key in enumerate(step.outputs):
             if output_key in step_result.output:
+                # Direct match - use the value
                 self._context[output_key] = step_result.output[output_key]
+            elif i == 0 and "response" in step_result.output:
+                # Map 'response' to the first custom output name for AI steps
+                self._context[output_key] = step_result.output["response"]
 
     def _handle_step_failure(
         self,

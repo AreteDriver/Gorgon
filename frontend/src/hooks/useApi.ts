@@ -135,12 +135,29 @@ export function useResumeExecution() {
 
 export function useCancelExecution() {
   const queryClient = useQueryClient();
-  
+
   return useMutation({
     mutationFn: (id: string) => api.cancelExecution(id),
     onSuccess: (_, id) => {
       queryClient.invalidateQueries({ queryKey: queryKeys.execution(id) });
       queryClient.invalidateQueries({ queryKey: queryKeys.executions });
+    },
+  });
+}
+
+// =============================================================================
+// YAML Workflow Hooks (Decision Support, etc.)
+// =============================================================================
+
+export function useStartYAMLExecution() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ workflowId, inputs }: { workflowId: string; inputs: Record<string, unknown> }) =>
+      api.executeYAMLWorkflow(workflowId, inputs),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.executions });
+      queryClient.invalidateQueries({ queryKey: queryKeys.dashboardStats });
     },
   });
 }

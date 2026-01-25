@@ -23,6 +23,8 @@ from test_ai.config import get_settings, configure_logging
 from test_ai.orchestrator import WorkflowEngine, Workflow
 from test_ai.prompts import PromptTemplateManager, PromptTemplate
 from test_ai.workflow import WorkflowVersionManager
+from test_ai.workflow.loader import load_workflow as load_yaml_workflow, list_workflows as list_yaml_workflows
+from test_ai.workflow.executor import WorkflowExecutor
 from test_ai.api_clients import OpenAIClient
 from test_ai.scheduler import (
     ScheduleManager,
@@ -486,6 +488,143 @@ def execute_workflow(
 
     result = workflow_engine.execute_workflow(workflow)
     return result
+
+
+# =============================================================================
+# YAML Workflow Endpoints (Decision Support, etc.)
+# =============================================================================
+
+# Initialize YAML workflow executor
+yaml_workflow_executor = WorkflowExecutor()
+
+# YAML workflows directory
+YAML_WORKFLOWS_DIR = get_settings().base_dir / "workflows"
+
+
+@v1_router.get("/yaml-workflows", responses=AUTH_RESPONSES)
+def list_yaml_workflow_definitions(authorization: Optional[str] = Header(None)):
+    """List all YAML workflow definitions."""
+    verify_auth(authorization)
+    try:
+        workflows = list_yaml_workflows(str(YAML_WORKFLOWS_DIR))
+        return {
+            "workflows": [
+                {
+                    "id": w.get("name", "").lower().replace(" ", "-"),
+                    "name": w.get("name"),
+                    "description": w.get("description"),
+                    "version": w.get("version"),
+                    "path": w.get("path"),
+                }
+                for w in workflows
+            ]
+        }
+    except Exception as e:
+        logger.error(f"Failed to list YAML workflows: {e}")
+        return {"workflows": []}
+
+
+@v1_router.get("/yaml-workflows/{workflow_id}", responses=CRUD_RESPONSES)
+def get_yaml_workflow_definition(
+    workflow_id: str, authorization: Optional[str] = Header(None)
+):
+    """Get a specific YAML workflow definition."""
+    verify_auth(authorization)
+
+    # Try to find the workflow file
+    yaml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yaml"
+    yml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yml"
+
+    workflow_path = yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+
+    if not workflow_path:
+        raise not_found("YAML Workflow", workflow_id)
+
+    try:
+        workflow = load_yaml_workflow(str(workflow_path), str(YAML_WORKFLOWS_DIR))
+        return {
+            "id": workflow_id,
+            "name": workflow.name,
+            "description": getattr(workflow, 'description', ''),
+            "version": getattr(workflow, 'version', '1.0'),
+            "inputs": getattr(workflow, 'inputs', {}),
+            "outputs": getattr(workflow, 'outputs', []),
+            "steps": [
+                {
+                    "id": step.id,
+                    "type": step.type,
+                    "params": step.params,
+                }
+                for step in workflow.steps
+            ],
+        }
+    except Exception as e:
+        logger.error(f"Failed to load YAML workflow {workflow_id}: {e}")
+        raise internal_error(f"Failed to load workflow: {e}")
+
+
+class YAMLWorkflowExecuteRequest(BaseModel):
+    """Request to execute a YAML workflow."""
+
+    workflow_id: str
+    inputs: Optional[Dict] = None
+
+
+@v1_router.post("/yaml-workflows/execute", responses=WORKFLOW_RESPONSES)
+@limiter.limit("10/minute")
+def execute_yaml_workflow(
+    request: Request,
+    body: YAMLWorkflowExecuteRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Execute a YAML workflow (e.g., decision-support).
+
+    Rate limited to 10 executions/minute per IP.
+    """
+    verify_auth(authorization)
+
+    # Find the workflow file
+    yaml_file = YAML_WORKFLOWS_DIR / f"{body.workflow_id}.yaml"
+    yml_file = YAML_WORKFLOWS_DIR / f"{body.workflow_id}.yml"
+
+    workflow_path = yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+
+    if not workflow_path:
+        raise not_found("YAML Workflow", body.workflow_id)
+
+    try:
+        # Load the workflow
+        workflow = load_yaml_workflow(str(workflow_path), str(YAML_WORKFLOWS_DIR))
+
+        # Execute with provided inputs
+        inputs = body.inputs or {}
+        result = yaml_workflow_executor.execute(workflow, inputs=inputs)
+
+        # Format response
+        return {
+            "id": str(uuid.uuid4()),
+            "workflow_id": body.workflow_id,
+            "workflow_name": workflow.name,
+            "status": result.status,
+            "started_at": result.started_at.isoformat() if result.started_at else None,
+            "completed_at": result.completed_at.isoformat() if result.completed_at else None,
+            "total_duration_ms": result.total_duration_ms,
+            "total_tokens": result.total_tokens,
+            "outputs": result.outputs,
+            "steps": [
+                {
+                    "step_id": step.step_id,
+                    "status": step.status.value if hasattr(step.status, 'value') else str(step.status),
+                    "duration_ms": step.duration_ms,
+                    "tokens_used": step.tokens_used,
+                }
+                for step in result.steps
+            ],
+            "error": result.error,
+        }
+    except Exception as e:
+        logger.error(f"Failed to execute YAML workflow {body.workflow_id}: {e}")
+        raise internal_error(f"Workflow execution failed: {e}")
 
 
 @v1_router.get("/prompts", responses=AUTH_RESPONSES)

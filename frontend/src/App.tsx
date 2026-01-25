@@ -5,6 +5,7 @@ import { Layout } from '@/components/Layout';
 import { DashboardPage } from '@/pages/Dashboard';
 import { WorkflowsPage } from '@/pages/Workflows';
 import { ExecutionsPage } from '@/pages/Executions';
+import { DecisionsPage } from '@/pages/Decisions';
 import { BudgetPage } from '@/pages/Budget';
 import { ConnectorsPage } from '@/pages/Connectors';
 import { SettingsPage } from '@/pages/Settings';
@@ -27,6 +28,7 @@ function App() {
         <Routes>
           <Route path="/" element={<Layout />}>
             <Route index element={<DashboardPage />} />
+            <Route path="decisions" element={<DecisionsPage />} />
             <Route path="workflows" element={<WorkflowsPage />} />
             <Route path="executions" element={<ExecutionsPage />} />
             <Route path="budget" element={<BudgetPage />} />

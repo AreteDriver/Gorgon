@@ -264,6 +264,31 @@ class GorgonApiClient {
   }
 
   // ---------------------------------------------------------------------------
+  // YAML Workflows (Decision Support, etc.)
+  // ---------------------------------------------------------------------------
+
+  async getYAMLWorkflows(): Promise<{ id: string; name: string; description: string }[]> {
+    const { data } = await this.client.get('/yaml-workflows');
+    return data;
+  }
+
+  async getYAMLWorkflow(id: string): Promise<Record<string, unknown>> {
+    const { data } = await this.client.get(`/yaml-workflows/${id}`);
+    return data;
+  }
+
+  async executeYAMLWorkflow(
+    workflowId: string,
+    inputs: Record<string, unknown>
+  ): Promise<Execution> {
+    const { data } = await this.client.post('/yaml-workflows/execute', {
+      workflow_id: workflowId,
+      inputs,
+    });
+    return data;
+  }
+
+  // ---------------------------------------------------------------------------
   // Credentials
   // ---------------------------------------------------------------------------
 
