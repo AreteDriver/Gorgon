@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from test_ai.config import get_settings
-from test_ai.orchestrator import WorkflowEngine
+from test_ai.orchestrator import WorkflowEngineAdapter
 from test_ai.state import DatabaseBackend, get_database
 
 logger = logging.getLogger(__name__)
@@ -125,7 +125,7 @@ class WebhookManager:
     def __init__(self, backend: DatabaseBackend | None = None):
         self.settings = get_settings()
         self.backend = backend or get_database()
-        self.workflow_engine = WorkflowEngine()
+        self.workflow_engine = WorkflowEngineAdapter()
         self._webhooks: Dict[str, Webhook] = {}
         self._init_schema()
         self._load_all_webhooks()

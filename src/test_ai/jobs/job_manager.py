@@ -12,7 +12,7 @@ from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field
 
 from test_ai.config import get_settings
-from test_ai.orchestrator import WorkflowEngine, WorkflowResult
+from test_ai.orchestrator import WorkflowEngineAdapter, WorkflowResult
 from test_ai.state import DatabaseBackend, get_database
 
 logger = logging.getLogger(__name__)
@@ -81,7 +81,7 @@ class JobManager:
     def __init__(self, backend: DatabaseBackend | None = None, max_workers: int = 4):
         self.settings = get_settings()
         self.backend = backend or get_database()
-        self.workflow_engine = WorkflowEngine()
+        self.workflow_engine = WorkflowEngineAdapter()
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._jobs: Dict[str, Job] = {}
         self._futures: Dict[str, Future] = {}

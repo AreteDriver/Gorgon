@@ -73,7 +73,7 @@ class TestDashboardHelpers:
 
     def test_get_workflow_engine(self, mock_streamlit):
         """get_workflow_engine returns WorkflowEngine instance."""
-        with patch("test_ai.orchestrator.WorkflowEngine") as mock_engine_class:
+        with patch("test_ai.orchestrator.WorkflowEngineAdapter") as mock_engine_class:
             mock_engine = MagicMock()
             mock_engine_class.return_value = mock_engine
 

@@ -41,7 +41,7 @@ class TestScheduleManager:
             "test_ai.scheduler.schedule_manager.get_database", return_value=backend
         ):
             with patch(
-                "test_ai.scheduler.schedule_manager.WorkflowEngine"
+                "test_ai.scheduler.schedule_manager.WorkflowEngineAdapter"
             ) as mock_engine:
                 mock_engine.return_value.load_workflow.return_value = MagicMock()
                 manager = ScheduleManager(backend=backend)
@@ -65,7 +65,7 @@ class TestScheduleManager:
 
     def test_init_creates_schema(self, backend):
         """ScheduleManager creates tables on init."""
-        with patch("test_ai.scheduler.schedule_manager.WorkflowEngine"):
+        with patch("test_ai.scheduler.schedule_manager.WorkflowEngineAdapter"):
             manager = ScheduleManager(backend=backend)
             manager.shutdown()
 
@@ -124,7 +124,7 @@ class TestScheduleManager:
 
     def test_create_schedule_validates_workflow(self, backend):
         """create_schedule() raises if workflow doesn't exist."""
-        with patch("test_ai.scheduler.schedule_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.scheduler.schedule_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = None
             manager = ScheduleManager(backend=backend)
 
@@ -330,7 +330,7 @@ class TestScheduleManager:
 
     def test_schedule_persists_across_restart(self, backend):
         """Schedules persist across manager restart."""
-        with patch("test_ai.scheduler.schedule_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.scheduler.schedule_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = MagicMock()
 
             def mock_scheduler_get_job(manager):

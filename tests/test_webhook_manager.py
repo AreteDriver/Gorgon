@@ -38,7 +38,7 @@ class TestWebhookManager:
             "test_ai.webhooks.webhook_manager.get_database", return_value=backend
         ):
             with patch(
-                "test_ai.webhooks.webhook_manager.WorkflowEngine"
+                "test_ai.webhooks.webhook_manager.WorkflowEngineAdapter"
             ) as mock_engine:
                 mock_engine.return_value.load_workflow.return_value = MagicMock()
                 manager = WebhookManager(backend=backend)
@@ -46,7 +46,7 @@ class TestWebhookManager:
 
     def test_init_creates_schema(self, backend):
         """WebhookManager creates tables on init."""
-        with patch("test_ai.webhooks.webhook_manager.WorkflowEngine"):
+        with patch("test_ai.webhooks.webhook_manager.WorkflowEngineAdapter"):
             WebhookManager(backend=backend)
 
         # Verify tables exist
@@ -105,7 +105,7 @@ class TestWebhookManager:
 
     def test_create_webhook_validates_workflow(self, backend):
         """create_webhook() raises if workflow doesn't exist."""
-        with patch("test_ai.webhooks.webhook_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.webhooks.webhook_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = None
             manager = WebhookManager(backend=backend)
 
@@ -322,7 +322,7 @@ class TestWebhookManager:
 
     def test_webhook_persists_across_restart(self, backend):
         """Webhooks persist across manager restart."""
-        with patch("test_ai.webhooks.webhook_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.webhooks.webhook_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = MagicMock()
 
             # Create webhook with first manager

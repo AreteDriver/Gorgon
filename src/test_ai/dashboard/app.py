@@ -3,7 +3,7 @@
 import json
 import streamlit as st
 
-from test_ai.orchestrator import WorkflowEngine, Workflow, WorkflowStep, StepType
+from test_ai.orchestrator import WorkflowEngineAdapter, Workflow, WorkflowStep, StepType
 from test_ai.prompts import PromptTemplateManager, PromptTemplate
 from test_ai.api_clients import OpenAIClient
 
@@ -21,7 +21,7 @@ from test_ai.dashboard.monitoring_pages import (
 @st.cache_resource
 def get_workflow_engine():
     """Get cached workflow engine."""
-    return WorkflowEngine()
+    return WorkflowEngineAdapter()
 
 
 @st.cache_resource

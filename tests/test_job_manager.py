@@ -35,7 +35,7 @@ class TestJobManager:
     def manager(self, backend):
         """Create a JobManager with mocked workflow engine."""
         with patch("test_ai.jobs.job_manager.get_database", return_value=backend):
-            with patch("test_ai.jobs.job_manager.WorkflowEngine") as mock_engine:
+            with patch("test_ai.jobs.job_manager.WorkflowEngineAdapter") as mock_engine:
                 # Mock workflow
                 mock_workflow = MagicMock()
                 mock_workflow.variables = {}
@@ -57,7 +57,7 @@ class TestJobManager:
 
     def test_init_creates_schema(self, backend):
         """JobManager creates jobs table on init."""
-        with patch("test_ai.jobs.job_manager.WorkflowEngine"):
+        with patch("test_ai.jobs.job_manager.WorkflowEngineAdapter"):
             JobManager(backend=backend, max_workers=1).shutdown(wait=False)
 
         # Verify table exists
@@ -85,7 +85,7 @@ class TestJobManager:
 
     def test_submit_validates_workflow(self, backend):
         """submit() raises if workflow doesn't exist."""
-        with patch("test_ai.jobs.job_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.jobs.job_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = None
             manager = JobManager(backend=backend, max_workers=1)
 
@@ -269,7 +269,7 @@ class TestJobManager:
 
     def test_job_persists_across_restart(self, backend):
         """Jobs persist across manager restart."""
-        with patch("test_ai.jobs.job_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.jobs.job_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = MagicMock()
 
             # Create job with first manager
@@ -289,7 +289,7 @@ class TestJobManager:
 
     def test_running_jobs_marked_failed_on_restart(self, backend):
         """Running jobs are marked failed when manager restarts."""
-        with patch("test_ai.jobs.job_manager.WorkflowEngine") as mock_engine:
+        with patch("test_ai.jobs.job_manager.WorkflowEngineAdapter") as mock_engine:
             mock_engine.return_value.load_workflow.return_value = MagicMock()
 
             # Create running job with first manager

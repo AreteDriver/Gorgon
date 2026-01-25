@@ -12,7 +12,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from pydantic import BaseModel, Field
 
 from test_ai.config import get_settings
-from test_ai.orchestrator import WorkflowEngine
+from test_ai.orchestrator import WorkflowEngineAdapter
 from test_ai.state import DatabaseBackend, get_database
 
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ class ScheduleManager:
     def __init__(self, backend: DatabaseBackend | None = None):
         self.settings = get_settings()
         self.backend = backend or get_database()
-        self.workflow_engine = WorkflowEngine()
+        self.workflow_engine = WorkflowEngineAdapter()
         self.scheduler = BackgroundScheduler()
         self._schedules: Dict[str, WorkflowSchedule] = {}
         self._init_schema()

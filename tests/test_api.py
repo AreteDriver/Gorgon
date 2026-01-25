@@ -36,13 +36,13 @@ def client(backend):
             "test_ai.api.run_migrations", return_value=[]
         ):  # Skip in lifespan since we ran above
             with patch(
-                "test_ai.scheduler.schedule_manager.WorkflowEngine"
+                "test_ai.scheduler.schedule_manager.WorkflowEngineAdapter"
             ) as mock_sched_engine:
                 with patch(
-                    "test_ai.webhooks.webhook_manager.WorkflowEngine"
+                    "test_ai.webhooks.webhook_manager.WorkflowEngineAdapter"
                 ) as mock_webhook_engine:
                     with patch(
-                        "test_ai.jobs.job_manager.WorkflowEngine"
+                        "test_ai.jobs.job_manager.WorkflowEngineAdapter"
                     ) as mock_job_engine:
                         # Mock workflow engine for all managers
                         mock_workflow = MagicMock()
@@ -531,13 +531,13 @@ class TestRateLimiting:
         with patch("test_ai.api.get_database", return_value=backend):
             with patch("test_ai.api.run_migrations", return_value=[]):
                 with patch(
-                    "test_ai.scheduler.schedule_manager.WorkflowEngine"
+                    "test_ai.scheduler.schedule_manager.WorkflowEngineAdapter"
                 ) as mock_sched_engine:
                     with patch(
-                        "test_ai.webhooks.webhook_manager.WorkflowEngine"
+                        "test_ai.webhooks.webhook_manager.WorkflowEngineAdapter"
                     ) as mock_webhook_engine:
                         with patch(
-                            "test_ai.jobs.job_manager.WorkflowEngine"
+                            "test_ai.jobs.job_manager.WorkflowEngineAdapter"
                         ) as mock_job_engine:
                             mock_workflow = MagicMock()
                             mock_workflow.variables = {}

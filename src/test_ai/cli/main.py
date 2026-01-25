@@ -78,9 +78,9 @@ def main(
 def get_workflow_engine():
     """Lazy import workflow engine to avoid startup cost."""
     try:
-        from test_ai.orchestrator import WorkflowEngine
+        from test_ai.orchestrator import WorkflowEngineAdapter
 
-        return WorkflowEngine()
+        return WorkflowEngineAdapter()
     except ImportError as e:
         console.print(f"[red]Missing dependencies:[/red] {e}")
         console.print("Run: pip install pydantic-settings")
