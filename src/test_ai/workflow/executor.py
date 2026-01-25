@@ -13,6 +13,7 @@ from typing import Callable
 
 from .loader import WorkflowConfig, StepConfig
 from .parallel import ParallelExecutor, ParallelTask, ParallelStrategy
+from .rate_limited_executor import RateLimitedParallelExecutor
 from test_ai.utils.validation import substitute_shell_variables, validate_shell_command
 from test_ai.utils.circuit_breaker import CircuitBreaker, CircuitBreakerError
 
@@ -1089,25 +1090,52 @@ class WorkflowExecutor:
             strategy: "threading" | "asyncio" (default: "threading")
             max_workers: int (default: 4)
             fail_fast: bool - if True, abort on first failure (default: False)
+            rate_limit: bool - if True, use rate-limited executor for AI steps (default: True)
+            anthropic_concurrent: int - max concurrent Anthropic calls (default: 5)
+            openai_concurrent: int - max concurrent OpenAI calls (default: 8)
         """
         sub_steps = step.params.get("steps", [])
         if not sub_steps:
             return {"parallel_results": {}, "tokens_used": 0}
+
+        # Check if any sub-steps are AI steps
+        ai_step_types = {"claude_code", "openai"}
+        parsed_step_types = {s.get("type") for s in sub_steps}
+        has_ai_steps = bool(parsed_step_types & ai_step_types)
+
+        # Use rate-limited executor for AI steps (unless explicitly disabled)
+        use_rate_limiting = step.params.get("rate_limit", True) and has_ai_steps
 
         strategy_map = {
             "threading": ParallelStrategy.THREADING,
             "asyncio": ParallelStrategy.ASYNCIO,
             "process": ParallelStrategy.PROCESS,
         }
-        strategy = strategy_map.get(
-            step.params.get("strategy", "threading"), ParallelStrategy.THREADING
-        )
 
-        executor = ParallelExecutor(
-            strategy=strategy,
-            max_workers=step.params.get("max_workers", 4),
-            timeout=step.timeout_seconds,
-        )
+        if use_rate_limiting:
+            # Force asyncio strategy for rate limiting
+            executor = RateLimitedParallelExecutor(
+                strategy=ParallelStrategy.ASYNCIO,
+                max_workers=step.params.get("max_workers", 4),
+                timeout=step.timeout_seconds or 300.0,
+                provider_limits={
+                    "anthropic": step.params.get("anthropic_concurrent", 5),
+                    "openai": step.params.get("openai_concurrent", 8),
+                },
+            )
+            logger.debug(
+                f"Using rate-limited executor for parallel step '{step.id}' "
+                f"(AI steps detected: {parsed_step_types & ai_step_types})"
+            )
+        else:
+            strategy = strategy_map.get(
+                step.params.get("strategy", "threading"), ParallelStrategy.THREADING
+            )
+            executor = ParallelExecutor(
+                strategy=strategy,
+                max_workers=step.params.get("max_workers", 4),
+                timeout=step.timeout_seconds,
+            )
 
         parsed_steps = {
             StepConfig.from_dict(s).id: StepConfig.from_dict(s) for s in sub_steps
@@ -1121,7 +1149,8 @@ class WorkflowExecutor:
         fail_fast = step.params.get("fail_fast", False)
 
         def make_handler(sub_step: StepConfig):
-            def handler():
+            def handler(**kwargs):
+                # kwargs may contain step_type from rate-limited executor
                 nonlocal total_tokens
                 start_time = time.time()
                 stage_name = f"{parent_step_id}.{sub_step.id}"
@@ -1160,6 +1189,7 @@ class WorkflowExecutor:
                 step_id=sub_step.id,
                 handler=make_handler(sub_step),
                 dependencies=sub_step.depends_on,
+                kwargs={"step_type": sub_step.type},  # For rate limiter provider detection
             )
             for sub_step in parsed_steps.values()
         ]

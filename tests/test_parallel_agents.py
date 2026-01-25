@@ -599,6 +599,123 @@ class TestClaudeCodeClientAsync:
                 await client._execute_via_cli_async(prompt="test")
 
 
+class TestWorkflowExecutorRateLimitedIntegration:
+    """Tests for WorkflowExecutor integration with rate-limited executor."""
+
+    def test_uses_rate_limited_executor_for_ai_steps(self):
+        """Verify rate-limited executor is used when AI steps are present."""
+        from test_ai.workflow import WorkflowExecutor, WorkflowConfig, StepConfig
+
+        executor = WorkflowExecutor(dry_run=True)
+
+        workflow = WorkflowConfig(
+            name="test-parallel-ai",
+            description="Test parallel AI execution",
+            version="1.0.0",
+            steps=[
+                StepConfig(
+                    id="parallel_ai",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "claude_task",
+                                "type": "claude_code",
+                                "params": {"prompt": "test", "role": "builder"},
+                            },
+                            {
+                                "id": "openai_task",
+                                "type": "openai",
+                                "params": {"prompt": "test"},
+                            },
+                        ],
+                        "max_workers": 2,
+                    },
+                )
+            ],
+        )
+
+        result = executor.execute(workflow)
+
+        # Should complete (dry run mode)
+        assert result.status == "success"
+        # Both AI tasks should be in results
+        parallel_output = result.steps[0].output
+        assert "claude_task" in parallel_output["parallel_results"]
+        assert "openai_task" in parallel_output["parallel_results"]
+
+    def test_rate_limit_can_be_disabled(self):
+        """Verify rate limiting can be explicitly disabled."""
+        from test_ai.workflow import WorkflowExecutor, WorkflowConfig, StepConfig
+
+        executor = WorkflowExecutor(dry_run=True)
+
+        workflow = WorkflowConfig(
+            name="test-no-rate-limit",
+            description="Test disabled rate limiting",
+            version="1.0.0",
+            steps=[
+                StepConfig(
+                    id="parallel_ai",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "claude_task",
+                                "type": "claude_code",
+                                "params": {"prompt": "test", "role": "builder"},
+                            },
+                        ],
+                        "rate_limit": False,  # Explicitly disable
+                        "strategy": "threading",
+                    },
+                )
+            ],
+        )
+
+        result = executor.execute(workflow)
+        assert result.status == "success"
+
+    def test_non_ai_steps_use_standard_executor(self):
+        """Verify non-AI parallel steps use standard ParallelExecutor."""
+        from test_ai.workflow import WorkflowExecutor, WorkflowConfig, StepConfig
+
+        executor = WorkflowExecutor()
+
+        workflow = WorkflowConfig(
+            name="test-shell-parallel",
+            description="Test shell parallel execution",
+            version="1.0.0",
+            steps=[
+                StepConfig(
+                    id="parallel_shell",
+                    type="parallel",
+                    params={
+                        "steps": [
+                            {
+                                "id": "echo1",
+                                "type": "shell",
+                                "params": {"command": "echo hello"},
+                            },
+                            {
+                                "id": "echo2",
+                                "type": "shell",
+                                "params": {"command": "echo world"},
+                            },
+                        ],
+                        "strategy": "threading",  # Should use standard executor
+                    },
+                )
+            ],
+        )
+
+        result = executor.execute(workflow)
+        assert result.status == "success"
+        parallel_output = result.steps[0].output
+        assert parallel_output["parallel_results"]["echo1"]["stdout"].strip() == "hello"
+        assert parallel_output["parallel_results"]["echo2"]["stdout"].strip() == "world"
+
+
 class TestWorkflowEngineDeprecation:
     """Tests for WorkflowEngine deprecation warning."""
 
