@@ -5,9 +5,15 @@ import { ReactFlowProvider, useReactFlow } from '@xyflow/react';
 import { WorkflowCanvas } from '@/components/workflow-builder/WorkflowCanvas';
 import { WorkflowToolbar } from '@/components/workflow-builder/WorkflowToolbar';
 import { NodePalette } from '@/components/workflow-builder/NodePalette';
+import { PropertyPanel } from '@/components/workflow-builder/PropertyPanel';
 import { useWorkflowBuilderStore } from '@/stores';
 import { useWorkflow, useCreateWorkflow, useUpdateWorkflow } from '@/hooks/useApi';
-import { createAgentNodeData, type AgentNodeData } from '@/types/workflow-builder';
+import {
+  createAgentNodeData,
+  createShellNodeData,
+  createCheckpointNodeData,
+  type AgentNodeData,
+} from '@/types/workflow-builder';
 import type { AgentRole, WorkflowStep } from '@/types';
 
 function WorkflowBuilderContent() {
@@ -79,9 +85,9 @@ function WorkflowBuilderContent() {
       event.preventDefault();
 
       const type = event.dataTransfer.getData('application/reactflow-type');
-      const role = event.dataTransfer.getData('application/reactflow') as AgentRole;
+      const value = event.dataTransfer.getData('application/reactflow');
 
-      if (!type || !role) {
+      if (!type) {
         return;
       }
 
@@ -91,8 +97,14 @@ function WorkflowBuilderContent() {
       });
 
       if (type === 'agent') {
-        const data = createAgentNodeData(role);
+        const data = createAgentNodeData(value as AgentRole);
         addNode('agent', position, data);
+      } else if (type === 'shell') {
+        const data = createShellNodeData();
+        addNode('shell', position, data);
+      } else if (type === 'checkpoint') {
+        const data = createCheckpointNodeData();
+        addNode('checkpoint', position, data);
       }
     },
     [screenToFlowPosition, addNode]
@@ -150,6 +162,7 @@ function WorkflowBuilderContent() {
         >
           <WorkflowCanvas />
         </div>
+        <PropertyPanel />
       </div>
     </div>
   );
