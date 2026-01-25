@@ -1,6 +1,11 @@
-"""Workflow orchestration engine."""
+"""Workflow orchestration engine.
+
+DEPRECATED: Use test_ai.workflow.WorkflowExecutor instead.
+This module is maintained for backward compatibility only.
+"""
 
 import json
+import warnings
 from datetime import datetime
 from enum import Enum
 from typing import Any, Dict, List, Optional
@@ -64,9 +69,26 @@ class WorkflowResult(BaseModel):
 
 
 class WorkflowEngine:
-    """Orchestrates workflow execution."""
+    """Orchestrates workflow execution.
+
+    DEPRECATED: Use test_ai.workflow.WorkflowExecutor instead.
+    WorkflowExecutor provides:
+    - Contract validation
+    - State persistence with checkpoints
+    - Budget management
+    - Rate-limited parallel execution
+    - Better error handling and fallbacks
+    """
 
     def __init__(self):
+        warnings.warn(
+            "WorkflowEngine is deprecated. Use WorkflowExecutor from "
+            "test_ai.workflow.executor instead. WorkflowExecutor provides "
+            "contract validation, checkpoints, budget management, and "
+            "rate-limited parallel execution.",
+            DeprecationWarning,
+            stacklevel=2,
+        )
         self.settings = get_settings()
         self.openai_client = OpenAIClient()
         self.github_client = GitHubClient()

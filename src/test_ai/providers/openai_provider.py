@@ -15,12 +15,13 @@ from .base import (
     ProviderNotConfiguredError,
     RateLimitError,
 )
-from test_ai.utils.retry import with_retry
+from test_ai.utils.retry import with_retry, async_with_retry
 
 try:
-    from openai import OpenAI, RateLimitError as OpenAIRateLimitError
+    from openai import OpenAI, AsyncOpenAI, RateLimitError as OpenAIRateLimitError
 except ImportError:
     OpenAI = None
+    AsyncOpenAI = None
     OpenAIRateLimitError = Exception
 
 
@@ -53,6 +54,7 @@ class OpenAIProvider(Provider):
             )
         super().__init__(config)
         self._client: OpenAI | None = None
+        self._async_client: AsyncOpenAI | None = None
 
     @property
     def name(self) -> str:
@@ -93,6 +95,12 @@ class OpenAIProvider(Provider):
             base_url=self.config.base_url,
             timeout=self.config.timeout,
         )
+        if AsyncOpenAI:
+            self._async_client = AsyncOpenAI(
+                api_key=self.config.api_key,
+                base_url=self.config.base_url,
+                timeout=self.config.timeout,
+            )
         self._initialized = True
 
     def complete(self, request: CompletionRequest) -> CompletionResponse:
@@ -168,6 +176,67 @@ class OpenAIProvider(Provider):
             kwargs["stop"] = stop
 
         return self._client.chat.completions.create(**kwargs)
+
+    async def complete_async(self, request: CompletionRequest) -> CompletionResponse:
+        """Generate completion asynchronously using native async OpenAI client."""
+        if not self._initialized:
+            self.initialize()
+
+        if not self._async_client:
+            raise ProviderNotConfiguredError("OpenAI async client not initialized")
+
+        model = request.model or self.default_model
+        messages = self._build_messages(request)
+
+        start_time = time.time()
+        try:
+            response = await self._call_api_async(
+                model=model,
+                messages=messages,
+                temperature=request.temperature,
+                max_tokens=request.max_tokens,
+                stop=request.stop_sequences,
+            )
+        except OpenAIRateLimitError as e:
+            raise RateLimitError(str(e))
+        except Exception as e:
+            raise ProviderError(f"OpenAI API error: {e}")
+
+        latency_ms = (time.time() - start_time) * 1000
+
+        return CompletionResponse(
+            content=response.choices[0].message.content or "",
+            model=response.model,
+            provider=self.name,
+            tokens_used=response.usage.total_tokens if response.usage else 0,
+            input_tokens=response.usage.prompt_tokens if response.usage else 0,
+            output_tokens=response.usage.completion_tokens if response.usage else 0,
+            finish_reason=response.choices[0].finish_reason,
+            latency_ms=latency_ms,
+            metadata={"id": response.id},
+        )
+
+    @async_with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    async def _call_api_async(
+        self,
+        model: str,
+        messages: list[dict],
+        temperature: float,
+        max_tokens: int | None,
+        stop: list[str] | None,
+    ) -> Any:
+        """Make async API call with retry logic."""
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "messages": messages,
+            "temperature": temperature,
+        }
+        if max_tokens:
+            kwargs["max_tokens"] = max_tokens
+        if stop:
+            kwargs["stop"] = stop
+
+        return await self._async_client.chat.completions.create(**kwargs)
 
     def list_models(self) -> list[str]:
         """List available OpenAI models."""

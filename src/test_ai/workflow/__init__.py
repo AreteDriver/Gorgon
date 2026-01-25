@@ -21,6 +21,11 @@ from .parallel import (
     ParallelResult,
     execute_steps_parallel,
 )
+from .rate_limited_executor import (
+    RateLimitedParallelExecutor,
+    ProviderRateLimits,
+    create_rate_limited_executor,
+)
 from .versioning import (
     SemanticVersion,
     WorkflowVersion,
@@ -48,6 +53,10 @@ __all__ = [
     "ParallelTask",
     "ParallelResult",
     "execute_steps_parallel",
+    # Rate-limited parallel execution
+    "RateLimitedParallelExecutor",
+    "ProviderRateLimits",
+    "create_rate_limited_executor",
     # Versioning
     "SemanticVersion",
     "WorkflowVersion",

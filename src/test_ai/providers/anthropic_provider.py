@@ -15,7 +15,7 @@ from .base import (
     ProviderNotConfiguredError,
     RateLimitError,
 )
-from test_ai.utils.retry import with_retry
+from test_ai.utils.retry import with_retry, async_with_retry
 
 try:
     import anthropic
@@ -54,6 +54,7 @@ class AnthropicProvider(Provider):
             )
         super().__init__(config)
         self._client: Any | None = None
+        self._async_client: Any | None = None
 
     @property
     def name(self) -> str:
@@ -90,6 +91,11 @@ class AnthropicProvider(Provider):
             raise ProviderNotConfiguredError("Anthropic API key not configured")
 
         self._client = anthropic.Anthropic(
+            api_key=self.config.api_key,
+            base_url=self.config.base_url,
+            timeout=self.config.timeout,
+        )
+        self._async_client = anthropic.AsyncAnthropic(
             api_key=self.config.api_key,
             base_url=self.config.base_url,
             timeout=self.config.timeout,
@@ -170,6 +176,73 @@ class AnthropicProvider(Provider):
             kwargs["stop_sequences"] = stop_sequences
 
         return self._client.messages.create(**kwargs)
+
+    async def complete_async(self, request: CompletionRequest) -> CompletionResponse:
+        """Generate completion asynchronously using native async Anthropic client."""
+        if not self._initialized:
+            self.initialize()
+
+        if not self._async_client:
+            raise ProviderNotConfiguredError("Anthropic async client not initialized")
+
+        model = request.model or self.default_model
+        messages = self._build_messages(request)
+        system = request.system_prompt or "You are a helpful assistant."
+
+        start_time = time.time()
+        try:
+            response = await self._call_api_async(
+                model=model,
+                system=system,
+                messages=messages,
+                max_tokens=request.max_tokens or 4096,
+                stop_sequences=request.stop_sequences,
+            )
+        except AnthropicRateLimitError as e:
+            raise RateLimitError(str(e))
+        except Exception as e:
+            raise ProviderError(f"Anthropic API error: {e}")
+
+        latency_ms = (time.time() - start_time) * 1000
+
+        content = ""
+        if response.content:
+            content = response.content[0].text if response.content else ""
+
+        return CompletionResponse(
+            content=content,
+            model=response.model,
+            provider=self.name,
+            tokens_used=response.usage.input_tokens + response.usage.output_tokens
+            if response.usage
+            else 0,
+            input_tokens=response.usage.input_tokens if response.usage else 0,
+            output_tokens=response.usage.output_tokens if response.usage else 0,
+            finish_reason=response.stop_reason,
+            latency_ms=latency_ms,
+            metadata={"id": response.id},
+        )
+
+    @async_with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    async def _call_api_async(
+        self,
+        model: str,
+        system: str,
+        messages: list[dict],
+        max_tokens: int,
+        stop_sequences: list[str] | None,
+    ) -> Any:
+        """Make async API call with retry logic."""
+        kwargs: dict[str, Any] = {
+            "model": model,
+            "system": system,
+            "messages": messages,
+            "max_tokens": max_tokens,
+        }
+        if stop_sequences:
+            kwargs["stop_sequences"] = stop_sequences
+
+        return await self._async_client.messages.create(**kwargs)
 
     def list_models(self) -> list[str]:
         """List available Anthropic models."""

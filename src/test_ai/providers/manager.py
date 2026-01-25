@@ -257,6 +257,107 @@ class ProviderManager:
 
         raise ProviderError(f"All providers failed. Last error: {last_error}")
 
+    async def _try_provider_completion_async(
+        self, name: str, request: CompletionRequest, use_fallback: bool
+    ) -> tuple[CompletionResponse | None, Exception | None]:
+        """Try async completion with a single provider.
+
+        Returns:
+            Tuple of (response, error) - response is set on success, error on failure
+        """
+        provider = self._providers.get(name)
+        if not provider:
+            return None, None
+
+        try:
+            logger.debug(f"Attempting async completion with provider: {name}")
+            return await provider.complete_async(request), None
+        except RateLimitError as e:
+            logger.warning(f"Rate limit hit for {name}: {e}")
+            if not use_fallback:
+                raise
+            return None, e
+        except ProviderError as e:
+            logger.warning(f"Provider {name} failed: {e}")
+            if not use_fallback:
+                raise
+            return None, e
+        except Exception as e:
+            logger.error(f"Unexpected error from {name}: {e}")
+            if not use_fallback:
+                raise ProviderError(f"Provider error: {e}")
+            return None, e
+
+    async def complete_async(
+        self,
+        request: CompletionRequest,
+        provider_name: str | None = None,
+        use_fallback: bool = True,
+    ) -> CompletionResponse:
+        """Generate an async completion using registered providers.
+
+        Args:
+            request: Completion request
+            provider_name: Specific provider to use (None = default)
+            use_fallback: Whether to try fallback providers on failure
+
+        Returns:
+            Completion response from first successful provider
+
+        Raises:
+            ProviderNotConfiguredError: If no providers registered
+            ProviderError: If all providers fail
+        """
+        if not self._providers:
+            raise ProviderNotConfiguredError("No providers registered")
+
+        providers_to_try = self._get_providers_to_try(provider_name, use_fallback)
+        last_error: Exception | None = None
+
+        for name in providers_to_try:
+            response, error = await self._try_provider_completion_async(
+                name, request, use_fallback
+            )
+            if response:
+                return response
+            if error:
+                last_error = error
+
+        raise ProviderError(f"All providers failed. Last error: {last_error}")
+
+    async def generate_async(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+        provider_name: str | None = None,
+        use_fallback: bool = True,
+        **kwargs: Any,
+    ) -> str:
+        """Async convenience method for simple text generation.
+
+        Args:
+            prompt: User prompt
+            system_prompt: Optional system prompt
+            model: Model to use
+            provider_name: Specific provider to use
+            use_fallback: Whether to try fallback providers
+            **kwargs: Additional request parameters
+
+        Returns:
+            Generated text
+        """
+        request = CompletionRequest(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            model=model,
+            **kwargs,
+        )
+        response = await self.complete_async(
+            request, provider_name=provider_name, use_fallback=use_fallback
+        )
+        return response.content
+
     def generate(
         self,
         prompt: str,

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
@@ -165,6 +166,20 @@ class Provider(ABC):
         """
         pass
 
+    async def complete_async(self, request: CompletionRequest) -> CompletionResponse:
+        """Async completion - default wraps sync version in executor.
+
+        Override this method for native async implementations.
+
+        Args:
+            request: Completion request
+
+        Returns:
+            Completion response
+        """
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(None, self.complete, request)
+
     def generate(
         self,
         prompt: str,
@@ -193,6 +208,36 @@ class Provider(ABC):
             max_tokens=max_tokens,
         )
         response = self.complete(request)
+        return response.content
+
+    async def generate_async(
+        self,
+        prompt: str,
+        system_prompt: str | None = None,
+        model: str | None = None,
+        temperature: float = 0.7,
+        max_tokens: int | None = None,
+    ) -> str:
+        """Async convenience method for simple text generation.
+
+        Args:
+            prompt: User prompt
+            system_prompt: Optional system prompt
+            model: Model to use (None = default)
+            temperature: Sampling temperature
+            max_tokens: Maximum tokens to generate
+
+        Returns:
+            Generated text
+        """
+        request = CompletionRequest(
+            prompt=prompt,
+            system_prompt=system_prompt,
+            model=model,
+            temperature=temperature,
+            max_tokens=max_tokens,
+        )
+        response = await self.complete_async(request)
         return response.content
 
     def list_models(self) -> list[str]:

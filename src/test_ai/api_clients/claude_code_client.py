@@ -1,12 +1,13 @@
 """Claude Code API client wrapper with API and CLI modes."""
 
+import asyncio
 import json
 import subprocess
 from typing import Any, Dict, Optional
 
 from test_ai.config import get_settings
-from test_ai.utils.retry import with_retry
-from test_ai.api_clients.resilience import resilient_call
+from test_ai.utils.retry import with_retry, async_with_retry
+from test_ai.api_clients.resilience import resilient_call, resilient_call_async
 
 try:
     import anthropic
@@ -61,6 +62,9 @@ class ClaudeCodeClient:
 
         if self.mode == "api" and self.api_key and anthropic:
             self.client = anthropic.Anthropic(api_key=self.api_key)
+            self.async_client = anthropic.AsyncAnthropic(api_key=self.api_key)
+        else:
+            self.async_client = None
 
     def _load_role_prompts(self, settings) -> Dict[str, str]:
         """Load role prompts from config file or use defaults."""
@@ -258,3 +262,156 @@ class ClaudeCodeClient:
             raise RuntimeError(f"Claude CLI error: {result.stderr}")
 
         return result.stdout
+
+    async def execute_agent_async(
+        self,
+        role: str,
+        task: str,
+        context: Optional[str] = None,
+        model: str = "claude-sonnet-4-20250514",
+        max_tokens: int = 4096,
+    ) -> Dict[str, Any]:
+        """Async version of execute_agent().
+
+        Execute a specialized agent with role-specific prompt asynchronously.
+
+        Args:
+            role: Agent role (planner, builder, tester, reviewer)
+            task: The task description
+            context: Optional context from previous steps
+            model: Claude model to use
+            max_tokens: Maximum tokens in response
+
+        Returns:
+            Dict with 'success', 'output', and optionally 'error'
+        """
+        if not self.is_configured():
+            return {"success": False, "error": "Claude Code client not configured"}
+
+        system_prompt = self.role_prompts.get(role, "")
+        if not system_prompt:
+            return {"success": False, "error": f"Unknown role: {role}"}
+
+        user_prompt = f"Task: {task}"
+        if context:
+            user_prompt += f"\n\nContext:\n{context}"
+
+        try:
+            if self.mode == "api":
+                output = await self._execute_via_api_async(
+                    system_prompt=system_prompt,
+                    user_prompt=user_prompt,
+                    model=model,
+                    max_tokens=max_tokens,
+                )
+            else:
+                full_prompt = f"{system_prompt}\n\n{user_prompt}"
+                output = await self._execute_via_cli_async(prompt=full_prompt)
+
+            return {"success": True, "output": output, "role": role}
+        except Exception as e:
+            return {"success": False, "error": str(e), "role": role}
+
+    async def generate_completion_async(
+        self,
+        prompt: str,
+        system_prompt: Optional[str] = None,
+        model: str = "claude-sonnet-4-20250514",
+        max_tokens: int = 4096,
+    ) -> Dict[str, Any]:
+        """Async version of generate_completion().
+
+        Generate a completion without role-specific prompts asynchronously.
+
+        Args:
+            prompt: The user prompt
+            system_prompt: Optional system prompt
+            model: Claude model to use
+            max_tokens: Maximum tokens in response
+
+        Returns:
+            Dict with 'success', 'output', and optionally 'error'
+        """
+        if not self.is_configured():
+            return {"success": False, "error": "Claude Code client not configured"}
+
+        try:
+            if self.mode == "api":
+                output = await self._execute_via_api_async(
+                    system_prompt=system_prompt or "You are a helpful assistant.",
+                    user_prompt=prompt,
+                    model=model,
+                    max_tokens=max_tokens,
+                )
+            else:
+                full_prompt = prompt
+                if system_prompt:
+                    full_prompt = f"{system_prompt}\n\n{prompt}"
+                output = await self._execute_via_cli_async(prompt=full_prompt)
+
+            return {"success": True, "output": output}
+        except Exception as e:
+            return {"success": False, "error": str(e)}
+
+    async def _execute_via_api_async(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str = "claude-sonnet-4-20250514",
+        max_tokens: int = 4096,
+    ) -> str:
+        """Execute via Anthropic API asynchronously."""
+        if not self.async_client:
+            raise RuntimeError("Anthropic async client not initialized")
+
+        return await self._call_anthropic_api_async(
+            system_prompt, user_prompt, model, max_tokens
+        )
+
+    @resilient_call_async("anthropic")
+    @async_with_retry(max_retries=3, base_delay=1.0, max_delay=30.0)
+    async def _call_anthropic_api_async(
+        self,
+        system_prompt: str,
+        user_prompt: str,
+        model: str,
+        max_tokens: int,
+    ) -> str:
+        """Make the actual Anthropic API call asynchronously with retry logic."""
+        response = await self.async_client.messages.create(
+            model=model,
+            max_tokens=max_tokens,
+            system=system_prompt,
+            messages=[{"role": "user", "content": user_prompt}],
+        )
+        return response.content[0].text
+
+    async def _execute_via_cli_async(
+        self,
+        prompt: str,
+        working_dir: Optional[str] = None,
+        timeout: int = 300,
+    ) -> str:
+        """Execute via Claude CLI subprocess asynchronously."""
+        cmd = [self.cli_path, "-p", prompt, "--no-input"]
+
+        process = await asyncio.create_subprocess_exec(
+            *cmd,
+            stdout=asyncio.subprocess.PIPE,
+            stderr=asyncio.subprocess.PIPE,
+            cwd=working_dir,
+        )
+
+        try:
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(), timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            process.kill()
+            await process.wait()
+            raise RuntimeError(f"Claude CLI timed out after {timeout} seconds")
+
+        if process.returncode != 0:
+            raise RuntimeError(f"Claude CLI error: {stderr.decode()}")
+
+        return stdout.decode()
