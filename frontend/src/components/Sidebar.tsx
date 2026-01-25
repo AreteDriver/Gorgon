@@ -11,6 +11,7 @@ import {
   Zap,
   Plug,
   Lightbulb,
+  PlusCircle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,6 +28,7 @@ const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
   { title: 'Decisions', href: '/decisions', icon: Lightbulb },
   { title: 'Workflows', href: '/workflows', icon: GitBranch },
+  { title: 'New Workflow', href: '/workflows/new', icon: PlusCircle },
   { title: 'Executions', href: '/executions', icon: Play },
   { title: 'Connectors', href: '/connectors', icon: Plug },
   { title: 'Agents', href: '/agents', icon: Users },

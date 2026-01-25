@@ -4,6 +4,7 @@ import { ThemeProvider } from '@/components/ThemeProvider';
 import { Layout } from '@/components/Layout';
 import { DashboardPage } from '@/pages/Dashboard';
 import { WorkflowsPage } from '@/pages/Workflows';
+import { WorkflowBuilderPage } from '@/pages/WorkflowBuilder';
 import { ExecutionsPage } from '@/pages/Executions';
 import { DecisionsPage } from '@/pages/Decisions';
 import { BudgetPage } from '@/pages/Budget';
@@ -30,6 +31,8 @@ function App() {
             <Route index element={<DashboardPage />} />
             <Route path="decisions" element={<DecisionsPage />} />
             <Route path="workflows" element={<WorkflowsPage />} />
+            <Route path="workflows/new" element={<WorkflowBuilderPage />} />
+            <Route path="workflows/:id/edit" element={<WorkflowBuilderPage />} />
             <Route path="executions" element={<ExecutionsPage />} />
             <Route path="budget" element={<BudgetPage />} />
             <Route path="connectors" element={<ConnectorsPage />} />

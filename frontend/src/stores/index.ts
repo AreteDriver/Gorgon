@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import type { AgentRole, Execution } from '@/types';
+import type { WorkflowNodeData, ValidationError } from '@/types/workflow-builder';
+import type { Node, Edge, Connection } from '@xyflow/react';
+import { applyNodeChanges, applyEdgeChanges, addEdge, type NodeChange, type EdgeChange } from '@xyflow/react';
 
 // =============================================================================
 // UI Store - Transient UI state
@@ -94,72 +97,143 @@ export const usePreferencesStore = create<PreferencesState>()(
 );
 
 // =============================================================================
-// Workflow Builder Store - State for workflow editor
+// Workflow Builder Store - State for visual workflow editor (ReactFlow)
 // =============================================================================
 
-interface WorkflowStep {
-  id: string;
-  agentRole: AgentRole;
-  name: string;
-  config: Record<string, unknown>;
-  position: { x: number; y: number };
-}
-
 interface WorkflowBuilderState {
-  steps: WorkflowStep[];
-  selectedStep: string | null;
+  // ReactFlow state
+  nodes: Node<WorkflowNodeData>[];
+  edges: Edge[];
+  viewport: { x: number; y: number; zoom: number };
+
+  // Selection state
+  selectedNodeId: string | null;
+
+  // Editor state
   isDirty: boolean;
-  
-  // Actions
-  addStep: (step: Omit<WorkflowStep, 'id'>) => void;
-  updateStep: (id: string, updates: Partial<WorkflowStep>) => void;
-  removeStep: (id: string) => void;
-  selectStep: (id: string | null) => void;
-  reorderSteps: (fromIndex: number, toIndex: number) => void;
+  workflowId: string | null;
+  workflowName: string;
+
+  // Validation state
+  validationErrors: ValidationError[];
+
+  // ReactFlow handlers
+  onNodesChange: (changes: NodeChange[]) => void;
+  onEdgesChange: (changes: EdgeChange[]) => void;
+  onConnect: (connection: Connection) => void;
+
+  // Node actions
+  addNode: (type: string, position: { x: number; y: number }, data: WorkflowNodeData) => string;
+  updateNodeData: (id: string, data: Partial<WorkflowNodeData>) => void;
+  deleteNode: (id: string) => void;
+  selectNode: (id: string | null) => void;
+
+  // Workflow actions
+  setWorkflowName: (name: string) => void;
+  loadWorkflow: (id: string, name: string, nodes: Node<WorkflowNodeData>[], edges: Edge[]) => void;
   clearWorkflow: () => void;
-  loadWorkflow: (steps: WorkflowStep[]) => void;
   markClean: () => void;
+
+  // Validation
+  setValidationErrors: (errors: ValidationError[]) => void;
+
+  // Viewport
+  setViewport: (viewport: { x: number; y: number; zoom: number }) => void;
 }
 
 export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
-  steps: [],
-  selectedStep: null,
+  nodes: [],
+  edges: [],
+  viewport: { x: 0, y: 0, zoom: 1 },
+  selectedNodeId: null,
   isDirty: false,
+  workflowId: null,
+  workflowName: 'Untitled Workflow',
+  validationErrors: [],
 
-  addStep: (step) =>
+  onNodesChange: (changes) =>
     set((state) => ({
-      steps: [...state.steps, { ...step, id: crypto.randomUUID() }],
+      nodes: applyNodeChanges(changes, state.nodes) as Node<WorkflowNodeData>[],
       isDirty: true,
     })),
 
-  updateStep: (id, updates) =>
+  onEdgesChange: (changes) =>
     set((state) => ({
-      steps: state.steps.map((s) => (s.id === id ? { ...s, ...updates } : s)),
+      edges: applyEdgeChanges(changes, state.edges),
       isDirty: true,
     })),
 
-  removeStep: (id) =>
+  onConnect: (connection) =>
     set((state) => ({
-      steps: state.steps.filter((s) => s.id !== id),
-      selectedStep: state.selectedStep === id ? null : state.selectedStep,
+      edges: addEdge({ ...connection, type: 'default' }, state.edges),
       isDirty: true,
     })),
 
-  selectStep: (id) => set({ selectedStep: id }),
+  addNode: (type, position, data) => {
+    const id = crypto.randomUUID();
+    set((state) => ({
+      nodes: [
+        ...state.nodes,
+        {
+          id,
+          type,
+          position,
+          data,
+        },
+      ],
+      isDirty: true,
+    }));
+    return id;
+  },
 
-  reorderSteps: (fromIndex, toIndex) =>
-    set((state) => {
-      const newSteps = [...state.steps];
-      const [removed] = newSteps.splice(fromIndex, 1);
-      newSteps.splice(toIndex, 0, removed);
-      return { steps: newSteps, isDirty: true };
+  updateNodeData: (id, data) =>
+    set((state) => ({
+      nodes: state.nodes.map((node) =>
+        node.id === id ? { ...node, data: { ...node.data, ...data } as WorkflowNodeData } : node
+      ),
+      isDirty: true,
+    })),
+
+  deleteNode: (id) =>
+    set((state) => ({
+      nodes: state.nodes.filter((node) => node.id !== id),
+      edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
+      selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
+      isDirty: true,
+    })),
+
+  selectNode: (id) => set({ selectedNodeId: id }),
+
+  setWorkflowName: (name) => set({ workflowName: name, isDirty: true }),
+
+  loadWorkflow: (id, name, nodes, edges) =>
+    set({
+      workflowId: id,
+      workflowName: name,
+      nodes,
+      edges,
+      selectedNodeId: null,
+      isDirty: false,
+      validationErrors: [],
     }),
 
-  clearWorkflow: () => set({ steps: [], selectedStep: null, isDirty: false }),
-  
-  loadWorkflow: (steps) => set({ steps, selectedStep: null, isDirty: false }),
-  
+  clearWorkflow: () =>
+    set({
+      nodes: [],
+      edges: [],
+      viewport: { x: 0, y: 0, zoom: 1 },
+      selectedNodeId: null,
+      isDirty: false,
+      workflowId: null,
+      workflowName: 'Untitled Workflow',
+      validationErrors: [],
+    }),
+
   markClean: () => set({ isDirty: false }),
+
+  setValidationErrors: (errors) => set({ validationErrors: errors }),
+
+  setViewport: (viewport) => set({ viewport }),
 }));
 
 // =============================================================================
