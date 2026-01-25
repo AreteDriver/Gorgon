@@ -17,10 +17,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - tests/ directory structure for future test implementation
 - Enhanced .gitignore for better repository hygiene
 - CHANGELOG.md for tracking project changes
+- **Parallel Agent Execution** with rate-limited parallel execution for AI workflows
+  - `RateLimitedParallelExecutor`: Per-provider concurrency control with semaphores
+  - `AdaptiveRateLimitConfig/State`: Dynamic rate limit adjustment based on 429 responses
+  - `DistributedRateLimiter`: Cross-process rate limiting (SQLite/Redis backends)
+  - Automatic provider detection from task metadata
+  - `create_rate_limited_executor()` factory with sensible defaults
+- **Async Provider Support**: Native async methods for AI providers
+  - `Provider.complete_async()` and `Provider.generate_async()`
+  - `ProviderManager.complete_async()` with fallback support
+  - `ClaudeCodeClient.execute_agent_async()` for async agent execution
+- **Documentation**: Added `docs/PARALLEL_EXECUTION.md` with usage guide
 
 ### Changed
 - Improved repository structure with proper organization
 - Updated documentation to be more comprehensive
+- `WorkflowEngineAdapter` now the recommended way to interact with workflows
+- Deprecated `WorkflowEngine` class (use `WorkflowEngineAdapter` instead)
 
 ## [0.1.0] - 2024-12-08
 

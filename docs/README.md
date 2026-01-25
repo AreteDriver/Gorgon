@@ -30,9 +30,12 @@ Welcome to the Gorgon documentation! This directory contains comprehensive guide
 - 📝 **Development Setup** _(coming soon)_ - Setting up dev environment
 
 ### Advanced Topics
+- **[Parallel Agent Execution](PARALLEL_EXECUTION.md)** - Multi-agent parallelism with rate limiting
+- **[Claude Code Integration](claude-code-integration.md)** - Using Claude Code in workflows
+- **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Production deployment
+- **[Enterprise Patterns](ENTERPRISE_PATTERNS.md)** - Scaling for enterprise
 - 📝 **Security Best Practices** _(coming soon)_ - Securing your deployment
 - 📝 **Performance Tuning** _(coming soon)_ - Optimization strategies
-- 📝 **Deployment Guide** _(coming soon)_ - Production deployment
 - 📝 **Troubleshooting** _(coming soon)_ - Common issues and solutions
 
 ## 🎯 Quick Links
