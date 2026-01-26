@@ -399,7 +399,7 @@ Define workflows as JSON:
 - [x] Request logging with tracing
 - [x] Rate limiting
 - [x] CI/CD pipeline
-- [ ] Parallel agent execution
+- [x] Parallel agent execution
 - [ ] Visual workflow builder
 - [ ] Agent memory/context persistence
 
