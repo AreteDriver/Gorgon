@@ -1703,5 +1703,491 @@ def budget_reset(
         raise typer.Exit(1)
 
 
+# =============================================================================
+# METRICS COMMANDS
+# =============================================================================
+
+metrics_app = typer.Typer(help="Export and view metrics")
+app.add_typer(metrics_app, name="metrics")
+
+
+@metrics_app.command("export")
+def metrics_export(
+    format: str = typer.Option(
+        "prometheus",
+        "--format",
+        "-f",
+        help="Export format (prometheus, json, text)",
+    ),
+    output: Optional[Path] = typer.Option(
+        None, "--output", "-o", help="Output file (stdout if not specified)"
+    ),
+):
+    """Export workflow metrics."""
+    try:
+        from test_ai.metrics import (
+            MetricsCollector,
+            PrometheusExporter,
+            JsonExporter,
+            get_collector,
+        )
+
+        collector = get_collector()
+
+        if format == "prometheus":
+            exporter = PrometheusExporter()
+            content = exporter.export(collector)
+        elif format == "json":
+            exporter = JsonExporter()
+            content = exporter.export(collector)
+        else:
+            # Text summary
+            summary = collector.get_summary()
+            lines = [
+                "Gorgon Metrics Summary",
+                "=" * 40,
+                f"Workflows Total: {summary['workflows_total']}",
+                f"Workflows Active: {summary['workflows_active']}",
+                f"Workflows Completed: {summary['workflows_completed']}",
+                f"Workflows Failed: {summary['workflows_failed']}",
+                f"Success Rate: {summary['success_rate']:.1%}",
+                f"Tokens Used: {summary['tokens_used']:,}",
+            ]
+            if summary.get("avg_duration_ms"):
+                lines.append(f"Avg Duration: {summary['avg_duration_ms']:.0f}ms")
+            content = "\n".join(lines)
+
+        if output:
+            output.write_text(content)
+            console.print(f"[green]✓ Metrics exported to:[/green] {output}")
+        else:
+            print(content)
+
+    except Exception as e:
+        console.print(f"[red]Error exporting metrics:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@metrics_app.command("serve")
+def metrics_serve(
+    port: int = typer.Option(9090, "--port", "-p", help="Port to serve metrics on"),
+    host: str = typer.Option("0.0.0.0", "--host", "-h", help="Host to bind to"),
+):
+    """Start Prometheus metrics HTTP server."""
+    try:
+        from test_ai.metrics import PrometheusMetricsServer, get_collector
+
+        collector = get_collector()
+        server = PrometheusMetricsServer(collector, host=host, port=port)
+
+        console.print(f"[cyan]Starting Prometheus metrics server...[/cyan]")
+        console.print(f"[bold]URL:[/bold] http://{host}:{port}/metrics")
+        console.print(f"[bold]Health:[/bold] http://{host}:{port}/health")
+        console.print("\n[dim]Press Ctrl+C to stop[/dim]")
+
+        server.start()
+
+        try:
+            import time
+
+            while True:
+                time.sleep(1)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down...[/yellow]")
+            server.stop()
+            console.print("[green]✓ Server stopped[/green]")
+
+    except Exception as e:
+        console.print(f"[red]Error starting server:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@metrics_app.command("push")
+def metrics_push(
+    gateway_url: str = typer.Argument(..., help="Push gateway URL"),
+    job: str = typer.Option("gorgon", "--job", "-j", help="Job name"),
+    instance: str = typer.Option(None, "--instance", "-i", help="Instance name"),
+):
+    """Push metrics to Prometheus Push Gateway."""
+    try:
+        from test_ai.metrics import PrometheusPushGateway, get_collector
+
+        collector = get_collector()
+        gateway = PrometheusPushGateway(
+            url=gateway_url,
+            job=job,
+            instance=instance,
+        )
+
+        with console.status("[cyan]Pushing metrics...", spinner="dots"):
+            success = gateway.push(collector)
+
+        if success:
+            console.print(f"[green]✓ Metrics pushed to:[/green] {gateway_url}")
+        else:
+            console.print("[red]Failed to push metrics[/red]")
+            raise typer.Exit(1)
+
+    except Exception as e:
+        console.print(f"[red]Error pushing metrics:[/red] {e}")
+        raise typer.Exit(1)
+
+
+# =============================================================================
+# CONFIG COMMANDS
+# =============================================================================
+
+config_app = typer.Typer(help="View and manage configuration")
+app.add_typer(config_app, name="config")
+
+
+@config_app.command("show")
+def config_show(
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show current configuration."""
+    try:
+        from test_ai.config import get_config
+
+        config = get_config()
+        config_dict = config.model_dump()
+    except Exception as e:
+        console.print(f"[red]Error loading config:[/red] {e}")
+        config_dict = {}
+
+    # Mask sensitive values
+    masked = {}
+    for key, value in config_dict.items():
+        if any(s in key.lower() for s in ["key", "secret", "password", "token"]):
+            masked[key] = "****" if value else None
+        else:
+            masked[key] = value
+
+    if json_output:
+        print(json.dumps(masked, indent=2, default=str))
+        return
+
+    console.print(Panel("[bold]Gorgon Configuration[/bold]", border_style="blue"))
+
+    table = Table(show_header=True)
+    table.add_column("Setting", style="cyan")
+    table.add_column("Value")
+
+    for key, value in sorted(masked.items()):
+        display_value = str(value) if value is not None else "[dim]not set[/dim]"
+        if display_value == "****":
+            display_value = "[green]****[/green]"
+        table.add_row(key, display_value)
+
+    console.print(table)
+
+
+@config_app.command("path")
+def config_path():
+    """Show configuration file paths."""
+    from pathlib import Path
+    import os
+
+    console.print("[bold]Configuration Sources[/bold]\n")
+
+    # .env file
+    env_path = Path(".env")
+    if env_path.exists():
+        console.print(f"[green]✓[/green] .env: {env_path.absolute()}")
+    else:
+        console.print(f"[yellow]○[/yellow] .env: not found")
+
+    # Environment variables
+    gorgon_vars = {k: v for k, v in os.environ.items() if k.startswith("GORGON_")}
+    if gorgon_vars:
+        console.print(f"\n[bold]Environment Variables ({len(gorgon_vars)}):[/bold]")
+        for key in sorted(gorgon_vars.keys()):
+            console.print(f"  {key}")
+    else:
+        console.print("\n[dim]No GORGON_* environment variables set[/dim]")
+
+    # Config directories
+    console.print("\n[bold]Search Paths:[/bold]")
+    console.print(f"  ./config/")
+    console.print(f"  ~/.config/gorgon/")
+
+
+@config_app.command("env")
+def config_env():
+    """Show required environment variables."""
+    env_vars = [
+        ("ANTHROPIC_API_KEY", "Anthropic/Claude API key", True),
+        ("OPENAI_API_KEY", "OpenAI API key", True),
+        ("GITHUB_TOKEN", "GitHub personal access token", False),
+        ("NOTION_TOKEN", "Notion API token", False),
+        ("GORGON_LOG_LEVEL", "Log level (DEBUG, INFO, WARNING, ERROR)", False),
+        ("GORGON_BUDGET_LIMIT", "Token budget limit", False),
+        ("GORGON_WORKFLOWS_DIR", "Workflows directory path", False),
+    ]
+
+    import os
+
+    console.print("[bold]Environment Variables[/bold]\n")
+
+    table = Table()
+    table.add_column("Variable", style="cyan")
+    table.add_column("Description")
+    table.add_column("Required")
+    table.add_column("Status")
+
+    for var, desc, required in env_vars:
+        value = os.environ.get(var)
+        if value:
+            status = "[green]✓ set[/green]"
+        elif required:
+            status = "[red]✗ missing[/red]"
+        else:
+            status = "[dim]not set[/dim]"
+
+        req = "[yellow]yes[/yellow]" if required else "no"
+        table.add_row(var, desc, req, status)
+
+    console.print(table)
+
+
+# =============================================================================
+# DASHBOARD COMMAND
+# =============================================================================
+
+
+@app.command()
+def dashboard(
+    port: int = typer.Option(8501, "--port", "-p", help="Port to run dashboard on"),
+    host: str = typer.Option("localhost", "--host", "-h", help="Host to bind to"),
+    no_browser: bool = typer.Option(
+        False, "--no-browser", help="Don't open browser automatically"
+    ),
+):
+    """Launch the Gorgon web dashboard."""
+    import webbrowser
+
+    dashboard_path = Path(__file__).parent.parent / "dashboard" / "app.py"
+
+    if not dashboard_path.exists():
+        console.print(f"[red]Dashboard not found at:[/red] {dashboard_path}")
+        raise typer.Exit(1)
+
+    url = f"http://{host}:{port}"
+    console.print(f"[cyan]Starting Gorgon Dashboard...[/cyan]")
+    console.print(f"[bold]URL:[/bold] {url}")
+    console.print("\n[dim]Press Ctrl+C to stop[/dim]\n")
+
+    if not no_browser:
+        webbrowser.open(url)
+
+    try:
+        result = subprocess.run(
+            [
+                sys.executable,
+                "-m",
+                "streamlit",
+                "run",
+                str(dashboard_path),
+                "--server.port",
+                str(port),
+                "--server.address",
+                host,
+                "--server.headless",
+                "true",
+            ],
+        )
+        if result.returncode != 0:
+            raise typer.Exit(result.returncode)
+    except KeyboardInterrupt:
+        console.print("\n[yellow]Dashboard stopped[/yellow]")
+
+
+# =============================================================================
+# PLUGINS COMMANDS
+# =============================================================================
+
+plugins_app = typer.Typer(help="Manage plugins")
+app.add_typer(plugins_app, name="plugins")
+
+
+@plugins_app.command("list")
+def plugins_list(
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """List installed plugins."""
+    try:
+        from test_ai.plugins import PluginManager
+
+        manager = PluginManager()
+        plugins = manager.list_plugins()
+    except Exception as e:
+        console.print(f"[red]Error loading plugins:[/red] {e}")
+        plugins = []
+
+    if json_output:
+        print(json.dumps([p.to_dict() for p in plugins], indent=2))
+        return
+
+    if not plugins:
+        console.print("[yellow]No plugins installed[/yellow]")
+        console.print("\n[dim]Plugins extend Gorgon with custom step types and integrations.[/dim]")
+        return
+
+    table = Table(title="Installed Plugins")
+    table.add_column("Name", style="cyan")
+    table.add_column("Version")
+    table.add_column("Description")
+    table.add_column("Status")
+
+    for plugin in plugins:
+        status = "[green]active[/green]" if plugin.enabled else "[dim]disabled[/dim]"
+        table.add_row(
+            plugin.name,
+            plugin.version,
+            plugin.description[:40] if plugin.description else "-",
+            status,
+        )
+
+    console.print(table)
+
+
+@plugins_app.command("info")
+def plugins_info(
+    name: str = typer.Argument(..., help="Plugin name"),
+):
+    """Show detailed plugin information."""
+    try:
+        from test_ai.plugins import PluginManager
+
+        manager = PluginManager()
+        plugin = manager.get_plugin(name)
+
+        if not plugin:
+            console.print(f"[red]Plugin not found:[/red] {name}")
+            raise typer.Exit(1)
+
+        console.print(
+            Panel(
+                f"[bold]{plugin.name}[/bold] v{plugin.version}\n\n"
+                f"{plugin.description or 'No description'}\n\n"
+                f"[dim]Author:[/dim] {plugin.author or 'Unknown'}\n"
+                f"[dim]Status:[/dim] {'Enabled' if plugin.enabled else 'Disabled'}",
+                title="Plugin Info",
+                border_style="cyan",
+            )
+        )
+
+        if plugin.step_types:
+            console.print("\n[bold]Step Types:[/bold]")
+            for step_type in plugin.step_types:
+                console.print(f"  • {step_type}")
+
+        if plugin.hooks:
+            console.print("\n[bold]Hooks:[/bold]")
+            for hook in plugin.hooks:
+                console.print(f"  • {hook}")
+
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+# =============================================================================
+# LOGS COMMAND
+# =============================================================================
+
+
+@app.command()
+def logs(
+    workflow: str = typer.Option(None, "--workflow", "-w", help="Filter by workflow"),
+    execution: str = typer.Option(
+        None, "--execution", "-e", help="Filter by execution ID"
+    ),
+    level: str = typer.Option(
+        "INFO", "--level", "-l", help="Minimum log level (DEBUG, INFO, WARNING, ERROR)"
+    ),
+    tail: int = typer.Option(50, "--tail", "-n", help="Number of recent entries"),
+    follow: bool = typer.Option(False, "--follow", "-f", help="Follow log output"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """View workflow execution logs."""
+    import time
+
+    try:
+        tracker = get_tracker()
+        if not tracker:
+            console.print("[yellow]Tracker not available[/yellow]")
+            raise typer.Exit(1)
+    except Exception as e:
+        console.print(f"[red]Error accessing logs:[/red] {e}")
+        raise typer.Exit(1)
+
+    def format_log_entry(entry: dict) -> str:
+        """Format a single log entry."""
+        ts = entry.get("timestamp", "")[:19]
+        lvl = entry.get("level", "INFO")
+        msg = entry.get("message", "")
+        wf = entry.get("workflow_id", "")
+        ex = entry.get("execution_id", "")[:8] if entry.get("execution_id") else ""
+
+        level_colors = {
+            "DEBUG": "dim",
+            "INFO": "blue",
+            "WARNING": "yellow",
+            "ERROR": "red",
+        }
+        color = level_colors.get(lvl, "white")
+
+        if wf:
+            return f"[dim]{ts}[/dim] [{color}]{lvl:7}[/{color}] [{wf}:{ex}] {msg}"
+        return f"[dim]{ts}[/dim] [{color}]{lvl:7}[/{color}] {msg}"
+
+    def get_logs():
+        """Fetch logs from tracker."""
+        try:
+            logs = tracker.get_logs(
+                workflow_id=workflow,
+                execution_id=execution,
+                level=level,
+                limit=tail,
+            )
+            return logs
+        except AttributeError:
+            # Tracker doesn't have get_logs, use dashboard data
+            data = tracker.get_dashboard_data()
+            return data.get("recent_logs", [])
+
+    logs_data = get_logs()
+
+    if json_output:
+        print(json.dumps(logs_data, indent=2, default=str))
+        return
+
+    if not logs_data:
+        console.print("[yellow]No logs found[/yellow]")
+        if not follow:
+            return
+
+    # Display existing logs
+    for entry in logs_data:
+        console.print(format_log_entry(entry))
+
+    # Follow mode
+    if follow:
+        console.print("\n[dim]Following logs... (Ctrl+C to stop)[/dim]\n")
+        seen = set(str(e) for e in logs_data)
+        try:
+            while True:
+                time.sleep(2)
+                new_logs = get_logs()
+                for entry in new_logs:
+                    entry_str = str(entry)
+                    if entry_str not in seen:
+                        seen.add(entry_str)
+                        console.print(format_log_entry(entry))
+        except KeyboardInterrupt:
+            console.print("\n[dim]Stopped following logs[/dim]")
+
+
 if __name__ == "__main__":
     app()

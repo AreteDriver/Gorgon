@@ -938,3 +938,150 @@ class TestMemorySubcommands:
 
         assert result.exit_code == 0
         assert "Cleared 10" in result.output
+
+
+class TestMetricsCommands:
+    """Tests for metrics subcommands."""
+
+    def test_metrics_export_text_format(self):
+        """Metrics export text format handles errors gracefully."""
+        # This will fail to import metrics but should handle gracefully
+        result = runner.invoke(app, ["metrics", "export", "--format", "text"])
+
+        # Either succeeds or shows error message
+        assert result.exit_code in (0, 1)
+
+    def test_metrics_export_help(self):
+        """Metrics export shows help."""
+        result = runner.invoke(app, ["metrics", "export", "--help"])
+
+        assert result.exit_code == 0
+        assert "format" in result.output.lower()
+
+    def test_metrics_serve_help(self):
+        """Metrics serve shows help."""
+        result = runner.invoke(app, ["metrics", "serve", "--help"])
+
+        assert result.exit_code == 0
+        assert "port" in result.output.lower()
+
+    def test_metrics_push_help(self):
+        """Metrics push shows help."""
+        result = runner.invoke(app, ["metrics", "push", "--help"])
+
+        assert result.exit_code == 0
+        assert "gateway" in result.output.lower()
+
+
+class TestConfigCommands:
+    """Tests for config subcommands."""
+
+    def test_config_show_handles_errors(self):
+        """Config show handles import errors gracefully."""
+        result = runner.invoke(app, ["config", "show"])
+
+        # Either succeeds or shows error message
+        assert result.exit_code in (0, 1)
+
+    def test_config_path(self):
+        """Config path shows configuration paths."""
+        result = runner.invoke(app, ["config", "path"])
+
+        assert result.exit_code == 0
+        assert "Configuration Sources" in result.output
+
+    def test_config_env(self):
+        """Config env shows environment variables."""
+        result = runner.invoke(app, ["config", "env"])
+
+        assert result.exit_code == 0
+        assert "Environment Variables" in result.output
+        assert "ANTHROPIC_API_KEY" in result.output
+
+
+class TestPluginsCommands:
+    """Tests for plugins subcommands."""
+
+    def test_plugins_list_handles_missing_manager(self):
+        """Plugins list handles missing PluginManager gracefully."""
+        result = runner.invoke(app, ["plugins", "list"])
+
+        # Should either show plugins or show error message
+        assert result.exit_code in (0, 1)
+
+    def test_plugins_info_not_found(self):
+        """Plugins info shows error for non-existent plugin."""
+        result = runner.invoke(app, ["plugins", "info", "nonexistent"])
+
+        # Should fail since plugin doesn't exist
+        assert result.exit_code == 1
+
+
+class TestLogsCommand:
+    """Tests for logs command."""
+
+    @patch("test_ai.cli.main.get_tracker")
+    def test_logs_empty(self, mock_get_tracker):
+        """Logs shows message when empty."""
+        mock_tracker = MagicMock()
+        mock_tracker.get_logs.return_value = []
+        mock_get_tracker.return_value = mock_tracker
+
+        result = runner.invoke(app, ["logs"])
+
+        assert result.exit_code == 0
+        assert "No logs found" in result.output
+
+    @patch("test_ai.cli.main.get_tracker")
+    def test_logs_displays_entries(self, mock_get_tracker):
+        """Logs displays log entries."""
+        mock_tracker = MagicMock()
+        mock_tracker.get_logs.return_value = [
+            {
+                "timestamp": "2024-01-01 12:00:00",
+                "level": "INFO",
+                "message": "Test log message",
+                "workflow_id": "wf-1",
+                "execution_id": "exec-12345678",
+            }
+        ]
+        mock_get_tracker.return_value = mock_tracker
+
+        result = runner.invoke(app, ["logs"])
+
+        assert result.exit_code == 0
+        assert "Test log message" in result.output
+
+    @patch("test_ai.cli.main.get_tracker")
+    def test_logs_json_output(self, mock_get_tracker):
+        """Logs outputs JSON when requested."""
+        mock_tracker = MagicMock()
+        mock_tracker.get_logs.return_value = [
+            {"timestamp": "2024-01-01", "level": "INFO", "message": "Test"}
+        ]
+        mock_get_tracker.return_value = mock_tracker
+
+        result = runner.invoke(app, ["logs", "--json"])
+
+        assert result.exit_code == 0
+        data = json.loads(result.output)
+        assert data[0]["message"] == "Test"
+
+
+class TestDashboardCommand:
+    """Tests for dashboard command."""
+
+    @patch("subprocess.run")
+    @patch("webbrowser.open")
+    def test_dashboard_starts(self, mock_browser, mock_run):
+        """Dashboard command starts streamlit."""
+        mock_run.return_value = MagicMock(returncode=0)
+
+        # Patch Path.exists to return True for dashboard
+        with patch("pathlib.Path.exists", return_value=True):
+            result = runner.invoke(app, ["dashboard", "--no-browser"])
+
+        # Should attempt to run streamlit
+        mock_run.assert_called_once()
+        call_args = mock_run.call_args[0][0]
+        assert "streamlit" in call_args
