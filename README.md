@@ -400,8 +400,8 @@ Define workflows as JSON:
 - [x] Rate limiting
 - [x] CI/CD pipeline
 - [x] Parallel agent execution
-- [ ] Visual workflow builder
-- [ ] Agent memory/context persistence
+- [x] Visual workflow builder
+- [x] Agent memory/context persistence
 
 ---
 
