@@ -1,0 +1,52 @@
+{
+  "workflow_id": "content_pipeline",
+  "name": "Content Pipeline",
+  "description": "Complex multi-step pipeline: research, draft, review, polish",
+  "steps": [
+    {
+      "step_id": "research",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Research and outline key points for an article about: {{topic}}\n\nInclude:\n- Main themes\n- Key facts and statistics\n- Target audience considerations\n- Potential angle or hook",
+        "model": "gpt-4o-mini",
+        "max_tokens": 1500
+      }
+    },
+    {
+      "step_id": "draft",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Write a first draft based on this research:\n\n{{research_output}}\n\nTone: {{tone}}\nLength: approximately {{word_count}} words\nFormat: {{format}}",
+        "model": "gpt-4o-mini",
+        "max_tokens": 3000
+      }
+    },
+    {
+      "step_id": "review",
+      "step_type": "claude_code",
+      "action": "execute_agent",
+      "parameters": {
+        "role": "reviewer",
+        "prompt": "Review this draft for:\n1. Clarity and flow\n2. Grammar and style\n3. Accuracy of claims\n4. Engagement level\n\nDraft:\n{{draft_output}}\n\nProvide specific suggestions for improvement."
+      }
+    },
+    {
+      "step_id": "polish",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Revise this draft based on the review feedback:\n\nOriginal draft:\n{{draft_output}}\n\nReview feedback:\n{{review_output}}\n\nCreate the final polished version.",
+        "model": "gpt-4o-mini",
+        "max_tokens": 3000
+      }
+    }
+  ],
+  "variables": {
+    "topic": "the future of AI in software development",
+    "tone": "professional but approachable",
+    "word_count": "800",
+    "format": "blog post"
+  }
+}

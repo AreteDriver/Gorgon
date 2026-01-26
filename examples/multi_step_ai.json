@@ -1,0 +1,40 @@
+{
+  "workflow_id": "multi_step_ai",
+  "name": "Multi-Step AI Pipeline",
+  "description": "Multiple AI operations in sequence - brainstorm, evaluate, refine",
+  "steps": [
+    {
+      "step_id": "brainstorm",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Generate 5 creative ideas for: {{topic}}",
+        "model": "gpt-4o-mini",
+        "max_tokens": 1000
+      }
+    },
+    {
+      "step_id": "evaluate",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Evaluate these ideas and rank them by feasibility:\n\n{{brainstorm_output}}\n\nProvide a brief analysis for each.",
+        "model": "gpt-4o-mini",
+        "max_tokens": 1500
+      }
+    },
+    {
+      "step_id": "refine",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Take the top-ranked idea from this evaluation:\n\n{{evaluate_output}}\n\nExpand it into a detailed action plan with specific steps.",
+        "model": "gpt-4o-mini",
+        "max_tokens": 2000
+      }
+    }
+  ],
+  "variables": {
+    "topic": "improving developer productivity"
+  }
+}

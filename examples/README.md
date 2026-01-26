@@ -42,12 +42,39 @@ This directory contains example workflow definitions that demonstrate various fe
    - Payload mapping from GitHub webhook format
    - Demonstrates event-driven automation
 
-### Future Examples (Coming Soon)
+### Multi-Step AI Examples
 
-- **multi-step-ai.json** - Multiple AI operations in sequence
-- **notion-to-github.json** - Notion → AI processing → GitHub
-- **content-pipeline.json** - Complex multi-step pipeline
-- **automated-reporting.json** - Data collection and summarization
+7. **[multi_step_ai.json](multi_step_ai.json)**
+   - Multiple AI operations in sequence
+   - Brainstorm → Evaluate → Refine pipeline
+   - Demonstrates chaining AI steps
+
+8. **[content_pipeline.json](content_pipeline.json)**
+   - Complex multi-step content pipeline
+   - Research → Draft → Review → Polish
+   - Uses both OpenAI and Claude agents
+
+9. **[automated_reporting.json](automated_reporting.json)**
+   - Data collection and summarization
+   - Metrics aggregation from multiple sources
+   - Executive summary generation
+
+### YAML Workflow Examples (in /workflows)
+
+10. **[code-review.yaml](../workflows/code-review.yaml)**
+    - Automated code review workflow
+    - Security, performance, and quality checks
+    - Parallel review tracks with summary
+
+11. **[documentation-gen.yaml](../workflows/documentation-gen.yaml)**
+    - Generate comprehensive documentation
+    - API docs, tutorials, and README
+    - Multiple output formats
+
+12. **[test-generator.yaml](../workflows/test-generator.yaml)**
+    - Generate test suites for existing code
+    - Unit, integration, and edge case tests
+    - Coverage-targeted test generation
 
 ## 🚀 How to Use Examples
 

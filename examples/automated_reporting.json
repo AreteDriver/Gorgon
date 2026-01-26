@@ -1,0 +1,54 @@
+{
+  "workflow_id": "automated_reporting",
+  "name": "Automated Reporting",
+  "description": "Collect data from multiple sources and generate executive summary",
+  "steps": [
+    {
+      "step_id": "collect_metrics",
+      "step_type": "transform",
+      "action": "aggregate",
+      "parameters": {
+        "sources": [
+          {"type": "github", "repo": "{{github_repo}}", "metrics": ["commits", "prs", "issues"]},
+          {"type": "jira", "project": "{{jira_project}}", "metrics": ["completed", "in_progress", "blocked"]}
+        ]
+      }
+    },
+    {
+      "step_id": "analyze_trends",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Analyze these metrics and identify trends:\n\n{{collect_metrics_output}}\n\nProvide:\n1. Key highlights\n2. Areas of concern\n3. Week-over-week changes\n4. Recommendations",
+        "model": "gpt-4o-mini",
+        "max_tokens": 2000
+      }
+    },
+    {
+      "step_id": "generate_report",
+      "step_type": "openai",
+      "action": "generate_completion",
+      "parameters": {
+        "prompt": "Generate an executive summary report:\n\nMetrics: {{collect_metrics_output}}\nAnalysis: {{analyze_trends_output}}\n\nFormat as a professional weekly report with:\n- Executive Summary (3 bullets)\n- Key Metrics Dashboard\n- Highlights and Lowlights\n- Next Week Focus\n- Action Items",
+        "model": "gpt-4o-mini",
+        "max_tokens": 2500
+      }
+    },
+    {
+      "step_id": "send_notification",
+      "step_type": "notification",
+      "action": "send",
+      "parameters": {
+        "channel": "{{notification_channel}}",
+        "message": "{{generate_report_output}}",
+        "title": "Weekly Report - {{report_date}}"
+      }
+    }
+  ],
+  "variables": {
+    "github_repo": "org/repo",
+    "jira_project": "PROJ",
+    "notification_channel": "slack",
+    "report_date": "{{current_date}}"
+  }
+}
