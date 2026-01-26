@@ -14,6 +14,10 @@ import type {
   AgentNodeData,
   ShellNodeData,
   CheckpointNodeData,
+  ParallelNodeData,
+  FanOutNodeData,
+  FanInNodeData,
+  MapReduceNodeData,
 } from '@/types/workflow-builder';
 import type { AgentRole } from '@/types';
 
@@ -120,6 +124,64 @@ function nodeToStep(node: Node<WorkflowNodeData>, edges: Edge[]): YamlStep {
         type: 'checkpoint',
         params: {
           message: checkpointData.message || checkpointData.name,
+        },
+      };
+    }
+
+    case 'parallel': {
+      const parallelData = data as ParallelNodeData;
+      return {
+        ...baseStep,
+        id: node.id,
+        type: 'parallel',
+        params: {
+          strategy: parallelData.strategy,
+          max_workers: parallelData.maxWorkers,
+          fail_fast: parallelData.failFast,
+        },
+      };
+    }
+
+    case 'fan_out': {
+      const fanOutData = data as FanOutNodeData;
+      return {
+        ...baseStep,
+        id: node.id,
+        type: 'fan_out',
+        params: {
+          items: fanOutData.itemsVariable ? `\${${fanOutData.itemsVariable}}` : undefined,
+          max_concurrent: fanOutData.maxConcurrent,
+          fail_fast: fanOutData.failFast,
+        },
+      };
+    }
+
+    case 'fan_in': {
+      const fanInData = data as FanInNodeData;
+      return {
+        ...baseStep,
+        id: node.id,
+        type: 'fan_in',
+        params: {
+          input: fanInData.inputVariable ? `\${${fanInData.inputVariable}}` : undefined,
+          aggregation: fanInData.aggregation,
+          aggregate_prompt: fanInData.aggregatePrompt,
+        },
+      };
+    }
+
+    case 'map_reduce': {
+      const mapReduceData = data as MapReduceNodeData;
+      return {
+        ...baseStep,
+        id: node.id,
+        type: 'map_reduce',
+        params: {
+          items: mapReduceData.itemsVariable ? `\${${mapReduceData.itemsVariable}}` : undefined,
+          max_concurrent: mapReduceData.maxConcurrent,
+          fail_fast: mapReduceData.failFast,
+          map_prompt: mapReduceData.mapPrompt,
+          reduce_prompt: mapReduceData.reducePrompt,
         },
       };
     }
@@ -359,12 +421,57 @@ function stepToNodeData(step: YamlStep): WorkflowNodeData {
       } satisfies CheckpointNodeData;
     }
 
-    // For unsupported types, create a shell node as placeholder
+    case 'parallel': {
+      return {
+        type: 'parallel',
+        name: step.id,
+        strategy: step.params?.strategy as 'threading' | 'asyncio' | 'process',
+        maxWorkers: step.params?.max_workers as number,
+        failFast: step.params?.fail_fast as boolean,
+      } satisfies ParallelNodeData;
+    }
+
+    case 'fan_out': {
+      // Extract variable name from ${variable} format
+      const itemsRaw = step.params?.items as string;
+      const itemsVariable = itemsRaw?.match(/\$\{(\w+)\}/)?.[1] || itemsRaw;
+      return {
+        type: 'fan_out',
+        name: step.id,
+        itemsVariable,
+        maxConcurrent: step.params?.max_concurrent as number,
+        failFast: step.params?.fail_fast as boolean,
+      } satisfies FanOutNodeData;
+    }
+
+    case 'fan_in': {
+      const inputRaw = step.params?.input as string;
+      const inputVariable = inputRaw?.match(/\$\{(\w+)\}/)?.[1] || inputRaw;
+      return {
+        type: 'fan_in',
+        name: step.id,
+        inputVariable,
+        aggregation: step.params?.aggregation as 'concat' | 'claude_code',
+        aggregatePrompt: step.params?.aggregate_prompt as string,
+      } satisfies FanInNodeData;
+    }
+
+    case 'map_reduce': {
+      const itemsRaw = step.params?.items as string;
+      const itemsVariable = itemsRaw?.match(/\$\{(\w+)\}/)?.[1] || itemsRaw;
+      return {
+        type: 'map_reduce',
+        name: step.id,
+        itemsVariable,
+        maxConcurrent: step.params?.max_concurrent as number,
+        failFast: step.params?.fail_fast as boolean,
+        mapPrompt: step.params?.map_prompt as string,
+        reducePrompt: step.params?.reduce_prompt as string,
+      } satisfies MapReduceNodeData;
+    }
+
+    // For truly unsupported types, create a shell node as placeholder
     case 'openai':
-    case 'parallel':
-    case 'fan_out':
-    case 'fan_in':
-    case 'map_reduce':
     default:
       return {
         type: 'shell',
@@ -402,6 +509,14 @@ function getReactFlowNodeType(stepType: YamlStep['type']): string {
       return 'shell';
     case 'checkpoint':
       return 'checkpoint';
+    case 'parallel':
+      return 'parallel';
+    case 'fan_out':
+      return 'fan_out';
+    case 'fan_in':
+      return 'fan_in';
+    case 'map_reduce':
+      return 'map_reduce';
     default:
       return 'shell'; // Fallback for unsupported types
   }

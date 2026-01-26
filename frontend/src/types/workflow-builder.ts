@@ -34,7 +34,48 @@ export interface CheckpointNodeData extends Record<string, unknown> {
   message?: string;
 }
 
-export type WorkflowNodeData = AgentNodeData | ShellNodeData | CheckpointNodeData;
+export interface ParallelNodeData extends Record<string, unknown> {
+  type: 'parallel';
+  name: string;
+  strategy?: 'threading' | 'asyncio' | 'process';
+  maxWorkers?: number;
+  failFast?: boolean;
+}
+
+export interface FanOutNodeData extends Record<string, unknown> {
+  type: 'fan_out';
+  name: string;
+  itemsVariable?: string;  // Variable containing the list to iterate
+  maxConcurrent?: number;
+  failFast?: boolean;
+}
+
+export interface FanInNodeData extends Record<string, unknown> {
+  type: 'fan_in';
+  name: string;
+  inputVariable?: string;  // Variable containing results to aggregate
+  aggregation?: 'concat' | 'claude_code';  // How to combine results
+  aggregatePrompt?: string;  // Prompt for AI aggregation
+}
+
+export interface MapReduceNodeData extends Record<string, unknown> {
+  type: 'map_reduce';
+  name: string;
+  itemsVariable?: string;
+  maxConcurrent?: number;
+  failFast?: boolean;
+  mapPrompt?: string;
+  reducePrompt?: string;
+}
+
+export type WorkflowNodeData =
+  | AgentNodeData
+  | ShellNodeData
+  | CheckpointNodeData
+  | ParallelNodeData
+  | FanOutNodeData
+  | FanInNodeData
+  | MapReduceNodeData;
 
 // -----------------------------------------------------------------------------
 // Node Type Guards
@@ -50,6 +91,22 @@ export function isShellNode(data: WorkflowNodeData): data is ShellNodeData {
 
 export function isCheckpointNode(data: WorkflowNodeData): data is CheckpointNodeData {
   return data.type === 'checkpoint';
+}
+
+export function isParallelNode(data: WorkflowNodeData): data is ParallelNodeData {
+  return data.type === 'parallel';
+}
+
+export function isFanOutNode(data: WorkflowNodeData): data is FanOutNodeData {
+  return data.type === 'fan_out';
+}
+
+export function isFanInNode(data: WorkflowNodeData): data is FanInNodeData {
+  return data.type === 'fan_in';
+}
+
+export function isMapReduceNode(data: WorkflowNodeData): data is MapReduceNodeData {
+  return data.type === 'map_reduce';
 }
 
 // -----------------------------------------------------------------------------
@@ -128,4 +185,35 @@ export const createCheckpointNodeData = (): CheckpointNodeData => ({
   type: 'checkpoint',
   name: 'Checkpoint',
   message: 'Workflow paused at checkpoint',
+});
+
+export const createParallelNodeData = (): ParallelNodeData => ({
+  type: 'parallel',
+  name: 'Parallel Group',
+  strategy: 'threading',
+  maxWorkers: 4,
+  failFast: false,
+});
+
+export const createFanOutNodeData = (): FanOutNodeData => ({
+  type: 'fan_out',
+  name: 'Fan Out',
+  itemsVariable: 'items',
+  maxConcurrent: 5,
+  failFast: false,
+});
+
+export const createFanInNodeData = (): FanInNodeData => ({
+  type: 'fan_in',
+  name: 'Fan In',
+  inputVariable: 'results',
+  aggregation: 'concat',
+});
+
+export const createMapReduceNodeData = (): MapReduceNodeData => ({
+  type: 'map_reduce',
+  name: 'Map-Reduce',
+  itemsVariable: 'items',
+  maxConcurrent: 3,
+  failFast: false,
 });

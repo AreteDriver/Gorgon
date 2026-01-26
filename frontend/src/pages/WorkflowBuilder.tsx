@@ -12,6 +12,10 @@ import {
   createAgentNodeData,
   createShellNodeData,
   createCheckpointNodeData,
+  createParallelNodeData,
+  createFanOutNodeData,
+  createFanInNodeData,
+  createMapReduceNodeData,
   type AgentNodeData,
 } from '@/types/workflow-builder';
 import {
@@ -112,6 +116,18 @@ function WorkflowBuilderContent() {
       } else if (type === 'checkpoint') {
         const data = createCheckpointNodeData();
         addNode('checkpoint', position, data);
+      } else if (type === 'parallel') {
+        const data = createParallelNodeData();
+        addNode('parallel', position, data);
+      } else if (type === 'fan_out') {
+        const data = createFanOutNodeData();
+        addNode('fan_out', position, data);
+      } else if (type === 'fan_in') {
+        const data = createFanInNodeData();
+        addNode('fan_in', position, data);
+      } else if (type === 'map_reduce') {
+        const data = createMapReduceNodeData();
+        addNode('map_reduce', position, data);
       }
     },
     [screenToFlowPosition, addNode]

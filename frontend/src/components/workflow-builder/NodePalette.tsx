@@ -11,6 +11,10 @@ import {
   FileBarChart,
   Terminal,
   PauseCircle,
+  Layers,
+  Split,
+  Merge,
+  GitBranch,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AGENT_ROLES, type AgentRoleInfo } from '@/types/workflow-builder';
@@ -72,6 +76,14 @@ interface UtilityNodeInfo {
   Icon: React.ComponentType<{ className?: string }>;
 }
 
+interface ParallelNodeInfo {
+  type: 'parallel' | 'fan_out' | 'fan_in' | 'map_reduce';
+  label: string;
+  description: string;
+  color: string;
+  Icon: React.ComponentType<{ className?: string }>;
+}
+
 const UTILITY_NODES: UtilityNodeInfo[] = [
   {
     type: 'shell',
@@ -86,6 +98,37 @@ const UTILITY_NODES: UtilityNodeInfo[] = [
     description: 'Pause for review/resume',
     color: '#f59e0b', // amber-500
     Icon: PauseCircle,
+  },
+];
+
+const PARALLEL_NODES: ParallelNodeInfo[] = [
+  {
+    type: 'parallel',
+    label: 'Parallel Group',
+    description: 'Run steps concurrently',
+    color: '#8b5cf6', // violet-500
+    Icon: Layers,
+  },
+  {
+    type: 'fan_out',
+    label: 'Fan Out',
+    description: 'Scatter items to parallel tasks',
+    color: '#06b6d4', // cyan-500
+    Icon: Split,
+  },
+  {
+    type: 'fan_in',
+    label: 'Fan In',
+    description: 'Gather and aggregate results',
+    color: '#14b8a6', // teal-500
+    Icon: Merge,
+  },
+  {
+    type: 'map_reduce',
+    label: 'Map-Reduce',
+    description: 'Map over items, then reduce',
+    color: '#f97316', // orange-500
+    Icon: GitBranch,
   },
 ];
 
@@ -126,6 +169,43 @@ function UtilityPaletteItem({ node }: UtilityPaletteItemProps) {
   );
 }
 
+interface ParallelPaletteItemProps {
+  node: ParallelNodeInfo;
+}
+
+function ParallelPaletteItem({ node }: ParallelPaletteItemProps) {
+  const { type, label, description, color, Icon } = node;
+
+  const onDragStart = (event: DragEvent<HTMLDivElement>) => {
+    event.dataTransfer.setData('application/reactflow', type);
+    event.dataTransfer.setData('application/reactflow-type', type);
+    event.dataTransfer.effectAllowed = 'move';
+  };
+
+  return (
+    <div
+      draggable
+      onDragStart={onDragStart}
+      className={cn(
+        'flex cursor-grab items-center gap-3 rounded-lg border-2 bg-card p-3 transition-all',
+        'hover:shadow-md hover:scale-[1.02] active:cursor-grabbing'
+      )}
+      style={{ borderColor: color }}
+    >
+      <div
+        className="flex h-8 w-8 items-center justify-center rounded-md"
+        style={{ backgroundColor: color }}
+      >
+        <Icon className="h-4 w-4 text-white" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm font-medium text-foreground">{label}</p>
+        <p className="text-xs text-muted-foreground truncate">{description}</p>
+      </div>
+    </div>
+  );
+}
+
 export function NodePalette() {
   return (
     <div className="h-full w-64 border-r bg-card p-4 overflow-y-auto">
@@ -137,6 +217,17 @@ export function NodePalette() {
       <div className="space-y-2">
         {AGENT_ROLES.map((roleInfo) => (
           <AgentPaletteItem key={roleInfo.role} roleInfo={roleInfo} />
+        ))}
+      </div>
+
+      {/* Parallel Section */}
+      <div className="mt-6 mb-4">
+        <h2 className="text-lg font-semibold text-foreground">Parallel</h2>
+        <p className="text-sm text-muted-foreground">Concurrent execution</p>
+      </div>
+      <div className="space-y-2">
+        {PARALLEL_NODES.map((node) => (
+          <ParallelPaletteItem key={node.type} node={node} />
         ))}
       </div>
 

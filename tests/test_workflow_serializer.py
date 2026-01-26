@@ -271,6 +271,138 @@ steps:
         assert config.steps[0].max_retries == 3
 
 
+class TestParallelNodeTypes:
+    """Test parallel execution node types from visual builder."""
+
+    def test_parallel_node_workflow(self, tmp_path):
+        """Test workflow with parallel node."""
+        yaml_content = """
+name: Parallel Test
+version: "1.0"
+steps:
+  - id: parallel_analysis
+    type: parallel
+    params:
+      strategy: threading
+      max_workers: 4
+      fail_fast: false
+"""
+        workflow_file = tmp_path / "parallel.yaml"
+        workflow_file.write_text(yaml_content)
+
+        config = load_workflow(workflow_file, trusted_dir=tmp_path)
+
+        assert config.steps[0].type == "parallel"
+        assert config.steps[0].params["strategy"] == "threading"
+        assert config.steps[0].params["max_workers"] == 4
+        assert config.steps[0].params["fail_fast"] is False
+
+    def test_fan_out_node_workflow(self, tmp_path):
+        """Test workflow with fan_out node."""
+        yaml_content = """
+name: Fan Out Test
+version: "1.0"
+steps:
+  - id: scatter_reviews
+    type: fan_out
+    params:
+      items: "${files}"
+      max_concurrent: 5
+      fail_fast: false
+    outputs:
+      - file_reviews
+"""
+        workflow_file = tmp_path / "fanout.yaml"
+        workflow_file.write_text(yaml_content)
+
+        config = load_workflow(workflow_file, trusted_dir=tmp_path)
+
+        assert config.steps[0].type == "fan_out"
+        assert config.steps[0].params["items"] == "${files}"
+        assert config.steps[0].params["max_concurrent"] == 5
+        assert config.steps[0].outputs == ["file_reviews"]
+
+    def test_fan_in_node_workflow(self, tmp_path):
+        """Test workflow with fan_in node."""
+        yaml_content = """
+name: Fan In Test
+version: "1.0"
+steps:
+  - id: gather_results
+    type: fan_in
+    params:
+      input: "${file_reviews}"
+      aggregation: claude_code
+      aggregate_prompt: "Summarize the reviews"
+    outputs:
+      - summary
+"""
+        workflow_file = tmp_path / "fanin.yaml"
+        workflow_file.write_text(yaml_content)
+
+        config = load_workflow(workflow_file, trusted_dir=tmp_path)
+
+        assert config.steps[0].type == "fan_in"
+        assert config.steps[0].params["input"] == "${file_reviews}"
+        assert config.steps[0].params["aggregation"] == "claude_code"
+
+    def test_map_reduce_node_workflow(self, tmp_path):
+        """Test workflow with map_reduce node."""
+        yaml_content = """
+name: Map Reduce Test
+version: "1.0"
+steps:
+  - id: analyze_logs
+    type: map_reduce
+    params:
+      items: "${log_files}"
+      max_concurrent: 3
+      fail_fast: false
+      map_prompt: "Analyze this log file"
+      reduce_prompt: "Combine all analyses"
+    outputs:
+      - analysis_report
+"""
+        workflow_file = tmp_path / "mapreduce.yaml"
+        workflow_file.write_text(yaml_content)
+
+        config = load_workflow(workflow_file, trusted_dir=tmp_path)
+
+        assert config.steps[0].type == "map_reduce"
+        assert config.steps[0].params["items"] == "${log_files}"
+        assert config.steps[0].params["max_concurrent"] == 3
+        assert config.steps[0].outputs == ["analysis_report"]
+
+    def test_fan_out_fan_in_pipeline(self, tmp_path):
+        """Test complete fan-out/fan-in pipeline."""
+        yaml_content = """
+name: Scatter-Gather Pipeline
+version: "1.0"
+steps:
+  - id: scatter
+    type: fan_out
+    params:
+      items: "${items}"
+      max_concurrent: 5
+
+  - id: gather
+    type: fan_in
+    params:
+      input: "${scatter_results}"
+      aggregation: concat
+    depends_on: scatter
+"""
+        workflow_file = tmp_path / "scattergather.yaml"
+        workflow_file.write_text(yaml_content)
+
+        config = load_workflow(workflow_file, trusted_dir=tmp_path)
+
+        assert len(config.steps) == 2
+        assert config.steps[0].type == "fan_out"
+        assert config.steps[1].type == "fan_in"
+        assert config.steps[1].depends_on == ["scatter"]
+
+
 class TestAllAgentRoles:
     """Test all agent roles supported by visual builder."""
 
