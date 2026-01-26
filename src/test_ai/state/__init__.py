@@ -22,6 +22,12 @@ from .memory import (
     Message,
     MessageRole,
 )
+from .agent_context import (
+    AgentContext,
+    MemoryConfig,
+    WorkflowMemoryManager,
+    create_workflow_memory,
+)
 
 __all__ = [
     "StatePersistence",
@@ -41,4 +47,8 @@ __all__ = [
     "ContextWindowStats",
     "Message",
     "MessageRole",
+    "AgentContext",
+    "MemoryConfig",
+    "WorkflowMemoryManager",
+    "create_workflow_memory",
 ]

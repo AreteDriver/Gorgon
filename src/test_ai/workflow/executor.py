@@ -21,6 +21,7 @@ from test_ai.monitoring.parallel_tracker import (
 )
 from test_ai.utils.validation import substitute_shell_variables, validate_shell_command
 from test_ai.utils.circuit_breaker import CircuitBreaker, CircuitBreakerError
+from test_ai.state.agent_context import WorkflowMemoryManager, MemoryConfig
 
 logger = logging.getLogger(__name__)
 
@@ -185,6 +186,8 @@ class WorkflowExecutor:
         error_callback: Callable[[str, str, Exception], None] | None = None,
         fallback_callbacks: dict[str, Callable[[StepConfig, dict, Exception], dict]]
         | None = None,
+        memory_manager: WorkflowMemoryManager | None = None,
+        memory_config: MemoryConfig | None = None,
     ):
         """Initialize executor.
 
@@ -195,6 +198,8 @@ class WorkflowExecutor:
             dry_run: If True, use mock responses instead of real API calls
             error_callback: Optional callback for error notifications (step_id, workflow_id, error)
             fallback_callbacks: Dict of named callbacks for fallback handling
+            memory_manager: Optional WorkflowMemoryManager for agent memory
+            memory_config: Optional MemoryConfig for memory behavior
         """
         self.checkpoint_manager = checkpoint_manager
         self.contract_validator = contract_validator
@@ -202,6 +207,8 @@ class WorkflowExecutor:
         self.dry_run = dry_run
         self.error_callback = error_callback
         self.fallback_callbacks = fallback_callbacks or {}
+        self.memory_manager = memory_manager
+        self.memory_config = memory_config
         self._handlers: dict[str, StepHandler] = {
             "shell": self._execute_shell,
             "checkpoint": self._execute_checkpoint,
@@ -474,6 +481,13 @@ class WorkflowExecutor:
             (result.completed_at - result.started_at).total_seconds() * 1000
         )
 
+        # Save agent memories
+        if self.memory_manager:
+            try:
+                self.memory_manager.save_all()
+            except Exception as mem_err:
+                logger.warning(f"Failed to save agent memories: {mem_err}")
+
         # Clear workflow ID
         self._current_workflow_id = None
 
@@ -482,6 +496,7 @@ class WorkflowExecutor:
         workflow: WorkflowConfig,
         inputs: dict = None,
         resume_from: str = None,
+        enable_memory: bool = True,
     ) -> ExecutionResult:
         """Execute a workflow.
 
@@ -489,6 +504,7 @@ class WorkflowExecutor:
             workflow: WorkflowConfig to execute
             inputs: Input values for the workflow
             resume_from: Optional step ID to resume from
+            enable_memory: Enable agent memory (default True)
 
         Returns:
             ExecutionResult with status and outputs
@@ -507,6 +523,20 @@ class WorkflowExecutor:
                 config={"inputs": self._context},
             )
         self._current_workflow_id = workflow_id
+
+        # Initialize memory manager if enabled and not provided
+        if enable_memory and not self.memory_manager:
+            from test_ai.state import AgentMemory
+
+            memory = AgentMemory()
+            self.memory_manager = WorkflowMemoryManager(
+                memory=memory,
+                workflow_id=workflow_id,
+                config=self.memory_config,
+            )
+        elif self.memory_manager and workflow_id:
+            # Update workflow ID if manager exists
+            self.memory_manager.workflow_id = workflow_id
 
         start_index = self._find_resume_index(workflow, resume_from)
 
@@ -1612,21 +1642,27 @@ class WorkflowExecutor:
             model: Claude model to use (default: claude-sonnet-4-20250514)
             max_tokens: Maximum tokens in response (default: 4096)
             system_prompt: Optional custom system prompt (overrides role)
+            use_memory: Enable memory context injection (default: True)
         """
         prompt = step.params.get("prompt", "")
         role = step.params.get("role", "builder")
         model = step.params.get("model", "claude-sonnet-4-20250514")
         max_tokens = step.params.get("max_tokens", 4096)
         system_prompt = step.params.get("system_prompt")
+        use_memory = step.params.get("use_memory", True)
 
         # Substitute context variables in prompt
         for key, value in context.items():
             if isinstance(value, str):
                 prompt = prompt.replace(f"${{{key}}}", value)
 
+        # Inject memory context if available
+        if use_memory and self.memory_manager:
+            prompt = self.memory_manager.inject_context(role, prompt)
+
         # Dry run mode - return mock response
         if self.dry_run:
-            return {
+            output = {
                 "role": role,
                 "prompt": prompt,
                 "response": f"[DRY RUN] Claude {role} would process: {prompt[:100]}...",
@@ -1634,6 +1670,10 @@ class WorkflowExecutor:
                 "model": model,
                 "dry_run": True,
             }
+            # Store output in memory even for dry run
+            if self.memory_manager:
+                self.memory_manager.store_output(role, step.id, output)
+            return output
 
         # Get Claude client
         client = _get_claude_client()
@@ -1667,21 +1707,29 @@ class WorkflowExecutor:
             )
 
         if not result.get("success"):
-            raise RuntimeError(
-                f"Claude API error: {result.get('error', 'Unknown error')}"
-            )
+            error_msg = result.get('error', 'Unknown error')
+            # Store error in memory
+            if self.memory_manager:
+                self.memory_manager.store_error(role, step.id, error_msg)
+            raise RuntimeError(f"Claude API error: {error_msg}")
 
         # Estimate tokens (actual count would require API response metadata)
         response_text = result.get("output", "")
         estimated_tokens = len(response_text) // 4 + len(prompt) // 4
 
-        return {
+        output = {
             "role": role,
             "prompt": prompt,
             "response": response_text,
             "tokens_used": estimated_tokens,
             "model": model,
         }
+
+        # Store output in memory
+        if self.memory_manager:
+            self.memory_manager.store_output(role, step.id, output)
+
+        return output
 
     def _execute_openai(self, step: StepConfig, context: dict) -> dict:
         """Execute an OpenAI step using the OpenAI API.
@@ -1692,27 +1740,37 @@ class WorkflowExecutor:
             system_prompt: Optional system prompt
             temperature: Sampling temperature (default: 0.7)
             max_tokens: Maximum tokens in response (optional)
+            use_memory: Enable memory context injection (default: True)
         """
         prompt = step.params.get("prompt", "")
         model = step.params.get("model", "gpt-4o-mini")
         system_prompt = step.params.get("system_prompt")
         temperature = step.params.get("temperature", 0.7)
         max_tokens = step.params.get("max_tokens")
+        use_memory = step.params.get("use_memory", True)
 
         # Substitute context variables in prompt
         for key, value in context.items():
             if isinstance(value, str):
                 prompt = prompt.replace(f"${{{key}}}", value)
 
+        # Inject memory context if available
+        agent_id = f"openai-{model}"
+        if use_memory and self.memory_manager:
+            prompt = self.memory_manager.inject_context(agent_id, prompt)
+
         # Dry run mode - return mock response
         if self.dry_run:
-            return {
+            output = {
                 "model": model,
                 "prompt": prompt,
                 "response": f"[DRY RUN] OpenAI {model} would process: {prompt[:100]}...",
                 "tokens_used": step.params.get("estimated_tokens", 1000),
                 "dry_run": True,
             }
+            if self.memory_manager:
+                self.memory_manager.store_output(agent_id, step.id, output)
+            return output
 
         # Get OpenAI client
         client = _get_openai_client()
@@ -1730,17 +1788,26 @@ class WorkflowExecutor:
                 system_prompt=system_prompt,
             )
         except Exception as e:
+            error_msg = str(e)
+            if self.memory_manager:
+                self.memory_manager.store_error(agent_id, step.id, error_msg)
             raise RuntimeError(f"OpenAI API error: {e}")
 
         # Estimate tokens (actual count would require API response metadata)
         estimated_tokens = len(response_text) // 4 + len(prompt) // 4
 
-        return {
+        output = {
             "model": model,
             "prompt": prompt,
             "response": response_text,
             "tokens_used": estimated_tokens,
         }
+
+        # Store output in memory
+        if self.memory_manager:
+            self.memory_manager.store_output(agent_id, step.id, output)
+
+        return output
 
     def _substitute_template_vars(self, template: str, item: any, index: int) -> str:
         """Substitute template variables with item value and index.
