@@ -9,6 +9,8 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128+-green.svg)](https://fastapi.tiangolo.com/)
+[![Tests](https://img.shields.io/badge/tests-2353-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-passing-brightgreen.svg)]()
 
 ---
 
@@ -67,6 +69,7 @@ Coordinate specialized Claude agents for software development with a single API 
 - **GitHub**: Issues, commits, repository management
 - **Notion**: Pages, databases, content management
 - **Gmail**: Email reading, OAuth authentication
+- **Slack**: Channel messaging, notifications
 
 ### Production Instrumentation
 - Phase-by-phase timing and metrics
@@ -92,7 +95,7 @@ Coordinate specialized Claude agents for software development with a single API 
 ```bash
 git clone https://github.com/AreteDriver/Gorgon.git
 cd Gorgon
-pip install -r requirements.txt
+poetry install
 cp .env.example .env
 # Add your API keys to .env
 ```
@@ -230,9 +233,12 @@ Gorgon/
 │   │   ├── claude_code_client.py # Claude agents
 │   │   ├── github_client.py
 │   │   ├── notion_client.py
-│   │   └── gmail_client.py
+│   │   ├── gmail_client.py
+│   │   ├── slack_client.py       # Slack messaging
+│   │   └── resilience.py         # Retry, circuit breaker, fallbacks
 │   ├── orchestrator/
 │   │   └── workflow_engine.py    # Core execution engine
+│   ├── skills/                   # Skill context injection
 │   └── workflows/                # JSON workflow definitions
 ├── config/
 │   └── agent_prompts.json        # Customizable agent prompts
@@ -402,6 +408,9 @@ Define workflows as JSON:
 - [x] Parallel agent execution
 - [x] Visual workflow builder
 - [x] Agent memory/context persistence
+- [x] Skill context injection
+- [x] Slack integration
+- [x] API resilience (retry, circuit breaker, fallbacks)
 
 ---
 
@@ -420,7 +429,7 @@ Contributions welcome. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ```bash
 # Development setup
-pip install -r requirements.txt
+poetry install
 export PYTHONPATH="${PYTHONPATH}:${PWD}/src"
 ```
 
@@ -442,4 +451,4 @@ MIT License — see [LICENSE](LICENSE)
 
 **Author**: ARETE
 **Status**: Active Development
-**Version**: 0.3.0
+**Version**: 1.0.0

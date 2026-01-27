@@ -10,8 +10,8 @@
 
 1. **Clone the repository**
    ```bash
-   git clone https://github.com/AreteDriver/test-ai.git
-   cd test-ai
+   git clone https://github.com/AreteDriver/Gorgon.git
+   cd Gorgon
    ```
 
 2. **Install dependencies**
