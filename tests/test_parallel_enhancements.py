@@ -2,7 +2,10 @@
 
 import sys
 import time
+from pathlib import Path
+
 import pytest
+import yaml
 
 sys.path.insert(0, "src")
 
@@ -14,13 +17,10 @@ from test_ai.workflow import (
 )
 from test_ai.workflow.auto_parallel import (
     DependencyGraph,
-    ParallelGroup,
     build_dependency_graph,
     find_parallel_groups,
     analyze_parallelism,
     get_step_execution_order,
-    can_run_parallel,
-    get_ready_steps,
     validate_no_cycles,
 )
 
@@ -1402,10 +1402,6 @@ class TestLoaderNewStepTypes:
 # =============================================================================
 
 
-from pathlib import Path
-import yaml
-
-
 class TestExampleWorkflows:
     """Tests for example workflow YAML files."""
 
@@ -1498,7 +1494,7 @@ class TestExampleWorkflows:
             data = yaml.safe_load(f)
 
         workflow = WorkflowConfig.from_dict(data)
-        graph = build_dependency_graph(workflow.steps)
+        build_dependency_graph(workflow.steps)
 
         # Stage 1: 4 independent steps
         independent = [s for s in workflow.steps if not s.depends_on]
@@ -1509,7 +1505,10 @@ class TestExampleWorkflows:
         assert set(risk_step.depends_on) == {"security_scan", "dependency_audit"}
 
         improvement_step = workflow.get_step("improvement_plan")
-        assert set(improvement_step.depends_on) == {"code_quality", "architecture_review"}
+        assert set(improvement_step.depends_on) == {
+            "code_quality",
+            "architecture_review",
+        }
 
         summary_step = workflow.get_step("executive_summary")
         assert set(summary_step.depends_on) == {"risk_assessment", "improvement_plan"}

@@ -29,7 +29,9 @@ def get_agent_tracker():
 
 def get_parallel_tracker():
     """Get the parallel execution tracker."""
-    from test_ai.monitoring.parallel_tracker import get_parallel_tracker as _get_parallel_tracker
+    from test_ai.monitoring.parallel_tracker import (
+        get_parallel_tracker as _get_parallel_tracker,
+    )
 
     return _get_parallel_tracker()
 
@@ -708,7 +710,9 @@ def render_parallel_execution_page():
     with col1:
         st.caption(f"Last updated: {datetime.now().strftime('%H:%M:%S')}")
     with col2:
-        auto_refresh = st.toggle("Auto-refresh", value=True, key="parallel_auto_refresh")
+        auto_refresh = st.toggle(
+            "Auto-refresh", value=True, key="parallel_auto_refresh"
+        )
 
     if auto_refresh:
         time.sleep(0.1)
@@ -752,17 +756,27 @@ def render_parallel_execution_page():
         st.metric(
             "Success Rate",
             f"{success_rate:.1f}%",
-            delta="Good" if success_rate >= 90 else ("Warning" if success_rate >= 70 else "Critical"),
-            delta_color="normal" if success_rate >= 90 else ("off" if success_rate >= 70 else "inverse"),
+            delta="Good"
+            if success_rate >= 90
+            else ("Warning" if success_rate >= 70 else "Critical"),
+            delta_color="normal"
+            if success_rate >= 90
+            else ("off" if success_rate >= 70 else "inverse"),
         )
     with col4:
         counters = summary.get("counters", {})
-        total_branches = counters.get("branches_completed", 0) + counters.get("branches_failed", 0)
+        total_branches = counters.get("branches_completed", 0) + counters.get(
+            "branches_failed", 0
+        )
         st.metric(
             "Total Branches",
             total_branches,
-            delta=f"{counters.get('branches_failed', 0)} failed" if counters.get("branches_failed", 0) > 0 else None,
-            delta_color="inverse" if counters.get("branches_failed", 0) > 0 else "normal",
+            delta=f"{counters.get('branches_failed', 0)} failed"
+            if counters.get("branches_failed", 0) > 0
+            else None,
+            delta_color="inverse"
+            if counters.get("branches_failed", 0) > 0
+            else "normal",
         )
 
     st.divider()
@@ -842,7 +856,9 @@ def _render_rate_limit_section(rate_limits: dict, summary: dict):
                 status_text = "OK"
 
             # Calculate utilization
-            utilization = (base_limit - current_limit) / base_limit * 100 if base_limit > 0 else 0
+            utilization = (
+                (base_limit - current_limit) / base_limit * 100 if base_limit > 0 else 0
+            )
 
             st.markdown(
                 f"""
@@ -932,7 +948,12 @@ def _render_active_execution(execution: dict):
             # Timing info
             duration = execution.get("duration_ms", 0)
             if duration > 0:
-                st.metric("Duration", f"{duration:.0f}ms" if duration < 1000 else f"{duration/1000:.1f}s")
+                st.metric(
+                    "Duration",
+                    f"{duration:.0f}ms"
+                    if duration < 1000
+                    else f"{duration / 1000:.1f}s",
+                )
 
             tokens = execution.get("total_tokens", 0)
             if tokens > 0:
@@ -1004,7 +1025,9 @@ def _render_recent_execution(execution: dict):
             if failed_branches:
                 st.error("Failed Branches:")
                 for fb in failed_branches[:5]:
-                    st.text(f"  {fb.get('branch_id', 'unknown')}: {fb.get('error', 'Unknown error')}")
+                    st.text(
+                        f"  {fb.get('branch_id', 'unknown')}: {fb.get('error', 'Unknown error')}"
+                    )
 
 
 def _render_performance_stats(summary: dict):
@@ -1066,7 +1089,10 @@ def _render_performance_stats(summary: dict):
         import pandas as pd
 
         df = pd.DataFrame(
-            {"Pattern": list(pattern_counts.keys()), "Count": list(pattern_counts.values())}
+            {
+                "Pattern": list(pattern_counts.keys()),
+                "Count": list(pattern_counts.values()),
+            }
         )
         st.bar_chart(df.set_index("Pattern"))
 

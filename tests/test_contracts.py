@@ -286,9 +286,7 @@ class TestModelBuilderContract:
                     "content": "using UnityEngine; public class TerrainGenerator {}",
                 }
             ],
-            "instructions": [
-                {"step": 1, "action": "Import the script into Unity"}
-            ],
+            "instructions": [{"step": 1, "action": "Import the script into Unity"}],
             "status": "complete",
         }
         assert contract.validate_output(valid_output) is True

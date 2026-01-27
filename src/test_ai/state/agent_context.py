@@ -8,10 +8,8 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Any
 
-from .memory import AgentMemory, ContextWindow, MemoryEntry, MessageRole
+from .memory import AgentMemory, ContextWindow, MessageRole
 
 logger = logging.getLogger(__name__)
 

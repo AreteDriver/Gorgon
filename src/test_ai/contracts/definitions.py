@@ -274,7 +274,6 @@ REVIEWER_CONTRACT = AgentContract(
 )
 
 
-
 DATA_ANALYST_CONTRACT = AgentContract(
     role=AgentRole.DATA_ANALYST,
     description="Analyzes data, creates SQL queries, pandas pipelines, and visualizations",
@@ -303,7 +302,14 @@ DATA_ANALYST_CONTRACT = AgentContract(
                     },
                     "database_type": {
                         "type": "string",
-                        "enum": ["postgresql", "mysql", "sqlite", "bigquery", "snowflake", "other"],
+                        "enum": [
+                            "postgresql",
+                            "mysql",
+                            "sqlite",
+                            "bigquery",
+                            "snowflake",
+                            "other",
+                        ],
                     },
                 },
             },
@@ -317,7 +323,10 @@ DATA_ANALYST_CONTRACT = AgentContract(
                 "properties": {
                     "max_rows": {"type": "integer"},
                     "time_range": {"type": "string"},
-                    "privacy_level": {"type": "string", "enum": ["public", "internal", "confidential"]},
+                    "privacy_level": {
+                        "type": "string",
+                        "enum": ["public", "internal", "confidential"],
+                    },
                 },
             },
         },
@@ -374,7 +383,17 @@ DEVOPS_CONTRACT = AgentContract(
             },
             "target_platform": {
                 "type": "string",
-                "enum": ["aws", "gcp", "azure", "kubernetes", "docker", "terraform", "github_actions", "gitlab_ci", "generic"],
+                "enum": [
+                    "aws",
+                    "gcp",
+                    "azure",
+                    "kubernetes",
+                    "docker",
+                    "terraform",
+                    "github_actions",
+                    "gitlab_ci",
+                    "generic",
+                ],
             },
             "existing_infrastructure": {
                 "type": "object",
@@ -385,8 +404,14 @@ DEVOPS_CONTRACT = AgentContract(
                 "properties": {
                     "high_availability": {"type": "boolean"},
                     "auto_scaling": {"type": "boolean"},
-                    "environment": {"type": "string", "enum": ["dev", "staging", "prod"]},
-                    "budget_tier": {"type": "string", "enum": ["minimal", "standard", "enterprise"]},
+                    "environment": {
+                        "type": "string",
+                        "enum": ["dev", "staging", "prod"],
+                    },
+                    "budget_tier": {
+                        "type": "string",
+                        "enum": ["minimal", "standard", "enterprise"],
+                    },
                 },
             },
             "security_requirements": {
@@ -408,7 +433,16 @@ DEVOPS_CONTRACT = AgentContract(
                         "name": {"type": "string"},
                         "type": {
                             "type": "string",
-                            "enum": ["dockerfile", "docker_compose", "kubernetes", "terraform", "github_actions", "gitlab_ci", "shell_script", "config"],
+                            "enum": [
+                                "dockerfile",
+                                "docker_compose",
+                                "kubernetes",
+                                "terraform",
+                                "github_actions",
+                                "gitlab_ci",
+                                "shell_script",
+                                "config",
+                            ],
                         },
                         "content": {"type": "string"},
                         "file_path": {"type": "string"},
@@ -467,7 +501,14 @@ SECURITY_AUDITOR_CONTRACT = AgentContract(
             },
             "audit_type": {
                 "type": "string",
-                "enum": ["code_review", "dependency_scan", "infrastructure", "full_audit", "owasp_top_10", "compliance"],
+                "enum": [
+                    "code_review",
+                    "dependency_scan",
+                    "infrastructure",
+                    "full_audit",
+                    "owasp_top_10",
+                    "compliance",
+                ],
             },
             "compliance_frameworks": {
                 "type": "array",
@@ -492,7 +533,10 @@ SECURITY_AUDITOR_CONTRACT = AgentContract(
                     "type": "object",
                     "required": ["severity", "category", "description"],
                     "properties": {
-                        "severity": {"type": "string", "enum": ["critical", "high", "medium", "low", "info"]},
+                        "severity": {
+                            "type": "string",
+                            "enum": ["critical", "high", "medium", "low", "info"],
+                        },
                         "category": {"type": "string"},
                         "description": {"type": "string"},
                         "location": {"type": "string"},
@@ -550,7 +594,14 @@ MIGRATOR_CONTRACT = AgentContract(
         "properties": {
             "migration_type": {
                 "type": "string",
-                "enum": ["framework_upgrade", "language_migration", "api_migration", "database_migration", "dependency_upgrade", "refactoring"],
+                "enum": [
+                    "framework_upgrade",
+                    "language_migration",
+                    "api_migration",
+                    "database_migration",
+                    "dependency_upgrade",
+                    "refactoring",
+                ],
             },
             "source": {
                 "type": "object",
@@ -596,8 +647,14 @@ MIGRATOR_CONTRACT = AgentContract(
                             "properties": {
                                 "phase": {"type": "integer"},
                                 "description": {"type": "string"},
-                                "files_affected": {"type": "array", "items": {"type": "string"}},
-                                "risk_level": {"type": "string", "enum": ["low", "medium", "high"]},
+                                "files_affected": {
+                                    "type": "array",
+                                    "items": {"type": "string"},
+                                },
+                                "risk_level": {
+                                    "type": "string",
+                                    "enum": ["low", "medium", "high"],
+                                },
                             },
                         },
                     },
@@ -612,7 +669,10 @@ MIGRATOR_CONTRACT = AgentContract(
                     "required": ["file", "change_type"],
                     "properties": {
                         "file": {"type": "string"},
-                        "change_type": {"type": "string", "enum": ["modify", "create", "delete", "rename"]},
+                        "change_type": {
+                            "type": "string",
+                            "enum": ["modify", "create", "delete", "rename"],
+                        },
                         "original_code": {"type": "string"},
                         "new_code": {"type": "string"},
                         "explanation": {"type": "string"},
@@ -645,7 +705,6 @@ MIGRATOR_CONTRACT = AgentContract(
 )
 
 
-
 MODEL_BUILDER_CONTRACT = AgentContract(
     role=AgentRole.MODEL_BUILDER,
     description="Creates and modifies 3D models, scenes, and assets for Unity, Blender, and other 3D tools",
@@ -665,7 +724,15 @@ MODEL_BUILDER_CONTRACT = AgentContract(
             },
             "asset_type": {
                 "type": "string",
-                "enum": ["model", "scene", "material", "shader", "animation", "prefab", "script"],
+                "enum": [
+                    "model",
+                    "scene",
+                    "material",
+                    "shader",
+                    "animation",
+                    "prefab",
+                    "script",
+                ],
                 "description": "Type of 3D asset to work with",
             },
             "existing_assets": {
@@ -768,12 +835,10 @@ _CONTRACT_REGISTRY: dict[AgentRole, AgentContract] = {
     AgentRole.BUILDER: BUILDER_CONTRACT,
     AgentRole.TESTER: TESTER_CONTRACT,
     AgentRole.REVIEWER: REVIEWER_CONTRACT,
-
     AgentRole.DATA_ANALYST: DATA_ANALYST_CONTRACT,
     AgentRole.DEVOPS: DEVOPS_CONTRACT,
     AgentRole.SECURITY_AUDITOR: SECURITY_AUDITOR_CONTRACT,
     AgentRole.MIGRATOR: MIGRATOR_CONTRACT,
-
     AgentRole.MODEL_BUILDER: MODEL_BUILDER_CONTRACT,
 }
 

@@ -3,7 +3,6 @@
 import streamlit as st
 from datetime import datetime, timedelta
 from pathlib import Path
-from typing import Any, Dict, List, Optional
 
 try:
     from test_ai.metrics.cost_tracker import CostTracker, Provider, get_cost_tracker
@@ -30,12 +29,14 @@ def render_cost_dashboard() -> None:
     st.divider()
 
     # Tabs for different views
-    tab1, tab2, tab3, tab4 = st.tabs([
-        "📊 Overview",
-        "🤖 By Agent",
-        "🧠 By Model",
-        "📋 Details",
-    ])
+    tab1, tab2, tab3, tab4 = st.tabs(
+        [
+            "📊 Overview",
+            "🤖 By Agent",
+            "🧠 By Model",
+            "📋 Details",
+        ]
+    )
 
     with tab1:
         _render_overview_tab(tracker)
@@ -87,7 +88,7 @@ def _render_top_metrics(tracker: CostTracker) -> None:
         )
 
     with col4:
-        avg_cost = summary.get('avg_cost_per_call', 0)
+        avg_cost = summary.get("avg_cost_per_call", 0)
         st.metric(
             "Avg Cost/Call",
             f"${avg_cost:.4f}",
@@ -100,7 +101,7 @@ def _render_top_metrics(tracker: CostTracker) -> None:
         percent_used = budget.get("percent_used", 0) or 0
         st.progress(
             min(percent_used / 100, 1.0),
-            text=f"${budget.get('monthly_used_usd', 0):.2f} / ${budget['limit_usd']:.2f} ({percent_used:.1f}%)"
+            text=f"${budget.get('monthly_used_usd', 0):.2f} / ${budget['limit_usd']:.2f} ({percent_used:.1f}%)",
         )
 
         if percent_used >= 90:
@@ -150,10 +151,12 @@ def _render_daily_trend(tracker: CostTracker) -> None:
     for i in range(7):
         date = datetime.now() - timedelta(days=i)
         cost = tracker.get_daily_cost(date)
-        daily_costs.append({
-            "date": date.strftime("%m/%d"),
-            "cost": cost,
-        })
+        daily_costs.append(
+            {
+                "date": date.strftime("%m/%d"),
+                "cost": cost,
+            }
+        )
 
     daily_costs.reverse()
 
@@ -175,8 +178,8 @@ def _render_daily_trend(tracker: CostTracker) -> None:
                             margin: 0 auto {100 - height}px auto;
                             border-radius: 4px 4px 0 0;
                         "></div>
-                        <div style="font-size: 10px;">{day['date']}</div>
-                        <div style="font-size: 10px;">${day['cost']:.2f}</div>
+                        <div style="font-size: 10px;">{day["date"]}</div>
+                        <div style="font-size: 10px;">${day["cost"]:.2f}</div>
                     </div>
                     """,
                     unsafe_allow_html=True,
@@ -189,13 +192,17 @@ def _render_agent_tab(tracker: CostTracker) -> None:
     """Render agent cost breakdown tab."""
     st.subheader("🤖 Cost by Agent Role")
 
-    days = st.selectbox("Time Period", [7, 14, 30, 90], index=2, format_func=lambda x: f"Last {x} days")
+    days = st.selectbox(
+        "Time Period", [7, 14, 30, 90], index=2, format_func=lambda x: f"Last {x} days"
+    )
 
     agent_costs = tracker.get_agent_costs(days=days)
 
     if agent_costs:
         # Sort by cost descending
-        sorted_agents = sorted(agent_costs.items(), key=lambda x: x[1].get("cost", 0), reverse=True)
+        sorted_agents = sorted(
+            agent_costs.items(), key=lambda x: x[1].get("cost", 0), reverse=True
+        )
 
         total_cost = sum(data.get("cost", 0) for _, data in sorted_agents)
 
@@ -231,13 +238,21 @@ def _render_model_tab(tracker: CostTracker) -> None:
     """Render model cost breakdown tab."""
     st.subheader("🧠 Cost by Model")
 
-    days = st.selectbox("Time Period ", [7, 14, 30, 90], index=2, format_func=lambda x: f"Last {x} days", key="model_days")
+    days = st.selectbox(
+        "Time Period ",
+        [7, 14, 30, 90],
+        index=2,
+        format_func=lambda x: f"Last {x} days",
+        key="model_days",
+    )
 
     model_costs = tracker.get_model_costs(days=days)
 
     if model_costs:
         # Sort by cost descending
-        sorted_models = sorted(model_costs.items(), key=lambda x: x[1].get("cost", 0), reverse=True)
+        sorted_models = sorted(
+            model_costs.items(), key=lambda x: x[1].get("cost", 0), reverse=True
+        )
 
         total_cost = sum(data.get("cost", 0) for _, data in sorted_models)
 

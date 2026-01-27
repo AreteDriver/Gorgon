@@ -63,8 +63,12 @@ class TestTokenAuth:
         after = datetime.now()
 
         expiry = auth._tokens[token]["expiry"]
-        expected_min = before + timedelta(minutes=mock_settings.access_token_expire_minutes)
-        expected_max = after + timedelta(minutes=mock_settings.access_token_expire_minutes)
+        expected_min = before + timedelta(
+            minutes=mock_settings.access_token_expire_minutes
+        )
+        expected_max = after + timedelta(
+            minutes=mock_settings.access_token_expire_minutes
+        )
 
         assert expected_min <= expiry <= expected_max
 

@@ -1,7 +1,6 @@
 """Tests for AgentContext and WorkflowMemoryManager."""
 
 import pytest
-from unittest.mock import MagicMock, patch
 import tempfile
 import os
 
@@ -96,7 +95,7 @@ class TestAgentContext:
         assert memory_id > 0
 
         agent_context.clear_cache()
-        context = agent_context.load_context()
+        agent_context.load_context()
         # Errors stored as "learned" type, may or may not appear in context
         # depending on recall settings
 
@@ -390,7 +389,7 @@ class TestExecutorMemoryIntegration:
         )
 
         # Execute with memory enabled
-        result = executor.execute(workflow, enable_memory=True)
+        executor.execute(workflow, enable_memory=True)
 
         # Memory manager should be created
         assert executor.memory_manager is not None
@@ -415,7 +414,7 @@ class TestExecutorMemoryIntegration:
         )
 
         # Execute with memory disabled
-        result = executor.execute(workflow, enable_memory=False)
+        executor.execute(workflow, enable_memory=False)
 
         # Memory manager should not be created
         assert executor.memory_manager is None

@@ -4,7 +4,6 @@ import json
 import logging
 import sys
 from io import StringIO
-from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -247,6 +246,7 @@ class TestJSONFormatter:
             raise ValueError("Test error")
         except ValueError:
             import sys
+
             exc_info = sys.exc_info()
 
         record = logging.LogRecord(
@@ -326,6 +326,7 @@ class TestTextFormatter:
 
         # Should have YYYY-MM-DD HH:MM:SS format
         import re
+
         assert re.search(r"\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}", result)
 
     def test_format_separator(self, formatter):

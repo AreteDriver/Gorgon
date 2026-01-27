@@ -214,7 +214,7 @@ class TestParallelExecutionMetrics:
         b2.start()
         b2.complete()  # Completed
 
-        b3 = metrics.add_branch("branch_3", 2)
+        metrics.add_branch("branch_3", 2)
         # Still pending
 
         assert metrics.active_branch_count == 1
@@ -236,7 +236,7 @@ class TestParallelExecutionMetrics:
         b2.start()
         b2.fail("Error")
 
-        b3 = metrics.add_branch("branch_3", 2)
+        metrics.add_branch("branch_3", 2)
         # Still pending
 
         # 2 out of 3 completed (success or failed)
@@ -725,9 +725,7 @@ class TestTrackerWithExecutor:
 
         # Check that execution was tracked
         history = tracker.get_history()
-        fan_out_execs = [
-            e for e in history if e["pattern_type"] == "fan_out"
-        ]
+        fan_out_execs = [e for e in history if e["pattern_type"] == "fan_out"]
         assert len(fan_out_execs) >= 1
 
         # Verify branch tracking
@@ -768,9 +766,7 @@ class TestTrackerWithExecutor:
 
         # Check that parallel group was tracked
         history = tracker.get_history()
-        parallel_execs = [
-            e for e in history if e["pattern_type"] == "parallel_group"
-        ]
+        parallel_execs = [e for e in history if e["pattern_type"] == "parallel_group"]
         assert len(parallel_execs) >= 1
 
         tracker.reset()

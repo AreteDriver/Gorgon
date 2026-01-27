@@ -1,7 +1,6 @@
 """Tests for parallel execution dashboard page."""
 
 import sys
-import pytest
 
 sys.path.insert(0, "src")
 

@@ -11,6 +11,7 @@ from datetime import datetime
 from typing import Dict, Optional
 
 from fastapi import APIRouter, FastAPI, HTTPException, Header, Request, Response
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter
@@ -24,7 +25,10 @@ from test_ai.orchestrator import Workflow
 from test_ai.orchestrator.workflow_engine_adapter import WorkflowEngineAdapter
 from test_ai.prompts import PromptTemplateManager, PromptTemplate
 from test_ai.workflow import WorkflowVersionManager
-from test_ai.workflow.loader import load_workflow as load_yaml_workflow, list_workflows as list_yaml_workflows
+from test_ai.workflow.loader import (
+    load_workflow as load_yaml_workflow,
+    list_workflows as list_yaml_workflows,
+)
 from test_ai.workflow.executor import WorkflowExecutor
 from test_ai.api_clients import OpenAIClient
 from test_ai.scheduler import (
@@ -205,7 +209,6 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="AI Workflow Orchestrator", version="0.1.0", lifespan=lifespan)
 
 # CORS middleware for frontend development
-from fastapi.middleware.cors import CORSMiddleware
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
@@ -546,7 +549,9 @@ def get_yaml_workflow_definition(
     yaml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yaml"
     yml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yml"
 
-    workflow_path = yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+    workflow_path = (
+        yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+    )
 
     if not workflow_path:
         raise not_found("YAML Workflow", workflow_id)
@@ -556,10 +561,10 @@ def get_yaml_workflow_definition(
         return {
             "id": workflow_id,
             "name": workflow.name,
-            "description": getattr(workflow, 'description', ''),
-            "version": getattr(workflow, 'version', '1.0'),
-            "inputs": getattr(workflow, 'inputs', {}),
-            "outputs": getattr(workflow, 'outputs', []),
+            "description": getattr(workflow, "description", ""),
+            "version": getattr(workflow, "version", "1.0"),
+            "inputs": getattr(workflow, "inputs", {}),
+            "outputs": getattr(workflow, "outputs", []),
             "steps": [
                 {
                     "id": step.id,
@@ -598,7 +603,9 @@ def execute_yaml_workflow(
     yaml_file = YAML_WORKFLOWS_DIR / f"{body.workflow_id}.yaml"
     yml_file = YAML_WORKFLOWS_DIR / f"{body.workflow_id}.yml"
 
-    workflow_path = yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+    workflow_path = (
+        yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+    )
 
     if not workflow_path:
         raise not_found("YAML Workflow", body.workflow_id)
@@ -618,14 +625,18 @@ def execute_yaml_workflow(
             "workflow_name": workflow.name,
             "status": result.status,
             "started_at": result.started_at.isoformat() if result.started_at else None,
-            "completed_at": result.completed_at.isoformat() if result.completed_at else None,
+            "completed_at": result.completed_at.isoformat()
+            if result.completed_at
+            else None,
             "total_duration_ms": result.total_duration_ms,
             "total_tokens": result.total_tokens,
             "outputs": result.outputs,
             "steps": [
                 {
                     "step_id": step.step_id,
-                    "status": step.status.value if hasattr(step.status, 'value') else str(step.status),
+                    "status": step.status.value
+                    if hasattr(step.status, "value")
+                    else str(step.status),
                     "duration_ms": step.duration_ms,
                     "tokens_used": step.tokens_used,
                 }

@@ -245,7 +245,9 @@ class CostTracker:
             }
             self._alerts.append(alert)
 
-    def get_monthly_cost(self, year: Optional[int] = None, month: Optional[int] = None) -> float:
+    def get_monthly_cost(
+        self, year: Optional[int] = None, month: Optional[int] = None
+    ) -> float:
         """Get total cost for a month.
 
         Args:
@@ -277,9 +279,7 @@ class CostTracker:
         date = date or datetime.now()
 
         return sum(
-            e.cost_usd
-            for e in self.entries
-            if e.timestamp.date() == date.date()
+            e.cost_usd for e in self.entries if e.timestamp.date() == date.date()
         )
 
     def get_workflow_cost(self, workflow_id: str) -> Dict[str, Any]:
@@ -396,7 +396,9 @@ class CostTracker:
             "alerts": self._alerts[-10:],  # Last 10 alerts
         }
 
-    def _group_by_provider(self, entries: List[CostEntry]) -> Dict[str, Dict[str, float]]:
+    def _group_by_provider(
+        self, entries: List[CostEntry]
+    ) -> Dict[str, Dict[str, float]]:
         """Group entries by provider."""
         by_provider = defaultdict(lambda: {"cost": 0.0, "tokens": 0, "calls": 0})
 
@@ -423,32 +425,36 @@ class CostTracker:
 
         with open(filepath, "w", newline="") as f:
             writer = csv.writer(f)
-            writer.writerow([
-                "timestamp",
-                "provider",
-                "model",
-                "input_tokens",
-                "output_tokens",
-                "total_tokens",
-                "cost_usd",
-                "workflow_id",
-                "step_id",
-                "agent_role",
-            ])
+            writer.writerow(
+                [
+                    "timestamp",
+                    "provider",
+                    "model",
+                    "input_tokens",
+                    "output_tokens",
+                    "total_tokens",
+                    "cost_usd",
+                    "workflow_id",
+                    "step_id",
+                    "agent_role",
+                ]
+            )
 
             for e in entries:
-                writer.writerow([
-                    e.timestamp.isoformat(),
-                    e.provider.value,
-                    e.model,
-                    e.tokens.input_tokens,
-                    e.tokens.output_tokens,
-                    e.tokens.total_tokens,
-                    e.cost_usd,
-                    e.workflow_id or "",
-                    e.step_id or "",
-                    e.agent_role or "",
-                ])
+                writer.writerow(
+                    [
+                        e.timestamp.isoformat(),
+                        e.provider.value,
+                        e.model,
+                        e.tokens.input_tokens,
+                        e.tokens.output_tokens,
+                        e.tokens.total_tokens,
+                        e.cost_usd,
+                        e.workflow_id or "",
+                        e.step_id or "",
+                        e.agent_role or "",
+                    ]
+                )
 
     def clear_old_entries(self, days: int = 90) -> int:
         """Clear entries older than specified days.

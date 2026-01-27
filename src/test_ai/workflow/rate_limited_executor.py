@@ -96,9 +96,7 @@ class AdaptiveRateLimitState:
                     int(self.current_limit * config.recovery_factor),
                 ),
             )
-            logger.info(
-                f"Rate limit recovery: {self.current_limit} -> {new_limit}"
-            )
+            logger.info(f"Rate limit recovery: {self.current_limit} -> {new_limit}")
             self.current_limit = new_limit
             self.consecutive_successes = 0
             self.last_adjustment_time = time.time()
@@ -186,8 +184,8 @@ class RateLimitedParallelExecutor(ParallelExecutor):
 
         # Default RPM limits (conservative for API rate limits)
         self._distributed_rpm = distributed_rpm or {
-            "anthropic": 60,   # 60 RPM typical
-            "openai": 90,      # Higher for GPT
+            "anthropic": 60,  # 60 RPM typical
+            "openai": 90,  # Higher for GPT
             "default": 120,
         }
 
@@ -591,12 +589,14 @@ class RateLimitedParallelExecutor(ParallelExecutor):
 
             if self._adaptive and provider in self._adaptive_state:
                 state = self._adaptive_state[provider]
-                provider_stats.update({
-                    "current_limit": state.current_limit,
-                    "consecutive_successes": state.consecutive_successes,
-                    "total_429s": state.total_429s,
-                    "is_throttled": state.current_limit < state.base_limit,
-                })
+                provider_stats.update(
+                    {
+                        "current_limit": state.current_limit,
+                        "consecutive_successes": state.consecutive_successes,
+                        "total_429s": state.total_429s,
+                        "is_throttled": state.current_limit < state.base_limit,
+                    }
+                )
             else:
                 provider_stats["current_limit"] = limit
 
@@ -633,7 +633,9 @@ class RateLimitedParallelExecutor(ParallelExecutor):
                 state.consecutive_successes = 0
                 state.consecutive_failures = 0
                 state.last_adjustment_time = time.time()
-                logger.info(f"Reset adaptive state for {p} to base limit {state.base_limit}")
+                logger.info(
+                    f"Reset adaptive state for {p} to base limit {state.base_limit}"
+                )
 
                 # Update semaphore if exists
                 if self._semaphores and p in self._semaphores:
@@ -671,16 +673,24 @@ def create_rate_limited_executor(
     Returns:
         Configured RateLimitedParallelExecutor
     """
-    adaptive_config = AdaptiveRateLimitConfig(
-        backoff_factor=backoff_factor,
-        recovery_threshold=recovery_threshold,
-    ) if adaptive else None
+    adaptive_config = (
+        AdaptiveRateLimitConfig(
+            backoff_factor=backoff_factor,
+            recovery_threshold=recovery_threshold,
+        )
+        if adaptive
+        else None
+    )
 
-    distributed_rpm = {
-        "anthropic": anthropic_rpm,
-        "openai": openai_rpm,
-        "default": max(anthropic_rpm, openai_rpm),
-    } if distributed else None
+    distributed_rpm = (
+        {
+            "anthropic": anthropic_rpm,
+            "openai": openai_rpm,
+            "default": max(anthropic_rpm, openai_rpm),
+        }
+        if distributed
+        else None
+    )
 
     return RateLimitedParallelExecutor(
         strategy=ParallelStrategy.ASYNCIO,

@@ -363,7 +363,9 @@ class EmailChannel(NotificationChannel):
 
         try:
             msg = MIMEMultipart("alternative")
-            msg["Subject"] = f"[Gorgon] {self._event_emoji(event.event_type)} {event.workflow_name}"
+            msg["Subject"] = (
+                f"[Gorgon] {self._event_emoji(event.event_type)} {event.workflow_name}"
+            )
             msg["From"] = self.from_addr
             msg["To"] = ", ".join(self.to_addrs)
 
@@ -475,7 +477,9 @@ class TeamsChannel(NotificationChannel):
             "sections": [
                 {
                     "activityTitle": f"{self._event_emoji(event.event_type)} {event.workflow_name}",
-                    "activitySubtitle": event.timestamp.strftime("%Y-%m-%d %H:%M:%S UTC"),
+                    "activitySubtitle": event.timestamp.strftime(
+                        "%Y-%m-%d %H:%M:%S UTC"
+                    ),
                     "text": event.message,
                     "facts": self._build_facts(event),
                 }
@@ -513,7 +517,9 @@ class TeamsChannel(NotificationChannel):
         ]
         for key, value in event.details.items():
             if isinstance(value, (str, int, float, bool)):
-                facts.append({"name": key.replace("_", " ").title(), "value": str(value)})
+                facts.append(
+                    {"name": key.replace("_", " ").title(), "value": str(value)}
+                )
         return facts
 
     def _post(self, payload: dict) -> bool:
@@ -562,7 +568,9 @@ class PagerDutyChannel(NotificationChannel):
             EventType.WORKFLOW_FAILED,
             EventType.BUDGET_EXCEEDED,
         ):
-            logger.debug(f"Skipping PagerDuty for non-critical event: {event.event_type}")
+            logger.debug(
+                f"Skipping PagerDuty for non-critical event: {event.event_type}"
+            )
             return True
 
         severity = self._map_severity(event.severity)

@@ -8,6 +8,7 @@ from enum import Enum
 
 class StepStatus(Enum):
     """Status of a workflow step."""
+
     PENDING = "pending"
     RUNNING = "running"
     COMPLETED = "completed"
@@ -18,6 +19,7 @@ class StepStatus(Enum):
 @dataclass
 class VisualStep:
     """A step in the visual workflow."""
+
     id: str
     name: str
     type: str
@@ -75,7 +77,11 @@ def render_workflow_visualizer(
     st.markdown("### 🔄 Workflow Progress")
 
     # Calculate progress
-    completed = sum(1 for s in steps if step_results.get(s.get("id", ""), {}).get("status") == "completed")
+    completed = sum(
+        1
+        for s in steps
+        if step_results.get(s.get("id", ""), {}).get("status") == "completed"
+    )
     total = len(steps)
     progress = completed / total if total > 0 else 0
 
@@ -198,7 +204,11 @@ def _render_detailed_view(
                         role = step_params.get("role", "N/A")
                         st.write(f"- Role: `{role}`")
                         if step_params.get("prompt"):
-                            prompt_preview = step_params["prompt"][:100] + "..." if len(step_params.get("prompt", "")) > 100 else step_params.get("prompt", "")
+                            prompt_preview = (
+                                step_params["prompt"][:100] + "..."
+                                if len(step_params.get("prompt", "")) > 100
+                                else step_params.get("prompt", "")
+                            )
                             st.write(f"- Prompt: {prompt_preview}")
 
                 with col2:
@@ -297,12 +307,14 @@ def render_step_timeline(
         result = step_results.get(step_id, {})
         duration = result.get("duration_ms", 0)
 
-        timeline_data.append({
-            "step": step_id,
-            "start": cumulative_time,
-            "duration": duration,
-            "status": result.get("status", "pending"),
-        })
+        timeline_data.append(
+            {
+                "step": step_id,
+                "start": cumulative_time,
+                "duration": duration,
+                "status": result.get("status", "pending"),
+            }
+        )
         cumulative_time += duration
 
     # Render as horizontal bars
@@ -313,7 +325,11 @@ def render_step_timeline(
             width_pct = (item["duration"] / max_time * 100) if max_time > 0 else 0
             left_pct = (item["start"] / max_time * 100) if max_time > 0 else 0
 
-            status = StepStatus(item["status"]) if item["status"] in [s.value for s in StepStatus] else StepStatus.PENDING
+            status = (
+                StepStatus(item["status"])
+                if item["status"] in [s.value for s in StepStatus]
+                else StepStatus.PENDING
+            )
             color = STATUS_COLORS[status]
 
             st.markdown(
@@ -376,8 +392,18 @@ def render_agent_activity(
         timestamp = agent.get("timestamp", "")
         status = agent.get("status", "running")
 
-        icon = "🤖" if role == "builder" else "📋" if role == "planner" else "🧪" if role == "tester" else "👁️"
-        status_icon = "🔄" if status == "running" else "✅" if status == "completed" else "❌"
+        icon = (
+            "🤖"
+            if role == "builder"
+            else "📋"
+            if role == "planner"
+            else "🧪"
+            if role == "tester"
+            else "👁️"
+        )
+        status_icon = (
+            "🔄" if status == "running" else "✅" if status == "completed" else "❌"
+        )
 
         st.markdown(
             f"""

@@ -1,7 +1,5 @@
 """Slack integration client for notifications and approvals."""
 
-import asyncio
-import json
 from typing import Any, Dict, List, Optional
 from dataclasses import dataclass
 from enum import Enum
@@ -168,7 +166,10 @@ class SlackClient:
             {
                 "type": "section",
                 "fields": [
-                    {"type": "mrkdwn", "text": f"*Status:*\n{status.replace('_', ' ').title()}"},
+                    {
+                        "type": "mrkdwn",
+                        "text": f"*Status:*\n{status.replace('_', ' ').title()}",
+                    },
                     {"type": "mrkdwn", "text": f"*Type:*\n{message_type.value}"},
                 ],
             },
@@ -176,10 +177,12 @@ class SlackClient:
 
         if details:
             detail_text = "\n".join(f"• *{k}:* {v}" for k, v in details.items())
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": detail_text},
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": detail_text},
+                }
+            )
 
         return self.send_message(
             channel=channel,
@@ -217,7 +220,10 @@ class SlackClient:
         blocks = [
             {
                 "type": "header",
-                "text": {"type": "plain_text", "text": f":raised_hand: Approval Required: {title}"},
+                "text": {
+                    "type": "plain_text",
+                    "text": f":raised_hand: Approval Required: {title}",
+                },
             },
             {
                 "type": "section",
@@ -226,39 +232,47 @@ class SlackClient:
         ]
 
         if requester:
-            blocks.append({
-                "type": "context",
-                "elements": [{"type": "mrkdwn", "text": f"Requested by: {requester}"}],
-            })
+            blocks.append(
+                {
+                    "type": "context",
+                    "elements": [
+                        {"type": "mrkdwn", "text": f"Requested by: {requester}"}
+                    ],
+                }
+            )
 
         if details:
             detail_text = "\n".join(f"• *{k}:* {v}" for k, v in details.items())
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Details:*\n{detail_text}"},
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {"type": "mrkdwn", "text": f"*Details:*\n{detail_text}"},
+                }
+            )
 
         # Add approval buttons
-        blocks.append({
-            "type": "actions",
-            "block_id": callback_id or "approval_actions",
-            "elements": [
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Approve"},
-                    "style": "primary",
-                    "action_id": "approve",
-                    "value": callback_id or "approve",
-                },
-                {
-                    "type": "button",
-                    "text": {"type": "plain_text", "text": "Reject"},
-                    "style": "danger",
-                    "action_id": "reject",
-                    "value": callback_id or "reject",
-                },
-            ],
-        })
+        blocks.append(
+            {
+                "type": "actions",
+                "block_id": callback_id or "approval_actions",
+                "elements": [
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Approve"},
+                        "style": "primary",
+                        "action_id": "approve",
+                        "value": callback_id or "approve",
+                    },
+                    {
+                        "type": "button",
+                        "text": {"type": "plain_text", "text": "Reject"},
+                        "style": "danger",
+                        "action_id": "reject",
+                        "value": callback_id or "reject",
+                    },
+                ],
+            }
+        )
 
         try:
             response = self.client.chat_postMessage(
@@ -319,19 +333,26 @@ class SlackClient:
         ]
 
         if findings:
-            blocks.append({
-                "type": "section",
-                "text": {
-                    "type": "mrkdwn",
-                    "text": f"*Breakdown:*\n• Critical: {critical}\n• Major: {major}\n• Minor: {minor}",
-                },
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Breakdown:*\n• Critical: {critical}\n• Major: {major}\n• Minor: {minor}",
+                    },
+                }
+            )
 
         if review_result.get("summary"):
-            blocks.append({
-                "type": "section",
-                "text": {"type": "mrkdwn", "text": f"*Summary:*\n{review_result['summary']}"},
-            })
+            blocks.append(
+                {
+                    "type": "section",
+                    "text": {
+                        "type": "mrkdwn",
+                        "text": f"*Summary:*\n{review_result['summary']}",
+                    },
+                }
+            )
 
         return self.send_message(
             channel=channel,

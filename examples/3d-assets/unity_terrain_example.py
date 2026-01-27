@@ -13,6 +13,7 @@ from pathlib import Path
 
 # Add src to path for imports
 import sys
+
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "src"))
 
 from test_ai.workflow import WorkflowExecutor, WorkflowLoader
@@ -105,11 +106,18 @@ async def generate_character_controller():
         "movement_style": "humanoid",
         "features": ["combat", "inventory"],
         "animation_states": [
-            "idle", "walk", "run", "sprint",
-            "jump", "fall", "land",
-            "attack_light", "attack_heavy",
-            "dodge", "block",
-            "death"
+            "idle",
+            "walk",
+            "run",
+            "sprint",
+            "jump",
+            "fall",
+            "land",
+            "attack_light",
+            "attack_heavy",
+            "dodge",
+            "block",
+            "death",
         ],
     }
 
@@ -118,7 +126,7 @@ async def generate_character_controller():
 
     if result.success:
         print("✓ Character controller generated!")
-        print(f"\nFiles created:")
+        print("\nFiles created:")
         print(f"  - {inputs['character_name']}Controller.cs")
         print(f"  - {inputs['character_name']}Animator.controller")
 

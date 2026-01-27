@@ -1707,7 +1707,7 @@ class WorkflowExecutor:
             )
 
         if not result.get("success"):
-            error_msg = result.get('error', 'Unknown error')
+            error_msg = result.get("error", "Unknown error")
             # Store error in memory
             if self.memory_manager:
                 self.memory_manager.store_error(role, step.id, error_msg)

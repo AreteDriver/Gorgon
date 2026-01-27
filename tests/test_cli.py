@@ -1079,7 +1079,7 @@ class TestDashboardCommand:
 
         # Patch Path.exists to return True for dashboard
         with patch("pathlib.Path.exists", return_value=True):
-            result = runner.invoke(app, ["dashboard", "--no-browser"])
+            runner.invoke(app, ["dashboard", "--no-browser"])
 
         # Should attempt to run streamlit
         mock_run.assert_called_once()

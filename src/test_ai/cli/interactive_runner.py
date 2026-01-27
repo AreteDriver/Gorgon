@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-import json
 from dataclasses import dataclass, field
-from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional
 
 try:
@@ -12,16 +10,18 @@ try:
     from InquirerPy.base.control import Choice
     from InquirerPy.separator import Separator
     from InquirerPy.validator import EmptyInputValidator
+
     INQUIRER_AVAILABLE = True
 except ImportError:
     INQUIRER_AVAILABLE = False
 
-from test_ai.cli.rich_output import get_output, RichOutput, StepProgress
+from test_ai.cli.rich_output import get_output, StepProgress
 
 
 @dataclass
 class WorkflowInput:
     """Definition of a workflow input parameter."""
+
     name: str
     description: str
     input_type: str = "string"  # string, number, boolean, select, multiselect
@@ -34,6 +34,7 @@ class WorkflowInput:
 @dataclass
 class WorkflowTemplate:
     """A workflow template for interactive selection."""
+
     id: str
     name: str
     description: str
@@ -53,7 +54,9 @@ class InteractiveRunner:
             description="Plan, build, test, and review a new feature",
             category="Development",
             inputs=[
-                WorkflowInput("feature_request", "Describe the feature to build", required=True),
+                WorkflowInput(
+                    "feature_request", "Describe the feature to build", required=True
+                ),
                 WorkflowInput("codebase_path", "Path to your codebase", default="."),
                 WorkflowInput("test_command", "Test command to run", default="pytest"),
             ],
@@ -65,7 +68,9 @@ class InteractiveRunner:
             description="Generate 3D scripts, shaders, or configurations",
             category="3D/Game Dev",
             inputs=[
-                WorkflowInput("asset_request", "Describe the 3D asset to create", required=True),
+                WorkflowInput(
+                    "asset_request", "Describe the 3D asset to create", required=True
+                ),
                 WorkflowInput(
                     "target_platform",
                     "Target platform",
@@ -88,7 +93,9 @@ class InteractiveRunner:
             description="Create SQL queries, pandas pipelines, and visualizations",
             category="Data",
             inputs=[
-                WorkflowInput("analysis_request", "What do you want to analyze?", required=True),
+                WorkflowInput(
+                    "analysis_request", "What do you want to analyze?", required=True
+                ),
                 WorkflowInput(
                     "database_type",
                     "Database type",
@@ -96,7 +103,9 @@ class InteractiveRunner:
                     choices=["postgresql", "mysql", "sqlite", "bigquery", "csv"],
                     default="postgresql",
                 ),
-                WorkflowInput("tables", "Available tables (comma-separated)", default=""),
+                WorkflowInput(
+                    "tables", "Available tables (comma-separated)", default=""
+                ),
             ],
             tags=["data", "sql", "pandas", "analysis"],
         ),
@@ -106,12 +115,21 @@ class InteractiveRunner:
             description="Create Docker, Kubernetes, or CI/CD configurations",
             category="DevOps",
             inputs=[
-                WorkflowInput("infra_request", "Describe the infrastructure needed", required=True),
+                WorkflowInput(
+                    "infra_request", "Describe the infrastructure needed", required=True
+                ),
                 WorkflowInput(
                     "target_platform",
                     "Target platform",
                     input_type="select",
-                    choices=["docker", "kubernetes", "terraform", "github_actions", "aws", "gcp"],
+                    choices=[
+                        "docker",
+                        "kubernetes",
+                        "terraform",
+                        "github_actions",
+                        "aws",
+                        "gcp",
+                    ],
                 ),
                 WorkflowInput(
                     "environment",
@@ -129,12 +147,19 @@ class InteractiveRunner:
             description="Perform security vulnerability scanning and compliance checking",
             category="Security",
             inputs=[
-                WorkflowInput("codebase_path", "Path to codebase to audit", default="."),
+                WorkflowInput(
+                    "codebase_path", "Path to codebase to audit", default="."
+                ),
                 WorkflowInput(
                     "audit_type",
                     "Audit type",
                     input_type="select",
-                    choices=["code_review", "dependency_scan", "full_audit", "owasp_top_10"],
+                    choices=[
+                        "code_review",
+                        "dependency_scan",
+                        "full_audit",
+                        "owasp_top_10",
+                    ],
                     default="full_audit",
                 ),
                 WorkflowInput(
@@ -153,8 +178,12 @@ class InteractiveRunner:
             description="Migrate between frameworks, languages, or API versions",
             category="Migration",
             inputs=[
-                WorkflowInput("source_framework", "Source framework/version", required=True),
-                WorkflowInput("target_framework", "Target framework/version", required=True),
+                WorkflowInput(
+                    "source_framework", "Source framework/version", required=True
+                ),
+                WorkflowInput(
+                    "target_framework", "Target framework/version", required=True
+                ),
                 WorkflowInput("codebase_path", "Path to codebase", default="."),
                 WorkflowInput(
                     "scope",
@@ -187,7 +216,9 @@ class InteractiveRunner:
         Returns:
             Workflow result or None if cancelled
         """
-        self.output.header("Interactive Workflow Runner", "Select and configure a workflow")
+        self.output.header(
+            "Interactive Workflow Runner", "Select and configure a workflow"
+        )
 
         # Step 1: Select workflow category
         category = self._select_category()
@@ -225,7 +256,7 @@ class InteractiveRunner:
             self.output.print("\nCategories:")
             for i, cat in enumerate(categories, 1):
                 print(f"  {i}. {cat}")
-            print(f"  0. Cancel")
+            print("  0. Cancel")
 
             try:
                 choice = int(input("\nSelect category (number): "))
@@ -242,8 +273,7 @@ class InteractiveRunner:
 
         if INQUIRER_AVAILABLE:
             choices = [
-                Choice(value=w, name=f"{w.name} - {w.description}")
-                for w in workflows
+                Choice(value=w, name=f"{w.name} - {w.description}") for w in workflows
             ]
             choices.extend([Separator(), Choice(value=None, name="Back")])
 
@@ -256,7 +286,7 @@ class InteractiveRunner:
             for i, wf in enumerate(workflows, 1):
                 print(f"  {i}. {wf.name}")
                 print(f"     {wf.description}")
-            print(f"  0. Back")
+            print("  0. Back")
 
             try:
                 choice = int(input("\nSelect workflow (number): "))
@@ -349,7 +379,9 @@ class InteractiveRunner:
 
             return value
 
-    def _confirm_execution(self, workflow: WorkflowTemplate, inputs: Dict[str, Any]) -> bool:
+    def _confirm_execution(
+        self, workflow: WorkflowTemplate, inputs: Dict[str, Any]
+    ) -> bool:
         """Confirm workflow execution."""
         self.output.newline()
         self.output.print("📋 Workflow Configuration:", prefix="")
@@ -359,7 +391,9 @@ class InteractiveRunner:
 
         self.output.print("\n  Inputs:")
         for key, value in inputs.items():
-            display_value = str(value)[:50] + "..." if len(str(value)) > 50 else str(value)
+            display_value = (
+                str(value)[:50] + "..." if len(str(value)) > 50 else str(value)
+            )
             self.output.print(f"    • {key}: {display_value}")
 
         self.output.divider()
@@ -402,6 +436,7 @@ class InteractiveRunner:
         with self.output.spinner(f"Running {workflow.name}..."):
             # Simulate execution (in real implementation, call workflow engine)
             import time
+
             time.sleep(1)
 
             # Update progress
@@ -439,16 +474,15 @@ class InteractiveRunner:
             self.output.print(f"\n📁 {category}", style=None)
             self.output.divider()
 
-            rows = [
-                [wf.id, wf.name, wf.description[:40] + "..."]
-                for wf in workflows
-            ]
+            rows = [[wf.id, wf.name, wf.description[:40] + "..."] for wf in workflows]
             self.output.table(
                 headers=["ID", "Name", "Description"],
                 rows=rows,
             )
 
-    def quick_run(self, workflow_id: str, inputs: Optional[Dict[str, Any]] = None) -> Optional[Dict[str, Any]]:
+    def quick_run(
+        self, workflow_id: str, inputs: Optional[Dict[str, Any]] = None
+    ) -> Optional[Dict[str, Any]]:
         """Quick run a workflow by ID with optional inputs.
 
         Args:
@@ -467,7 +501,8 @@ class InteractiveRunner:
         # Gather missing inputs
         final_inputs = inputs or {}
         missing_inputs = [
-            inp for inp in template.inputs
+            inp
+            for inp in template.inputs
             if inp.name not in final_inputs and inp.required
         ]
 

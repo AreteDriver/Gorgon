@@ -1,7 +1,6 @@
 """Tests for analytics visualizers module."""
 
 import sys
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from unittest.mock import MagicMock
 
@@ -249,7 +248,11 @@ class TestChartGenerator:
 
     def test_severity_values(self, generator):
         """Severity maps to correct gauge values."""
-        for severity, expected_value in [("info", 100), ("warning", 60), ("critical", 20)]:
+        for severity, expected_value in [
+            ("info", 100),
+            ("warning", 60),
+            ("critical", 20),
+        ]:
             data = {"severity": severity}
             result = generator.generate(data, {})
             gauge = [c for c in result.charts if c.chart_type == "gauge"][0]

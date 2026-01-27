@@ -2,12 +2,10 @@
 
 from __future__ import annotations
 
-import sys
-import time
 from contextlib import contextmanager
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, Generator, List, Optional
+from typing import Callable, Generator, List, Optional
 
 try:
     from rich.console import Console
@@ -24,10 +22,10 @@ try:
     from rich.tree import Tree
     from rich.syntax import Syntax
     from rich.markdown import Markdown
-    from rich.live import Live
-    from rich.layout import Layout
-    from rich.text import Text
-    from rich.style import Style
+    from rich.live import Live  # noqa: F401
+    from rich.layout import Layout  # noqa: F401
+    from rich.text import Text  # noqa: F401
+    from rich.style import Style  # noqa: F401
 
     RICH_AVAILABLE = True
 except ImportError:
@@ -37,6 +35,7 @@ except ImportError:
 
 class OutputStyle(Enum):
     """Output styling options."""
+
     SUCCESS = "green"
     ERROR = "red"
     WARNING = "yellow"
@@ -48,6 +47,7 @@ class OutputStyle(Enum):
 @dataclass
 class StepProgress:
     """Progress information for a workflow step."""
+
     step_id: str
     step_name: str
     status: str  # pending, running, completed, failed
@@ -119,11 +119,11 @@ class RichOutput:
             panel = Panel(content, title="🐍 Gorgon", border_style="cyan")
             self.console.print(panel)
         else:
-            print(f"\n{'='*50}")
+            print(f"\n{'=' * 50}")
             print(f"  {title}")
             if subtitle:
                 print(f"  {subtitle}")
-            print(f"{'='*50}\n")
+            print(f"{'=' * 50}\n")
 
     def table(
         self,
@@ -150,13 +150,21 @@ class RichOutput:
                 print(f"\n{title}")
                 print("-" * 40)
             # Simple plain text table
-            col_widths = [max(len(str(h)), max(len(str(row[i])) for row in rows) if rows else 0)
-                         for i, h in enumerate(headers)]
-            header_line = " | ".join(h.ljust(col_widths[i]) for i, h in enumerate(headers))
+            col_widths = [
+                max(len(str(h)), max(len(str(row[i])) for row in rows) if rows else 0)
+                for i, h in enumerate(headers)
+            ]
+            header_line = " | ".join(
+                h.ljust(col_widths[i]) for i, h in enumerate(headers)
+            )
             print(header_line)
             print("-" * len(header_line))
             for row in rows:
-                print(" | ".join(str(cell).ljust(col_widths[i]) for i, cell in enumerate(row)))
+                print(
+                    " | ".join(
+                        str(cell).ljust(col_widths[i]) for i, cell in enumerate(row)
+                    )
+                )
 
     def code(self, code: str, language: str = "python") -> None:
         """Print syntax-highlighted code.
@@ -357,7 +365,9 @@ class RichOutput:
                 "failed": "red",
             }.get(status, "white")
 
-            text = f"{icon} [bold]{role}[/bold] [{status_color}]{status}[/{status_color}]"
+            text = (
+                f"{icon} [bold]{role}[/bold] [{status_color}]{status}[/{status_color}]"
+            )
             if message:
                 text += f" - {message}"
             self.console.print(text)
@@ -424,6 +434,8 @@ def print_header(title: str, subtitle: Optional[str] = None) -> None:
     get_output().header(title, subtitle)
 
 
-def print_table(headers: List[str], rows: List[List[str]], title: Optional[str] = None) -> None:
+def print_table(
+    headers: List[str], rows: List[List[str]], title: Optional[str] = None
+) -> None:
     """Print table."""
     get_output().table(headers, rows, title)

@@ -2,7 +2,6 @@
 
 import asyncio
 import sys
-import time
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -367,7 +366,6 @@ class TestAsyncProviderMethods:
     @pytest.mark.asyncio
     async def test_provider_complete_async_default(self):
         """Provider.complete_async default wraps sync method."""
-        from test_ai.providers.base import Provider, ProviderConfig, ProviderType
 
         class MockProvider(Provider):
             @property
@@ -404,7 +402,6 @@ class TestAsyncProviderMethods:
     @pytest.mark.asyncio
     async def test_provider_generate_async(self):
         """Provider.generate_async works correctly."""
-        from test_ai.providers.base import Provider, ProviderConfig, ProviderType
 
         class MockProvider(Provider):
             @property
@@ -949,9 +946,7 @@ class TestAdaptiveRateLimitingAsync:
     async def test_adjust_rate_limit_on_429_error(self):
         """Rate limit backs off on 429 error."""
         config = AdaptiveRateLimitConfig(cooldown_seconds=0)
-        executor = RateLimitedParallelExecutor(
-            adaptive=True, adaptive_config=config
-        )
+        executor = RateLimitedParallelExecutor(adaptive=True, adaptive_config=config)
         executor._adaptive_state["anthropic"].last_adjustment_time = 0
 
         error = Exception("Error 429: Rate limit")
@@ -975,9 +970,7 @@ class TestAdaptiveRateLimitingAsync:
     async def test_task_execution_triggers_adjustment(self):
         """Task execution triggers rate limit adjustment."""
         config = AdaptiveRateLimitConfig(cooldown_seconds=0, recovery_threshold=1)
-        executor = RateLimitedParallelExecutor(
-            adaptive=True, adaptive_config=config
-        )
+        executor = RateLimitedParallelExecutor(adaptive=True, adaptive_config=config)
         # Reduce limit first
         executor._adaptive_state["anthropic"].current_limit = 3
         executor._adaptive_state["anthropic"].last_adjustment_time = 0

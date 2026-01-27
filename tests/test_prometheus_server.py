@@ -2,10 +2,8 @@
 
 import sys
 import time
-import threading
 from unittest.mock import Mock, patch, MagicMock
 from urllib.request import urlopen
-from urllib.error import URLError
 
 sys.path.insert(0, "src")
 
@@ -55,7 +53,7 @@ class TestPrometheusMetricsServer:
             time.sleep(0.1)
 
             # Fetch metrics
-            response = urlopen(f"http://localhost:19092/metrics", timeout=5)
+            response = urlopen("http://localhost:19092/metrics", timeout=5)
             content = response.read().decode("utf-8")
 
             assert response.status == 200
@@ -143,7 +141,9 @@ class TestPrometheusPushGateway:
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("test_ai.metrics.prometheus_server.urlopen", return_value=mock_response):
+        with patch(
+            "test_ai.metrics.prometheus_server.urlopen", return_value=mock_response
+        ):
             result = gateway.push(collector)
             assert result is True
 
@@ -171,7 +171,9 @@ class TestPrometheusPushGateway:
         mock_response.__enter__ = Mock(return_value=mock_response)
         mock_response.__exit__ = Mock(return_value=False)
 
-        with patch("test_ai.metrics.prometheus_server.urlopen", return_value=mock_response):
+        with patch(
+            "test_ai.metrics.prometheus_server.urlopen", return_value=mock_response
+        ):
             result = gateway.delete()
             assert result is True
 
@@ -253,4 +255,6 @@ class TestGrafanaDashboard:
         for panel in dashboard["panels"]:
             for target in panel["targets"]:
                 expr = target.get("expr", "")
-                assert "gorgon_" in expr, f"Panel '{panel['title']}' missing gorgon_ prefix"
+                assert "gorgon_" in expr, (
+                    f"Panel '{panel['title']}' missing gorgon_ prefix"
+                )

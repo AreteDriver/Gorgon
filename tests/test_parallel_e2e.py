@@ -8,16 +8,19 @@ import sys
 import time
 from pathlib import Path
 
-import pytest
 import yaml
 
 sys.path.insert(0, "src")
 
-from test_ai.workflow import WorkflowConfig, WorkflowExecutor, WorkflowSettings, StepConfig
+from test_ai.workflow import (
+    WorkflowConfig,
+    WorkflowExecutor,
+    WorkflowSettings,
+    StepConfig,
+)
 from test_ai.workflow.auto_parallel import build_dependency_graph, find_parallel_groups
 from test_ai.monitoring.parallel_tracker import (
     get_parallel_tracker,
-    ParallelPatternType,
 )
 
 
@@ -308,7 +311,9 @@ class TestAutoParallelE2E:
         assert result.status == "success"
         # Verify order: first before second
         first_idx = next(i for i, s in enumerate(result.steps) if s.step_id == "first")
-        second_idx = next(i for i, s in enumerate(result.steps) if s.step_id == "second")
+        second_idx = next(
+            i for i, s in enumerate(result.steps) if s.step_id == "second"
+        )
         assert first_idx < second_idx
 
 

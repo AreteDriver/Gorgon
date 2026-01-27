@@ -84,7 +84,9 @@ class BranchMetrics:
             "item_value": str(self.item_value) if self.item_value else None,
             "status": self.status,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "duration_ms": self.duration_ms,
             "tokens_used": self.tokens_used,
             "error": self.error,
@@ -218,7 +220,9 @@ class ParallelExecutionMetrics:
             "max_concurrent": self.max_concurrent,
             "status": self.status,
             "started_at": self.started_at.isoformat() if self.started_at else None,
-            "completed_at": self.completed_at.isoformat() if self.completed_at else None,
+            "completed_at": self.completed_at.isoformat()
+            if self.completed_at
+            else None,
             "duration_ms": self.duration_ms,
             "total_tokens": self.total_tokens,
             "successful_count": self.successful_count,
@@ -662,7 +666,14 @@ class ParallelExecutionTracker:
 
             def histogram_stats(values: list[float]) -> dict:
                 if not values:
-                    return {"count": 0, "min": 0, "max": 0, "avg": 0, "p50": 0, "p95": 0}
+                    return {
+                        "count": 0,
+                        "min": 0,
+                        "max": 0,
+                        "avg": 0,
+                        "p50": 0,
+                        "p95": 0,
+                    }
                 sorted_vals = sorted(values)
                 return {
                     "count": len(values),
@@ -690,7 +701,9 @@ class ParallelExecutionTracker:
 
             # Active execution stats
             active_branches = sum(e.active_branch_count for e in self._active.values())
-            pending_branches = sum(e.pending_branch_count for e in self._active.values())
+            pending_branches = sum(
+                e.pending_branch_count for e in self._active.values()
+            )
 
             return {
                 "active_executions": len(self._active),
@@ -704,7 +717,9 @@ class ParallelExecutionTracker:
                 ),
                 "branch_duration": histogram_stats(self._timings["branch_duration_ms"]),
                 "execution_tokens": histogram_stats(self._timings["execution_tokens"]),
-                "rate_limit_waits": histogram_stats(self._timings["rate_limit_wait_ms"]),
+                "rate_limit_waits": histogram_stats(
+                    self._timings["rate_limit_wait_ms"]
+                ),
                 "rate_limit_states": self._get_rate_limit_states_unlocked(),
             }
 

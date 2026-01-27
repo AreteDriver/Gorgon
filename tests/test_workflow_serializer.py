@@ -5,13 +5,10 @@ can be loaded by the backend workflow loader.
 """
 
 import pytest
-import yaml
 
 from test_ai.workflow.loader import (
     load_workflow,
     validate_workflow,
-    WorkflowConfig,
-    StepConfig,
 )
 
 
@@ -197,40 +194,43 @@ class TestWorkflowValidation:
 
     def test_validates_step_types(self):
         """Test validation catches invalid step types."""
-        errors = validate_workflow({
-            "name": "Test",
-            "steps": [{"id": "s1", "type": "invalid_type"}]
-        })
+        errors = validate_workflow(
+            {"name": "Test", "steps": [{"id": "s1", "type": "invalid_type"}]}
+        )
         assert any("invalid type" in e.lower() for e in errors)
 
     def test_validates_on_failure_values(self):
         """Test validation catches invalid on_failure values."""
-        errors = validate_workflow({
-            "name": "Test",
-            "steps": [{"id": "s1", "type": "shell", "on_failure": "explode"}]
-        })
+        errors = validate_workflow(
+            {
+                "name": "Test",
+                "steps": [{"id": "s1", "type": "shell", "on_failure": "explode"}],
+            }
+        )
         assert any("on_failure" in e.lower() for e in errors)
 
     def test_accepts_valid_workflow(self):
         """Test validation passes for valid workflow."""
-        errors = validate_workflow({
-            "name": "Valid Workflow",
-            "version": "1.0",
-            "steps": [
-                {
-                    "id": "step1",
-                    "type": "claude_code",
-                    "params": {"role": "planner", "prompt": "Plan"},
-                    "on_failure": "abort",
-                },
-                {
-                    "id": "step2",
-                    "type": "shell",
-                    "params": {"command": "echo hello"},
-                    "depends_on": "step1",
-                },
-            ]
-        })
+        errors = validate_workflow(
+            {
+                "name": "Valid Workflow",
+                "version": "1.0",
+                "steps": [
+                    {
+                        "id": "step1",
+                        "type": "claude_code",
+                        "params": {"role": "planner", "prompt": "Plan"},
+                        "on_failure": "abort",
+                    },
+                    {
+                        "id": "step2",
+                        "type": "shell",
+                        "params": {"command": "echo hello"},
+                        "depends_on": "step1",
+                    },
+                ],
+            }
+        )
         assert errors == []
 
 
@@ -406,10 +406,20 @@ steps:
 class TestAllAgentRoles:
     """Test all agent roles supported by visual builder."""
 
-    @pytest.mark.parametrize("role", [
-        "planner", "builder", "tester", "reviewer",
-        "architect", "documenter", "analyst", "visualizer", "reporter"
-    ])
+    @pytest.mark.parametrize(
+        "role",
+        [
+            "planner",
+            "builder",
+            "tester",
+            "reviewer",
+            "architect",
+            "documenter",
+            "analyst",
+            "visualizer",
+            "reporter",
+        ],
+    )
     def test_agent_role(self, role, tmp_path):
         """Test each agent role can be used in workflow."""
         yaml_content = f"""
@@ -503,9 +513,9 @@ steps:
         assert config.steps[1].condition.field == "should_deploy"
         assert config.steps[1].condition.value is True
 
-    @pytest.mark.parametrize("operator", [
-        "equals", "not_equals", "contains", "greater_than", "less_than"
-    ])
+    @pytest.mark.parametrize(
+        "operator", ["equals", "not_equals", "contains", "greater_than", "less_than"]
+    )
     def test_condition_operators(self, operator, tmp_path):
         """Test all condition operators."""
         yaml_content = f"""

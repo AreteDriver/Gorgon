@@ -313,6 +313,7 @@ class TestGetRateLimiter:
     def test_returns_sqlite_by_default(self):
         """Returns SQLiteRateLimiter when no Redis URL."""
         import os
+
         os.environ.pop("REDIS_URL", None)
 
         reset_rate_limiter()

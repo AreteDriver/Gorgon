@@ -20,12 +20,16 @@ from test_ai.dashboard.monitoring_pages import (
 
 # Import new components
 try:
-    from test_ai.dashboard.workflow_visualizer import (
+    from test_ai.dashboard.workflow_visualizer import (  # noqa: F401
         render_workflow_visualizer,
         render_workflow_summary,
         render_agent_activity,
     )
-    from test_ai.dashboard.cost_dashboard import render_cost_dashboard, render_cost_widget
+    from test_ai.dashboard.cost_dashboard import (
+        render_cost_dashboard,
+        render_cost_widget,
+    )  # noqa: F401
+
     NEW_COMPONENTS_AVAILABLE = True
 except ImportError:
     NEW_COMPONENTS_AVAILABLE = False
@@ -393,7 +397,9 @@ def render_logs_page():
 
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
-    "Costs": render_cost_dashboard if NEW_COMPONENTS_AVAILABLE else render_dashboard_page,
+    "Costs": render_cost_dashboard
+    if NEW_COMPONENTS_AVAILABLE
+    else render_dashboard_page,
     "Monitoring": render_monitoring_page,
     "Parallel": render_parallel_execution_page,
     "Agents": render_agents_page,

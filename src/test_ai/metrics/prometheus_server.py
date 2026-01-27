@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from urllib.request import Request, urlopen
 from urllib.error import URLError
@@ -332,9 +331,7 @@ GRAFANA_DASHBOARD = {
             "title": "Active Workflows",
             "type": "stat",
             "gridPos": {"h": 4, "w": 4, "x": 0, "y": 0},
-            "targets": [
-                {"expr": "gorgon_active_workflows", "legendFormat": "Active"}
-            ],
+            "targets": [{"expr": "gorgon_active_workflows", "legendFormat": "Active"}],
         },
         {
             "title": "Success Rate",
@@ -359,17 +356,13 @@ GRAFANA_DASHBOARD = {
             "title": "Total Executions",
             "type": "stat",
             "gridPos": {"h": 4, "w": 4, "x": 8, "y": 0},
-            "targets": [
-                {"expr": "gorgon_workflows_total", "legendFormat": "Total"}
-            ],
+            "targets": [{"expr": "gorgon_workflows_total", "legendFormat": "Total"}],
         },
         {
             "title": "Total Tokens Used",
             "type": "stat",
             "gridPos": {"h": 4, "w": 4, "x": 12, "y": 0},
-            "targets": [
-                {"expr": "gorgon_tokens_used_total", "legendFormat": "Tokens"}
-            ],
+            "targets": [{"expr": "gorgon_tokens_used_total", "legendFormat": "Tokens"}],
         },
         {
             "title": "Workflow Duration (p95)",

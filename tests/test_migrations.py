@@ -1,8 +1,7 @@
 """Tests for database migrations module."""
 
 import sys
-from pathlib import Path
-from unittest.mock import MagicMock, patch, mock_open
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -112,7 +111,9 @@ class TestGetMigrationFiles:
             MagicMock(name="001_first.sql"),
             MagicMock(name="002_second.sql"),
         ]
-        for f, name in zip(mock_files, ["003_third.sql", "001_first.sql", "002_second.sql"]):
+        for f, name in zip(
+            mock_files, ["003_third.sql", "001_first.sql", "002_second.sql"]
+        ):
             f.name = name
 
         with patch("test_ai.state.migrations.MIGRATIONS_DIR") as mock_dir:
@@ -162,8 +163,13 @@ class TestRunMigrations:
         mock_file.read_text.return_value = "CREATE TABLE test;"
         mock_file.stem = "001_initial"
 
-        with patch("test_ai.state.migrations._get_applied_migrations", return_value={"001"}):
-            with patch("test_ai.state.migrations._get_migration_files", return_value=[("001", mock_file)]):
+        with patch(
+            "test_ai.state.migrations._get_applied_migrations", return_value={"001"}
+        ):
+            with patch(
+                "test_ai.state.migrations._get_migration_files",
+                return_value=[("001", mock_file)],
+            ):
                 result = run_migrations(mock_backend)
                 assert result == []
 
@@ -178,8 +184,13 @@ class TestRunMigrations:
         mock_file.stem = "001_initial"
         mock_file.name = "001_initial.sql"
 
-        with patch("test_ai.state.migrations._get_applied_migrations", return_value=set()):
-            with patch("test_ai.state.migrations._get_migration_files", return_value=[("001", mock_file)]):
+        with patch(
+            "test_ai.state.migrations._get_applied_migrations", return_value=set()
+        ):
+            with patch(
+                "test_ai.state.migrations._get_migration_files",
+                return_value=[("001", mock_file)],
+            ):
                 result = run_migrations(mock_backend)
 
                 assert result == ["001"]
@@ -198,8 +209,13 @@ class TestRunMigrations:
         mock_file.stem = "001_bad"
         mock_file.name = "001_bad.sql"
 
-        with patch("test_ai.state.migrations._get_applied_migrations", return_value=set()):
-            with patch("test_ai.state.migrations._get_migration_files", return_value=[("001", mock_file)]):
+        with patch(
+            "test_ai.state.migrations._get_applied_migrations", return_value=set()
+        ):
+            with patch(
+                "test_ai.state.migrations._get_migration_files",
+                return_value=[("001", mock_file)],
+            ):
                 with pytest.raises(RuntimeError, match="Migration 001 failed"):
                     run_migrations(mock_backend)
 
@@ -212,8 +228,14 @@ class TestGetMigrationStatus:
         mock_backend = MagicMock()
         mock_file = MagicMock()
 
-        with patch("test_ai.state.migrations._get_applied_migrations", return_value={"001", "002"}):
-            with patch("test_ai.state.migrations._get_migration_files", return_value=[("001", mock_file), ("002", mock_file)]):
+        with patch(
+            "test_ai.state.migrations._get_applied_migrations",
+            return_value={"001", "002"},
+        ):
+            with patch(
+                "test_ai.state.migrations._get_migration_files",
+                return_value=[("001", mock_file), ("002", mock_file)],
+            ):
                 result = get_migration_status(mock_backend)
 
                 assert result["up_to_date"] is True
@@ -225,8 +247,17 @@ class TestGetMigrationStatus:
         mock_backend = MagicMock()
         mock_file = MagicMock()
 
-        with patch("test_ai.state.migrations._get_applied_migrations", return_value={"001"}):
-            with patch("test_ai.state.migrations._get_migration_files", return_value=[("001", mock_file), ("002", mock_file), ("003", mock_file)]):
+        with patch(
+            "test_ai.state.migrations._get_applied_migrations", return_value={"001"}
+        ):
+            with patch(
+                "test_ai.state.migrations._get_migration_files",
+                return_value=[
+                    ("001", mock_file),
+                    ("002", mock_file),
+                    ("003", mock_file),
+                ],
+            ):
                 result = get_migration_status(mock_backend)
 
                 assert result["up_to_date"] is False
@@ -237,8 +268,12 @@ class TestGetMigrationStatus:
         """Handles case with no migrations."""
         mock_backend = MagicMock()
 
-        with patch("test_ai.state.migrations._get_applied_migrations", return_value=set()):
-            with patch("test_ai.state.migrations._get_migration_files", return_value=[]):
+        with patch(
+            "test_ai.state.migrations._get_applied_migrations", return_value=set()
+        ):
+            with patch(
+                "test_ai.state.migrations._get_migration_files", return_value=[]
+            ):
                 result = get_migration_status(mock_backend)
 
                 assert result["up_to_date"] is True

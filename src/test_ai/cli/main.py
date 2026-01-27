@@ -1726,7 +1726,6 @@ def metrics_export(
     """Export workflow metrics."""
     try:
         from test_ai.metrics import (
-            MetricsCollector,
             PrometheusExporter,
             JsonExporter,
             get_collector,
@@ -1780,7 +1779,7 @@ def metrics_serve(
         collector = get_collector()
         server = PrometheusMetricsServer(collector, host=host, port=port)
 
-        console.print(f"[cyan]Starting Prometheus metrics server...[/cyan]")
+        console.print("[cyan]Starting Prometheus metrics server...[/cyan]")
         console.print(f"[bold]URL:[/bold] http://{host}:{port}/metrics")
         console.print(f"[bold]Health:[/bold] http://{host}:{port}/health")
         console.print("\n[dim]Press Ctrl+C to stop[/dim]")
@@ -1895,7 +1894,7 @@ def config_path():
     if env_path.exists():
         console.print(f"[green]✓[/green] .env: {env_path.absolute()}")
     else:
-        console.print(f"[yellow]○[/yellow] .env: not found")
+        console.print("[yellow]○[/yellow] .env: not found")
 
     # Environment variables
     gorgon_vars = {k: v for k, v in os.environ.items() if k.startswith("GORGON_")}
@@ -1908,8 +1907,8 @@ def config_path():
 
     # Config directories
     console.print("\n[bold]Search Paths:[/bold]")
-    console.print(f"  ./config/")
-    console.print(f"  ~/.config/gorgon/")
+    console.print("  ./config/")
+    console.print("  ~/.config/gorgon/")
 
 
 @config_app.command("env")
@@ -1973,7 +1972,7 @@ def dashboard(
         raise typer.Exit(1)
 
     url = f"http://{host}:{port}"
-    console.print(f"[cyan]Starting Gorgon Dashboard...[/cyan]")
+    console.print("[cyan]Starting Gorgon Dashboard...[/cyan]")
     console.print(f"[bold]URL:[/bold] {url}")
     console.print("\n[dim]Press Ctrl+C to stop[/dim]\n")
 
@@ -2030,7 +2029,9 @@ def plugins_list(
 
     if not plugins:
         console.print("[yellow]No plugins installed[/yellow]")
-        console.print("\n[dim]Plugins extend Gorgon with custom step types and integrations.[/dim]")
+        console.print(
+            "\n[dim]Plugins extend Gorgon with custom step types and integrations.[/dim]"
+        )
         return
 
     table = Table(title="Installed Plugins")
