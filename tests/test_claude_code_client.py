@@ -1,7 +1,6 @@
 """Tests for ClaudeCodeClient skill context injection."""
 
 import json
-from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest

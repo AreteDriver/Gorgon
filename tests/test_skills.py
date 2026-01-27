@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from test_ai.skills import SkillLibrary, SkillCapability, SkillDefinition, SkillRegistry
+from test_ai.skills import SkillLibrary, SkillCapability, SkillDefinition
 from test_ai.skills.loader import load_skill, load_registry
 
 SKILLS_DIR = Path(__file__).parent.parent / "skills"

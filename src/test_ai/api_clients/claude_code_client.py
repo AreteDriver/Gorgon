@@ -4,7 +4,6 @@ import asyncio
 import json
 import logging
 import subprocess
-from pathlib import Path
 from typing import Any, Dict, Optional
 
 from test_ai.config import get_settings
@@ -149,6 +148,10 @@ class ClaudeCodeClient:
         self.client = None
         self._enforcer = None
         self._enforcer_init_attempted = False
+        self._voter = None
+        self._voter_init_attempted = False
+        self._library = None
+        self._library_init_attempted = False
         self.role_prompts = self._load_role_prompts(settings)
         self._inject_skill_context(settings)
 
@@ -228,6 +231,109 @@ class ClaudeCodeClient:
                 logger.debug("Failed to initialize SkillEnforcer")
         return self._enforcer
 
+    @property
+    def library(self):
+        """Lazy-init SkillLibrary, returning None on failure."""
+        if not self._library_init_attempted:
+            self._library_init_attempted = True
+            try:
+                from test_ai.skills import SkillLibrary
+
+                self._library = SkillLibrary()
+            except Exception:
+                logger.debug("Failed to initialize SkillLibrary")
+        return self._library
+
+    @property
+    def voter(self):
+        """Lazy-init ConsensusVoter, returning None on failure."""
+        if not self._voter_init_attempted:
+            self._voter_init_attempted = True
+            try:
+                from test_ai.skills import ConsensusVoter
+
+                self._voter = ConsensusVoter(self)
+            except Exception:
+                logger.debug("Failed to initialize ConsensusVoter")
+        return self._voter
+
+    def _resolve_consensus_level(self, role: str, task: str) -> Optional[str]:
+        """Determine consensus level for a role+task.
+
+        Tries capability-level matching first (scanning task text for capability
+        names), falling back to the highest consensus across all role capabilities.
+        """
+        lib = self.library
+        if lib is None:
+            return None
+
+        agents = DEFAULT_ROLE_SKILL_AGENTS.get(role)
+        if not agents:
+            return None
+
+        # Try capability-level match: scan task for capability names
+        task_lower = task.lower()
+        matched_level: Optional[str] = None
+        matched_order = -1
+
+        from test_ai.skills.consensus import consensus_level_order
+
+        for agent in agents:
+            for skill in lib.get_skills_for_agent(agent):
+                for cap in skill.capabilities:
+                    cap_name_parts = cap.name.lower().replace("_", " ")
+                    if cap_name_parts in task_lower or cap.name.lower() in task_lower:
+                        order = consensus_level_order(cap.consensus_required)
+                        if order > matched_order:
+                            matched_order = order
+                            matched_level = cap.consensus_required
+
+        if matched_level is not None:
+            return matched_level
+
+        # Fallback: highest across all capabilities for this role
+        return lib.get_highest_consensus_for_role(role, DEFAULT_ROLE_SKILL_AGENTS)
+
+    def _check_consensus(self, role: str, task: str, enforcement: dict) -> Optional[dict]:
+        """Run consensus vote, returning None to skip or a verdict dict."""
+        try:
+            if not enforcement.get("passed", True):
+                return None
+            level = self._resolve_consensus_level(role, task)
+            if level is None or level == "any":
+                return None
+            v = self.voter
+            if v is None:
+                return None
+            verdict = v.vote(task, level, role=role)
+            d = verdict.to_dict()
+            if d.get("requires_user_confirmation"):
+                d["pending_user_confirmation"] = True
+            return d
+        except Exception:
+            logger.warning("Consensus check failed, skipping", exc_info=True)
+            return None
+
+    async def _check_consensus_async(self, role: str, task: str, enforcement: dict) -> Optional[dict]:
+        """Async version of _check_consensus."""
+        try:
+            if not enforcement.get("passed", True):
+                return None
+            level = self._resolve_consensus_level(role, task)
+            if level is None or level == "any":
+                return None
+            v = self.voter
+            if v is None:
+                return None
+            verdict = await v.vote_async(task, level, role=role)
+            d = verdict.to_dict()
+            if d.get("requires_user_confirmation"):
+                d["pending_user_confirmation"] = True
+            return d
+        except Exception:
+            logger.warning("Consensus check failed, skipping", exc_info=True)
+            return None
+
     def _check_enforcement(self, role: str, output: str) -> dict:
         """Run enforcement check, failing open on errors."""
         try:
@@ -302,6 +408,16 @@ class ClaudeCodeClient:
 
             result = {"success": True, "output": output, "role": role}
             result["enforcement"] = self._check_enforcement(role, output)
+
+            consensus = self._check_consensus(role, task, result["enforcement"])
+            if consensus is not None:
+                result["consensus"] = consensus
+                if not consensus["approved"]:
+                    result["success"] = False
+                    result["error"] = "Consensus vote rejected the operation"
+                elif consensus.get("pending_user_confirmation"):
+                    result["pending_user_confirmation"] = True
+
             return result
         except Exception as e:
             return {"success": False, "error": str(e), "role": role}
@@ -471,6 +587,16 @@ class ClaudeCodeClient:
 
             result = {"success": True, "output": output, "role": role}
             result["enforcement"] = self._check_enforcement(role, output)
+
+            consensus = await self._check_consensus_async(role, task, result["enforcement"])
+            if consensus is not None:
+                result["consensus"] = consensus
+                if not consensus["approved"]:
+                    result["success"] = False
+                    result["error"] = "Consensus vote rejected the operation"
+                elif consensus.get("pending_user_confirmation"):
+                    result["pending_user_confirmation"] = True
+
             return result
         except Exception as e:
             return {"success": False, "error": str(e), "role": role}

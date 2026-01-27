@@ -5,6 +5,7 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
+from .consensus import consensus_level_order
 from .loader import load_registry
 from .models import SkillCapability, SkillDefinition, SkillRegistry
 
@@ -45,6 +46,31 @@ class SkillLibrary:
         if cap is None:
             return None
         return cap.consensus_required
+
+    def get_highest_consensus_for_role(
+        self, role: str, role_skill_agents: dict[str, list[str]]
+    ) -> str | None:
+        """Return the highest consensus level across all capabilities for a role.
+
+        Iterates the role's skill agents, collects all capabilities, and returns
+        the maximum consensus_required value.  Returns None if the role has no
+        mapped agents or no capabilities.
+        """
+        agents = role_skill_agents.get(role)
+        if not agents:
+            return None
+
+        highest: int = -1
+        highest_level: str | None = None
+
+        for agent in agents:
+            for skill in self.get_skills_for_agent(agent):
+                for cap in skill.capabilities:
+                    order = consensus_level_order(cap.consensus_required)
+                    if order > highest:
+                        highest = order
+                        highest_level = cap.consensus_required
+        return highest_level
 
     def build_skill_context(self, agent: str) -> str:
         """Render skill docs into a prompt-injectable string for an agent."""

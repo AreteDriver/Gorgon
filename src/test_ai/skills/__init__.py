@@ -9,8 +9,19 @@ from .enforcer import (
     Violation,
     ViolationType,
 )
+from .consensus import (
+    ConsensusLevel,
+    ConsensusVerdict,
+    ConsensusVoter,
+    Vote,
+    VoteDecision,
+    consensus_level_order,
+)
 
 __all__ = [
+    "ConsensusLevel",
+    "ConsensusVerdict",
+    "ConsensusVoter",
     "EnforcementAction",
     "EnforcementResult",
     "SkillEnforcer",
@@ -20,4 +31,7 @@ __all__ = [
     "SkillRegistry",
     "Violation",
     "ViolationType",
+    "Vote",
+    "VoteDecision",
+    "consensus_level_order",
 ]
