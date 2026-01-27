@@ -114,13 +114,15 @@ API Documentation: http://localhost:8000/docs
 
 ### Required Environment Variables
 
-- `OPENAI_API_KEY` - Your OpenAI API key (required)
+- `OPENAI_API_KEY` - Your OpenAI API key (required for OpenAI workflows)
+- `ANTHROPIC_API_KEY` - Your Anthropic API key (required for Claude workflows)
 
 ### Optional Environment Variables
 
 - `GITHUB_TOKEN` - GitHub personal access token (for GitHub integration)
 - `NOTION_TOKEN` - Notion integration token (for Notion integration)
 - `GMAIL_CREDENTIALS_PATH` - Path to Gmail OAuth credentials (for Gmail integration)
+- `CLAUDE_MODE` - Set to `api` (default) or `cli` for Claude integration mode
 
 ### Getting API Credentials
 
@@ -128,6 +130,11 @@ API Documentation: http://localhost:8000/docs
 1. Go to https://platform.openai.com/api-keys
 2. Create a new API key
 3. Add it to `.env` as `OPENAI_API_KEY`
+
+#### Anthropic API Key (for Claude)
+1. Go to https://console.anthropic.com/settings/keys
+2. Create a new API key
+3. Add it to `.env` as `ANTHROPIC_API_KEY`
 
 #### GitHub Token
 1. Go to https://github.com/settings/tokens
