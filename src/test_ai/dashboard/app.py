@@ -18,6 +18,18 @@ from test_ai.dashboard.monitoring_pages import (
     render_parallel_status_sidebar,
 )
 
+# Import new components
+try:
+    from test_ai.dashboard.workflow_visualizer import (
+        render_workflow_visualizer,
+        render_workflow_summary,
+        render_agent_activity,
+    )
+    from test_ai.dashboard.cost_dashboard import render_cost_dashboard, render_cost_widget
+    NEW_COMPONENTS_AVAILABLE = True
+except ImportError:
+    NEW_COMPONENTS_AVAILABLE = False
+
 
 # Initialize components
 @st.cache_resource
@@ -44,6 +56,7 @@ def render_sidebar():
 
     pages = {
         "Dashboard": "📊",
+        "Costs": "💰",
         "Monitoring": "🔴",
         "Parallel": "🔀",
         "Agents": "🤖",
@@ -62,6 +75,13 @@ def render_sidebar():
     # Show system status in sidebar
     render_system_status()
     render_parallel_status_sidebar()
+
+    # Show cost widget if available
+    if NEW_COMPONENTS_AVAILABLE:
+        try:
+            render_cost_widget()
+        except Exception:
+            pass
 
     return page
 
@@ -373,6 +393,7 @@ def render_logs_page():
 
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
+    "Costs": render_cost_dashboard if NEW_COMPONENTS_AVAILABLE else render_dashboard_page,
     "Monitoring": render_monitoring_page,
     "Parallel": render_parallel_execution_page,
     "Agents": render_agents_page,
