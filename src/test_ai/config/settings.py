@@ -87,6 +87,10 @@ class Settings(BaseSettings):
     plugins_dir: Path = Field(
         default_factory=lambda: Path(__file__).parent.parent / "plugins" / "custom"
     )
+    skills_dir: Path = Field(
+        default_factory=lambda: Path(__file__).parent.parent.parent.parent / "skills",
+        description="Directory containing skill definitions (schema.yaml + SKILL.md)",
+    )
 
     # Database
     database_url: str = Field(
