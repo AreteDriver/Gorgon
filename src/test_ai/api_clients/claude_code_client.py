@@ -2,12 +2,16 @@
 
 import asyncio
 import json
+import logging
 import subprocess
+from pathlib import Path
 from typing import Any, Dict, Optional
 
 from test_ai.config import get_settings
 from test_ai.utils.retry import with_retry, async_with_retry
 from test_ai.api_clients.resilience import resilient_call, resilient_call_async
+
+logger = logging.getLogger(__name__)
 
 try:
     import anthropic
@@ -124,6 +128,15 @@ When generating code:
 For non-code tasks, provide detailed instructions that can be followed in the target 3D application.""",
 }
 
+# Default mapping of Gorgon roles to skill agent categories
+DEFAULT_ROLE_SKILL_AGENTS: Dict[str, list[str]] = {
+    "builder": ["system", "browser"],
+    "devops": ["system"],
+    "security_auditor": ["system"],
+    "planner": ["system", "browser"],
+    "reviewer": ["system"],
+}
+
 
 class ClaudeCodeClient:
     """Wrapper for Claude Code with both API and CLI modes."""
@@ -135,6 +148,7 @@ class ClaudeCodeClient:
         self.cli_path = settings.claude_cli_path
         self.client = None
         self.role_prompts = self._load_role_prompts(settings)
+        self._inject_skill_context(settings)
 
         if self.mode == "api" and self.api_key and anthropic:
             self.client = anthropic.Anthropic(api_key=self.api_key)
@@ -156,6 +170,45 @@ class ClaudeCodeClient:
             except Exception:
                 pass
         return DEFAULT_ROLE_PROMPTS.copy()
+
+    @staticmethod
+    def _load_role_skill_mapping(settings) -> Dict[str, list[str]]:
+        """Load role-to-skill-agent mapping from config or use defaults."""
+        mapping_file = settings.base_dir / "config" / "role_skill_mapping.json"
+        if mapping_file.exists():
+            try:
+                with open(mapping_file) as f:
+                    return json.load(f)
+            except Exception:
+                logger.warning("Failed to load role_skill_mapping.json, using defaults")
+        return DEFAULT_ROLE_SKILL_AGENTS.copy()
+
+    def _inject_skill_context(self, settings) -> None:
+        """Append skill context to role prompts for mapped roles."""
+        try:
+            from test_ai.skills import SkillLibrary
+        except ImportError:
+            logger.debug("Skills module not available, skipping skill injection")
+            return
+
+        mapping = self._load_role_skill_mapping(settings)
+
+        try:
+            library = SkillLibrary()
+        except Exception:
+            logger.debug("Failed to initialize SkillLibrary, skipping skill injection")
+            return
+
+        for role, agents in mapping.items():
+            if role not in self.role_prompts:
+                continue
+            context_parts: list[str] = []
+            for agent in agents:
+                ctx = library.build_skill_context(agent)
+                if ctx:
+                    context_parts.append(ctx)
+            if context_parts:
+                self.role_prompts[role] += "\n\n---\n\n" + "\n\n".join(context_parts)
 
     def is_configured(self) -> bool:
         """Check if Claude Code client is configured."""
