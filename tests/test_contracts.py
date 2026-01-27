@@ -23,10 +23,12 @@ class TestAgentRole:
         assert AgentRole.BUILDER.value == "builder"
         assert AgentRole.TESTER.value == "tester"
         assert AgentRole.REVIEWER.value == "reviewer"
+        assert AgentRole.MODEL_BUILDER.value == "model_builder"
 
     def test_role_from_string(self):
         """Can create role from string value."""
         assert AgentRole("planner") == AgentRole.PLANNER
+        assert AgentRole("model_builder") == AgentRole.MODEL_BUILDER
 
 
 class TestAgentContract:
@@ -120,6 +122,7 @@ class TestGetContract:
             AgentRole.BUILDER,
             AgentRole.TESTER,
             AgentRole.REVIEWER,
+            AgentRole.MODEL_BUILDER,
         ]
         for role in core_roles:
             contract = get_contract(role)
@@ -209,3 +212,113 @@ class TestContractViolation:
         """Violation includes role."""
         violation = ContractViolation("Error", role="builder")
         assert violation.role == "builder"
+
+
+class TestModelBuilderContract:
+    """Tests for the MODEL_BUILDER agent contract."""
+
+    def test_model_builder_contract_exists(self):
+        """MODEL_BUILDER contract is registered."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        assert contract is not None
+        assert contract.role == AgentRole.MODEL_BUILDER
+
+    def test_model_builder_by_string(self):
+        """Can get MODEL_BUILDER contract by string."""
+        contract = get_contract("model_builder")
+        assert contract.role == AgentRole.MODEL_BUILDER
+
+    def test_model_builder_input_validation_success(self):
+        """Valid MODEL_BUILDER input passes validation."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        valid_input = {
+            "request": "Create a procedural terrain generator",
+            "target_platform": "unity",
+            "asset_type": "script",
+        }
+        assert contract.validate_input(valid_input) is True
+
+    def test_model_builder_input_validation_minimal(self):
+        """MODEL_BUILDER accepts minimal required fields."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        minimal_input = {
+            "request": "Create a shader",
+            "target_platform": "blender",
+        }
+        assert contract.validate_input(minimal_input) is True
+
+    def test_model_builder_input_validation_all_platforms(self):
+        """MODEL_BUILDER accepts all valid platforms."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        platforms = ["unity", "blender", "unreal", "godot", "threejs", "generic"]
+        for platform in platforms:
+            valid_input = {
+                "request": "Create an asset",
+                "target_platform": platform,
+            }
+            assert contract.validate_input(valid_input) is True
+
+    def test_model_builder_input_validation_failure_missing_fields(self):
+        """MODEL_BUILDER rejects input missing required fields."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        invalid_input = {"request": "Create something"}  # Missing target_platform
+        with pytest.raises(ContractViolation):
+            contract.validate_input(invalid_input)
+
+    def test_model_builder_input_validation_failure_invalid_platform(self):
+        """MODEL_BUILDER rejects invalid platform."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        invalid_input = {
+            "request": "Create an asset",
+            "target_platform": "invalid_platform",
+        }
+        with pytest.raises(ContractViolation):
+            contract.validate_input(invalid_input)
+
+    def test_model_builder_output_validation_success(self):
+        """Valid MODEL_BUILDER output passes validation."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        valid_output = {
+            "assets": [
+                {
+                    "name": "TerrainGenerator.cs",
+                    "type": "script",
+                    "content": "using UnityEngine; public class TerrainGenerator {}",
+                }
+            ],
+            "instructions": [
+                {"step": 1, "action": "Import the script into Unity"}
+            ],
+            "status": "complete",
+        }
+        assert contract.validate_output(valid_output) is True
+
+    def test_model_builder_output_validation_partial_status(self):
+        """MODEL_BUILDER accepts partial status."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        valid_output = {
+            "assets": [],
+            "instructions": [
+                {"step": 1, "action": "Open Blender and create a new mesh"}
+            ],
+            "status": "needs_manual_work",
+        }
+        assert contract.validate_output(valid_output) is True
+
+    def test_model_builder_output_validation_failure(self):
+        """MODEL_BUILDER rejects invalid output."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        invalid_output = {"wrong": "data"}
+        with pytest.raises(ContractViolation):
+            contract.validate_output(invalid_output)
+
+    def test_model_builder_description(self):
+        """MODEL_BUILDER has a meaningful description."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        assert "3D" in contract.description
+        assert len(contract.description) > 20
+
+    def test_model_builder_required_context(self):
+        """MODEL_BUILDER has appropriate required context."""
+        contract = get_contract(AgentRole.MODEL_BUILDER)
+        assert "target_platform" in contract.required_context

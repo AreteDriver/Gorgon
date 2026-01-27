@@ -274,12 +274,129 @@ REVIEWER_CONTRACT = AgentContract(
 )
 
 
+MODEL_BUILDER_CONTRACT = AgentContract(
+    role=AgentRole.MODEL_BUILDER,
+    description="Creates and modifies 3D models, scenes, and assets for Unity, Blender, and other 3D tools",
+    input_schema={
+        "type": "object",
+        "required": ["request", "target_platform"],
+        "properties": {
+            "request": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Description of the 3D model or scene to create/modify",
+            },
+            "target_platform": {
+                "type": "string",
+                "enum": ["unity", "blender", "unreal", "godot", "threejs", "generic"],
+                "description": "Target 3D platform or engine",
+            },
+            "asset_type": {
+                "type": "string",
+                "enum": ["model", "scene", "material", "shader", "animation", "prefab", "script"],
+                "description": "Type of 3D asset to work with",
+            },
+            "existing_assets": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "List of existing asset files to reference or modify",
+            },
+            "specifications": {
+                "type": "object",
+                "description": "Technical specifications (poly count, texture size, etc.)",
+                "properties": {
+                    "max_polygons": {"type": "integer", "minimum": 1},
+                    "texture_resolution": {"type": "string"},
+                    "target_fps": {"type": "integer", "minimum": 1},
+                    "lod_levels": {"type": "integer", "minimum": 1, "maximum": 10},
+                },
+            },
+            "style_reference": {
+                "type": "string",
+                "description": "Style guide or reference for the asset",
+            },
+            "constraints": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Technical or artistic constraints",
+            },
+        },
+    },
+    output_schema={
+        "type": "object",
+        "required": ["assets", "instructions", "status"],
+        "properties": {
+            "assets": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["name", "type", "content"],
+                    "properties": {
+                        "name": {"type": "string"},
+                        "type": {
+                            "type": "string",
+                            "enum": [
+                                "script",
+                                "shader",
+                                "material_config",
+                                "scene_config",
+                                "prefab_config",
+                                "animation_config",
+                                "model_config",
+                            ],
+                        },
+                        "content": {"type": "string"},
+                        "file_path": {"type": "string"},
+                        "description": {"type": "string"},
+                    },
+                },
+            },
+            "instructions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "required": ["step", "action"],
+                    "properties": {
+                        "step": {"type": "integer", "minimum": 1},
+                        "action": {"type": "string"},
+                        "tool": {"type": "string"},
+                        "details": {"type": "string"},
+                    },
+                },
+                "description": "Step-by-step instructions for manual tasks",
+            },
+            "status": {
+                "type": "string",
+                "enum": ["complete", "partial", "needs_manual_work"],
+            },
+            "dependencies": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Required packages, assets, or plugins",
+            },
+            "optimization_notes": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Performance optimization suggestions",
+            },
+            "warnings": {
+                "type": "array",
+                "items": {"type": "string"},
+                "description": "Potential issues or considerations",
+            },
+        },
+    },
+    required_context=["target_platform"],
+)
+
+
 # Registry of all contracts by role
 _CONTRACT_REGISTRY: dict[AgentRole, AgentContract] = {
     AgentRole.PLANNER: PLANNER_CONTRACT,
     AgentRole.BUILDER: BUILDER_CONTRACT,
     AgentRole.TESTER: TESTER_CONTRACT,
     AgentRole.REVIEWER: REVIEWER_CONTRACT,
+    AgentRole.MODEL_BUILDER: MODEL_BUILDER_CONTRACT,
 }
 
 
