@@ -219,6 +219,10 @@ class BaseAPIClient:
 | `architect` | System design - makes architectural decisions |
 | `documenter` | Documentation - creates API docs and guides |
 | `model_builder` | 3D asset creation - scripts, shaders, materials for Unity/Blender/Unreal/Godot/Three.js |
+| `data_analyst` | Data analysis - SQL queries, pandas pipelines, visualizations, statistical analysis |
+| `devops` | Infrastructure - Docker, Kubernetes, CI/CD, Terraform, cloud configurations |
+| `security_auditor` | Security - vulnerability scanning, OWASP compliance, dependency audits |
+| `migrator` | Migrations - framework upgrades, language migrations, API updates, refactoring |
 
 **Configuration:**
 - Agent prompts configurable via `config/agent_prompts.json`
@@ -546,6 +550,86 @@ The `model_builder` agent enables creation of 3D assets, scripts, shaders, and c
 | `animation_controller` | State machines and blend trees |
 
 See `examples/3d-assets/` for usage examples.
+
+### Specialized Agent Workflows
+
+| Workflow | Agent | Purpose |
+|----------|-------|---------|
+| `data-analysis.yaml` | data_analyst | Analyze data, generate SQL/pandas code, create visualizations |
+| `infrastructure-setup.yaml` | devops | Create Docker, Kubernetes, Terraform, CI/CD configs |
+| `security-audit.yaml` | security_auditor | Full security audit with compliance checking |
+| `code-migration.yaml` | migrator | Framework upgrades and code migrations |
+
+### Slack Integration
+
+The Slack client (`api_clients/slack_client.py`) provides:
+
+**Notification Types:**
+- Workflow status updates (started, completed, failed)
+- Code review results
+- Approval requests with interactive buttons
+- Custom messages with color-coded severity
+
+**Example Usage:**
+```python
+from test_ai.api_clients.slack_client import SlackClient, MessageType
+
+slack = SlackClient(token="xoxb-...")
+
+# Send workflow notification
+slack.send_workflow_notification(
+    channel="#deployments",
+    workflow_name="feature-build",
+    status="completed",
+    details={"duration": "5m 32s", "steps": 4}
+)
+
+# Send approval request
+slack.send_approval_request(
+    channel="#approvals",
+    title="Production Deploy",
+    description="Deploy v2.1.0 to production?",
+    requester="@engineer"
+)
+```
+
+### Cost Tracking
+
+The cost tracker (`metrics/cost_tracker.py`) provides:
+
+**Features:**
+- Per-call token and cost tracking
+- Aggregation by workflow, agent, model, and time period
+- Budget limits with alerts
+- CSV export for reporting
+
+**Supported Models:**
+- OpenAI: GPT-4, GPT-4o, GPT-3.5-turbo
+- Anthropic: Claude 3 Opus/Sonnet/Haiku, Claude 3.5
+
+**Example Usage:**
+```python
+from test_ai.metrics.cost_tracker import CostTracker, Provider
+
+tracker = CostTracker(
+    storage_path=Path("data/costs.json"),
+    budget_limit_usd=100.0
+)
+
+# Track API call
+tracker.track(
+    provider=Provider.ANTHROPIC,
+    model="claude-sonnet-4-20250514",
+    input_tokens=1500,
+    output_tokens=2000,
+    workflow_id="feature-123",
+    agent_role="builder"
+)
+
+# Get summary
+summary = tracker.get_summary(days=30)
+print(f"Monthly cost: ${summary['total_cost_usd']:.2f}")
+```
 
 ## Design Patterns
 

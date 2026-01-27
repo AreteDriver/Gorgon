@@ -20,6 +20,10 @@ class AgentRole(Enum):
     VISUALIZER = "visualizer"
     REPORTER = "reporter"
     MODEL_BUILDER = "model_builder"
+    DATA_ANALYST = "data_analyst"
+    DEVOPS = "devops"
+    SECURITY_AUDITOR = "security_auditor"
+    MIGRATOR = "migrator"
 
 
 class ContractViolation(Exception):
