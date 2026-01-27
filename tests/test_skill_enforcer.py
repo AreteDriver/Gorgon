@@ -109,7 +109,9 @@ class TestBlockedPatterns:
         assert result.violations[0].severity == "critical"
 
     def test_fork_bomb(self, library):
-        skill = _make_skill(blocked_patterns=[r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:"])
+        skill = _make_skill(
+            blocked_patterns=[r":\(\)\s*\{\s*:\s*\|\s*:\s*&\s*\}\s*;\s*:"]
+        )
         enforcer = _make_enforcer(library, [skill])
         result = enforcer.check_output("builder", ":(){ :|:& };:")
 
@@ -152,7 +154,9 @@ class TestEdgeCases:
         assert result.passed is True
 
     def test_unmapped_role_allows(self, library):
-        enforcer = _make_enforcer(library, [_make_skill(blocked_patterns=[r"rm\s+-rf\s+/"])])
+        enforcer = _make_enforcer(
+            library, [_make_skill(blocked_patterns=[r"rm\s+-rf\s+/"])]
+        )
         result = enforcer.check_output("unknown_role", "rm -rf /")
         assert result.passed is True
 

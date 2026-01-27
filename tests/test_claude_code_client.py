@@ -28,7 +28,10 @@ def mock_settings(tmp_path):
 def client_no_anthropic(mock_settings):
     """Create client with mocked settings and no anthropic SDK."""
     with (
-        patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+        patch(
+            "test_ai.api_clients.claude_code_client.get_settings",
+            return_value=mock_settings,
+        ),
         patch("test_ai.api_clients.claude_code_client.anthropic", None),
     ):
         return ClaudeCodeClient()
@@ -44,7 +47,10 @@ class TestSkillContextInjection:
         mock_library.build_skill_context.return_value = fake_context
 
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
             patch("test_ai.skills.SkillLibrary", return_value=mock_library),
         ):
@@ -61,7 +67,10 @@ class TestSkillContextInjection:
         mock_library.build_skill_context.return_value = fake_context
 
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
             patch("test_ai.skills.SkillLibrary", return_value=mock_library),
         ):
@@ -74,9 +83,15 @@ class TestSkillContextInjection:
     def test_graceful_fallback_skills_dir_missing(self, mock_settings):
         """Client initializes normally when SkillLibrary fails to load."""
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
-            patch("test_ai.skills.SkillLibrary", side_effect=FileNotFoundError("no skills dir")),
+            patch(
+                "test_ai.skills.SkillLibrary",
+                side_effect=FileNotFoundError("no skills dir"),
+            ),
         ):
             client = ClaudeCodeClient()
 
@@ -86,6 +101,7 @@ class TestSkillContextInjection:
     def test_graceful_fallback_import_error(self, mock_settings):
         """Client initializes normally when skills module can't be imported."""
         import builtins
+
         real_import = builtins.__import__
 
         def mock_import(name, *args, **kwargs):
@@ -94,7 +110,10 @@ class TestSkillContextInjection:
             return real_import(name, *args, **kwargs)
 
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
             patch("builtins.__import__", side_effect=mock_import),
         ):
@@ -114,7 +133,10 @@ class TestSkillContextInjection:
         mock_library.build_skill_context.return_value = fake_context
 
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
             patch("test_ai.skills.SkillLibrary", return_value=mock_library),
         ):
@@ -131,7 +153,10 @@ class TestSkillContextInjection:
         mock_library.build_skill_context.return_value = ""
 
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
             patch("test_ai.skills.SkillLibrary", return_value=mock_library),
         ):
@@ -151,15 +176,20 @@ class TestEnforcementIntegration:
         mock_library.get_skills_for_agent.return_value = []
 
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
             patch("test_ai.skills.SkillLibrary", return_value=mock_library),
         ):
             client = ClaudeCodeClient()
 
         # Mock CLI execution to return output
-        with patch.object(client, "is_configured", return_value=True), \
-             patch.object(client, "_execute_via_cli", return_value="safe output"):
+        with (
+            patch.object(client, "is_configured", return_value=True),
+            patch.object(client, "_execute_via_cli", return_value="safe output"),
+        ):
             client.mode = "cli"
             result = client.execute_agent("builder", "write tests")
 
@@ -171,15 +201,26 @@ class TestEnforcementIntegration:
     def test_enforcement_failure_is_fail_open(self, mock_settings):
         """If enforcer raises, execution still succeeds."""
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
         ):
             client = ClaudeCodeClient()
 
         # Force enforcer to raise
-        with patch.object(client, "is_configured", return_value=True), \
-             patch.object(client, "_execute_via_cli", return_value="output"), \
-             patch.object(type(client), "enforcer", new_callable=lambda: property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))):
+        with (
+            patch.object(client, "is_configured", return_value=True),
+            patch.object(client, "_execute_via_cli", return_value="output"),
+            patch.object(
+                type(client),
+                "enforcer",
+                new_callable=lambda: property(
+                    lambda self: (_ for _ in ()).throw(RuntimeError("boom"))
+                ),
+            ),
+        ):
             client.mode = "cli"
             result = client.execute_agent("builder", "task")
 

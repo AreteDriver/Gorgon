@@ -1728,6 +1728,12 @@ class WorkflowExecutor:
             "model": model,
         }
 
+        # Propagate consensus metadata into step output
+        if result.get("consensus"):
+            output["consensus"] = result["consensus"]
+        if result.get("pending_user_confirmation"):
+            output["pending_user_confirmation"] = True
+
         # Store output in memory
         if self.memory_manager:
             self.memory_manager.store_output(role, step.id, output)

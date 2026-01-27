@@ -148,7 +148,16 @@ class AnalyticsPipeline:
                 task=task,
                 context=str(context),
             )
-            return result.get("output", result)
+            if not result.get("success"):
+                raise RuntimeError(result.get("error", "Agent execution failed"))
+            output = result.get("output", result)
+            if result.get("pending_user_confirmation"):
+                return {
+                    "output": output,
+                    "pending_user_confirmation": True,
+                    "consensus": result.get("consensus"),
+                }
+            return output
 
         self._stages.append((stage_type, agent_handler, config or {}))
         return self

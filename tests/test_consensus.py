@@ -20,6 +20,7 @@ from test_ai.skills.consensus import (
 # Vote parsing
 # ---------------------------------------------------------------------------
 
+
 class TestVoteParsing:
     def test_approve_with_reason(self):
         vote = ConsensusVoter._parse_vote(0, "APPROVE\nLooks safe")
@@ -53,26 +54,33 @@ class TestVoteParsing:
 # Aggregation
 # ---------------------------------------------------------------------------
 
+
 def _make_votes(decisions: list[VoteDecision]) -> list[Vote]:
     return [Vote(voter_id=i, decision=d) for i, d in enumerate(decisions)]
 
 
 class TestAggregation:
     def test_any_one_approve(self):
-        v = ConsensusVoter._aggregate(ConsensusLevel.ANY, _make_votes([VoteDecision.APPROVE]))
+        v = ConsensusVoter._aggregate(
+            ConsensusLevel.ANY, _make_votes([VoteDecision.APPROVE])
+        )
         assert v.approved is True
 
     def test_majority_two_approve(self):
         v = ConsensusVoter._aggregate(
             ConsensusLevel.MAJORITY,
-            _make_votes([VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.REJECT]),
+            _make_votes(
+                [VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.REJECT]
+            ),
         )
         assert v.approved is True
 
     def test_majority_two_reject(self):
         v = ConsensusVoter._aggregate(
             ConsensusLevel.MAJORITY,
-            _make_votes([VoteDecision.APPROVE, VoteDecision.REJECT, VoteDecision.REJECT]),
+            _make_votes(
+                [VoteDecision.APPROVE, VoteDecision.REJECT, VoteDecision.REJECT]
+            ),
         )
         assert v.approved is False
 
@@ -86,7 +94,9 @@ class TestAggregation:
     def test_unanimous_one_reject(self):
         v = ConsensusVoter._aggregate(
             ConsensusLevel.UNANIMOUS,
-            _make_votes([VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.REJECT]),
+            _make_votes(
+                [VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.REJECT]
+            ),
         )
         assert v.approved is False
 
@@ -108,7 +118,9 @@ class TestAggregation:
     def test_verdict_to_dict(self):
         v = ConsensusVoter._aggregate(
             ConsensusLevel.MAJORITY,
-            _make_votes([VoteDecision.APPROVE, VoteDecision.REJECT, VoteDecision.APPROVE]),
+            _make_votes(
+                [VoteDecision.APPROVE, VoteDecision.REJECT, VoteDecision.APPROVE]
+            ),
         )
         d = v.to_dict()
         assert d["level"] == "majority"
@@ -121,6 +133,7 @@ class TestAggregation:
 # ---------------------------------------------------------------------------
 # ConsensusVoter (mocked client)
 # ---------------------------------------------------------------------------
+
 
 class TestConsensusVoter:
     def _mock_client(self, output: str = "APPROVE\nok"):
@@ -187,10 +200,14 @@ class TestConsensusVoter:
 # Audit logging
 # ---------------------------------------------------------------------------
 
+
 class TestAuditLogging:
     def test_vote_emits_audit_log(self, caplog):
         client = MagicMock()
-        client.generate_completion.return_value = {"success": True, "output": "APPROVE\nok"}
+        client.generate_completion.return_value = {
+            "success": True,
+            "output": "APPROVE\nok",
+        }
         voter = ConsensusVoter(client)
         with caplog.at_level(logging.INFO, logger="test_ai.skills.consensus.audit"):
             voter.vote("delete /tmp/foo", "majority", role="builder")
@@ -205,7 +222,10 @@ class TestAuditLogging:
 
     def test_audit_log_truncates_long_operation(self, caplog):
         client = MagicMock()
-        client.generate_completion.return_value = {"success": True, "output": "REJECT\nbad"}
+        client.generate_completion.return_value = {
+            "success": True,
+            "output": "REJECT\nbad",
+        }
         voter = ConsensusVoter(client)
         long_op = "x" * 500
         with caplog.at_level(logging.INFO, logger="test_ai.skills.consensus.audit"):
@@ -229,6 +249,7 @@ class TestAuditLogging:
 # Client integration
 # ---------------------------------------------------------------------------
 
+
 class TestClientConsensusIntegration:
     @pytest.fixture
     def mock_settings(self, tmp_path):
@@ -242,22 +263,29 @@ class TestClientConsensusIntegration:
 
     def _make_client(self, mock_settings):
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
         ):
             from test_ai.api_clients.claude_code_client import ClaudeCodeClient
+
             return ClaudeCodeClient()
 
     def test_consensus_included_when_level_above_any(self, mock_settings):
         client = self._make_client(mock_settings)
         mock_verdict = ConsensusVerdict(
-            level=ConsensusLevel.MAJORITY, approved=True,
+            level=ConsensusLevel.MAJORITY,
+            approved=True,
             votes=_make_votes([VoteDecision.APPROVE] * 3),
         )
         with (
             patch.object(client, "is_configured", return_value=True),
             patch.object(client, "_execute_via_cli", return_value="output"),
-            patch.object(client, "_check_consensus", return_value=mock_verdict.to_dict()),
+            patch.object(
+                client, "_check_consensus", return_value=mock_verdict.to_dict()
+            ),
         ):
             client.mode = "cli"
             result = client.execute_agent("builder", "write tests")
@@ -270,7 +298,11 @@ class TestClientConsensusIntegration:
         with (
             patch.object(client, "is_configured", return_value=True),
             patch.object(client, "_execute_via_cli", return_value="output"),
-            patch.object(client, "_check_enforcement", return_value={"action": "block", "passed": False, "violations": []}),
+            patch.object(
+                client,
+                "_check_enforcement",
+                return_value={"action": "block", "passed": False, "violations": []},
+            ),
         ):
             client.mode = "cli"
             result = client.execute_agent("builder", "write tests")
@@ -279,13 +311,18 @@ class TestClientConsensusIntegration:
     def test_rejected_consensus_sets_failure(self, mock_settings):
         client = self._make_client(mock_settings)
         mock_verdict = ConsensusVerdict(
-            level=ConsensusLevel.UNANIMOUS, approved=False,
-            votes=_make_votes([VoteDecision.APPROVE, VoteDecision.REJECT, VoteDecision.REJECT]),
+            level=ConsensusLevel.UNANIMOUS,
+            approved=False,
+            votes=_make_votes(
+                [VoteDecision.APPROVE, VoteDecision.REJECT, VoteDecision.REJECT]
+            ),
         )
         with (
             patch.object(client, "is_configured", return_value=True),
             patch.object(client, "_execute_via_cli", return_value="output"),
-            patch.object(client, "_check_consensus", return_value=mock_verdict.to_dict()),
+            patch.object(
+                client, "_check_consensus", return_value=mock_verdict.to_dict()
+            ),
         ):
             client.mode = "cli"
             result = client.execute_agent("builder", "write tests")
@@ -308,6 +345,7 @@ class TestClientConsensusIntegration:
 # ---------------------------------------------------------------------------
 # Library helper
 # ---------------------------------------------------------------------------
+
 
 class TestGetHighestConsensusForRole:
     def test_returns_highest_level(self):
@@ -344,7 +382,9 @@ class TestConsensusLevelOrder:
     def test_ordering(self):
         assert consensus_level_order("any") < consensus_level_order("majority")
         assert consensus_level_order("majority") < consensus_level_order("unanimous")
-        assert consensus_level_order("unanimous") < consensus_level_order("unanimous_plus_user")
+        assert consensus_level_order("unanimous") < consensus_level_order(
+            "unanimous_plus_user"
+        )
 
     def test_invalid_returns_negative(self):
         assert consensus_level_order("bogus") == -1
@@ -353,6 +393,7 @@ class TestConsensusLevelOrder:
 # ---------------------------------------------------------------------------
 # Cached library property (Task 1)
 # ---------------------------------------------------------------------------
+
 
 class TestCachedLibrary:
     @pytest.fixture
@@ -367,10 +408,14 @@ class TestCachedLibrary:
 
     def _make_client(self, mock_settings):
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
         ):
             from test_ai.api_clients.claude_code_client import ClaudeCodeClient
+
             return ClaudeCodeClient()
 
     def test_library_property_caches(self, mock_settings):
@@ -381,7 +426,9 @@ class TestCachedLibrary:
 
     def test_library_failure_returns_none(self, mock_settings):
         client = self._make_client(mock_settings)
-        with patch("test_ai.skills.SkillLibrary", side_effect=RuntimeError("no skills")):
+        with patch(
+            "test_ai.skills.SkillLibrary", side_effect=RuntimeError("no skills")
+        ):
             client._library_init_attempted = False
             assert client.library is None
 
@@ -389,6 +436,7 @@ class TestCachedLibrary:
 # ---------------------------------------------------------------------------
 # Unanimous + user confirmation (Task 2)
 # ---------------------------------------------------------------------------
+
 
 class TestUserConfirmationFlow:
     @pytest.fixture
@@ -403,10 +451,14 @@ class TestUserConfirmationFlow:
 
     def _make_client(self, mock_settings):
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
         ):
             from test_ai.api_clients.claude_code_client import ClaudeCodeClient
+
             return ClaudeCodeClient()
 
     def test_unanimous_plus_user_sets_pending_flag(self, mock_settings):
@@ -433,7 +485,8 @@ class TestUserConfirmationFlow:
     def test_non_user_confirmation_has_no_pending_flag(self, mock_settings):
         client = self._make_client(mock_settings)
         verdict = ConsensusVerdict(
-            level=ConsensusLevel.MAJORITY, approved=True,
+            level=ConsensusLevel.MAJORITY,
+            approved=True,
             votes=_make_votes([VoteDecision.APPROVE] * 3),
         )
         with (
@@ -450,6 +503,7 @@ class TestUserConfirmationFlow:
 # Capability-level consensus matching (Task 3)
 # ---------------------------------------------------------------------------
 
+
 class TestCapabilityLevelMatching:
     @pytest.fixture
     def mock_settings(self, tmp_path):
@@ -463,10 +517,14 @@ class TestCapabilityLevelMatching:
 
     def _make_client(self, mock_settings):
         with (
-            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch(
+                "test_ai.api_clients.claude_code_client.get_settings",
+                return_value=mock_settings,
+            ),
             patch("test_ai.api_clients.claude_code_client.anthropic", None),
         ):
             from test_ai.api_clients.claude_code_client import ClaudeCodeClient
+
             return ClaudeCodeClient()
 
     def test_matches_capability_in_task(self, mock_settings):
@@ -476,7 +534,8 @@ class TestCapabilityLevelMatching:
         cap_read = SkillCapability(name="read_file", consensus_required="any")
         cap_delete = SkillCapability(name="delete_file", consensus_required="unanimous")
         skill = SkillDefinition(
-            name="file_operations", agent="system",
+            name="file_operations",
+            agent="system",
             capabilities=[cap_read, cap_delete],
         )
 
@@ -487,7 +546,9 @@ class TestCapabilityLevelMatching:
         client._library = mock_lib
         client._library_init_attempted = True
 
-        level = client._resolve_consensus_level("builder", "please delete_file /tmp/foo")
+        level = client._resolve_consensus_level(
+            "builder", "please delete_file /tmp/foo"
+        )
         assert level == "unanimous"
 
     def test_matches_capability_name_with_spaces(self, mock_settings):
@@ -497,7 +558,8 @@ class TestCapabilityLevelMatching:
         cap_read = SkillCapability(name="read_file", consensus_required="any")
         cap_delete = SkillCapability(name="delete_file", consensus_required="unanimous")
         skill = SkillDefinition(
-            name="file_operations", agent="system",
+            name="file_operations",
+            agent="system",
             capabilities=[cap_read, cap_delete],
         )
 
@@ -516,7 +578,9 @@ class TestCapabilityLevelMatching:
 
         cap = SkillCapability(name="delete_file", consensus_required="unanimous")
         skill = SkillDefinition(
-            name="file_operations", agent="system", capabilities=[cap],
+            name="file_operations",
+            agent="system",
+            capabilities=[cap],
         )
 
         client = self._make_client(mock_settings)
@@ -540,6 +604,7 @@ class TestCapabilityLevelMatching:
 # Integration tests with real skill YAML (Task 4)
 # ---------------------------------------------------------------------------
 
+
 class TestRealSkillYAMLIntegration:
     """Tests that load actual skill YAML from the skills/ directory."""
 
@@ -547,6 +612,7 @@ class TestRealSkillYAMLIntegration:
     def library(self):
         from pathlib import Path
         from test_ai.skills.library import SkillLibrary
+
         skills_dir = Path(__file__).parent.parent / "skills"
         if not skills_dir.exists():
             pytest.skip("skills/ directory not found")
@@ -583,8 +649,12 @@ class TestRealSkillYAMLIntegration:
     def test_consensus_level_for_specific_capability(self, library):
         """get_consensus_level returns correct per-capability level."""
         assert library.get_consensus_level("file_operations", "read_file") == "any"
-        assert library.get_consensus_level("file_operations", "delete_file") == "unanimous"
-        assert library.get_consensus_level("file_operations", "update_file") == "majority"
+        assert (
+            library.get_consensus_level("file_operations", "delete_file") == "unanimous"
+        )
+        assert (
+            library.get_consensus_level("file_operations", "update_file") == "majority"
+        )
 
     def test_github_operations_loaded(self, library):
         skill = library.get_skill("github_operations")
@@ -606,6 +676,7 @@ class TestRealSkillYAMLIntegration:
 # Voter diversity (distinct evaluation lenses)
 # ---------------------------------------------------------------------------
 
+
 class TestVoterDiversity:
     def test_three_distinct_prompts(self):
         assert len(VOTER_PROMPTS) == 3
@@ -619,7 +690,10 @@ class TestVoterDiversity:
     def test_each_voter_gets_different_prompt(self):
         """Sync voter calls should use per-voter prompts."""
         client = MagicMock()
-        client.generate_completion.return_value = {"success": True, "output": "APPROVE\nok"}
+        client.generate_completion.return_value = {
+            "success": True,
+            "output": "APPROVE\nok",
+        }
         voter = ConsensusVoter(client)
         voter.vote("do something", "majority")
 
@@ -659,12 +733,15 @@ class TestVoterDiversity:
 # Cost tracking for voter calls
 # ---------------------------------------------------------------------------
 
+
 class TestVoterCostTracking:
     def test_track_voter_cost_calls_tracker(self):
         from test_ai.metrics.cost_tracker import Provider
 
         mock_tracker = MagicMock()
-        with patch("test_ai.metrics.cost_tracker.get_cost_tracker", return_value=mock_tracker):
+        with patch(
+            "test_ai.metrics.cost_tracker.get_cost_tracker", return_value=mock_tracker
+        ):
             ConsensusVoter._track_voter_cost(0, "APPROVE\nLooks safe", "builder")
 
         mock_tracker.track.assert_called_once()
@@ -677,11 +754,16 @@ class TestVoterCostTracking:
 
     def test_cost_tracked_during_vote(self):
         client = MagicMock()
-        client.generate_completion.return_value = {"success": True, "output": "APPROVE\nok"}
+        client.generate_completion.return_value = {
+            "success": True,
+            "output": "APPROVE\nok",
+        }
         voter = ConsensusVoter(client)
 
         mock_tracker = MagicMock()
-        with patch("test_ai.metrics.cost_tracker.get_cost_tracker", return_value=mock_tracker):
+        with patch(
+            "test_ai.metrics.cost_tracker.get_cost_tracker", return_value=mock_tracker
+        ):
             voter.vote("test op", "majority", role="builder")
 
         assert mock_tracker.track.call_count == 3
@@ -689,7 +771,10 @@ class TestVoterCostTracking:
     def test_cost_tracking_failure_does_not_break_vote(self):
         """If cost tracker raises, voting still works."""
         client = MagicMock()
-        client.generate_completion.return_value = {"success": True, "output": "APPROVE\nok"}
+        client.generate_completion.return_value = {
+            "success": True,
+            "output": "APPROVE\nok",
+        }
         voter = ConsensusVoter(client)
 
         with patch(
@@ -700,3 +785,155 @@ class TestVoterCostTracking:
 
         assert verdict.approved is True
         assert len(verdict.votes) == 3
+
+
+# ---------------------------------------------------------------------------
+# Orchestrator consensus integration (executor + pipeline)
+# ---------------------------------------------------------------------------
+
+
+class TestOrchestratorConsensusIntegration:
+    """Tests that consensus results propagate through executor and pipeline."""
+
+    def test_executor_consensus_rejection_raises(self):
+        """Consensus rejection (success=False) triggers RuntimeError in _execute_claude_code."""
+        from test_ai.workflow.executor import WorkflowExecutor
+
+        executor = WorkflowExecutor.__new__(WorkflowExecutor)
+        executor.memory_manager = None
+        executor.dry_run = False
+
+        step = MagicMock()
+        step.id = "s1"
+        step.params = {"role": "builder", "prompt": "do something"}
+        step.executor_type = "claude_code"
+
+        rejected_result = {
+            "success": False,
+            "error": "Consensus rejected: 1/3 approved",
+            "consensus": {"approved": False, "level": "unanimous"},
+        }
+
+        mock_client = MagicMock()
+        mock_client.is_configured.return_value = True
+        mock_client.execute_agent.return_value = rejected_result
+
+        with patch(
+            "test_ai.workflow.executor._get_claude_client", return_value=mock_client
+        ):
+            with pytest.raises(RuntimeError, match="Consensus rejected"):
+                executor._execute_claude_code(step, {})
+
+    def test_executor_pending_confirmation_in_output(self):
+        """pending_user_confirmation propagates into step output dict."""
+        from test_ai.workflow.executor import WorkflowExecutor
+
+        executor = WorkflowExecutor.__new__(WorkflowExecutor)
+        executor.memory_manager = None
+        executor.dry_run = False
+
+        step = MagicMock()
+        step.id = "s1"
+        step.params = {"role": "builder", "prompt": "delete dir"}
+        step.executor_type = "claude_code"
+
+        confirmed_result = {
+            "success": True,
+            "output": "done",
+            "pending_user_confirmation": True,
+            "consensus": {
+                "approved": True,
+                "level": "unanimous_plus_user",
+                "requires_user_confirmation": True,
+            },
+        }
+
+        mock_client = MagicMock()
+        mock_client.is_configured.return_value = True
+        mock_client.execute_agent.return_value = confirmed_result
+
+        with patch(
+            "test_ai.workflow.executor._get_claude_client", return_value=mock_client
+        ):
+            output = executor._execute_claude_code(step, {})
+
+        assert output["pending_user_confirmation"] is True
+        assert output["consensus"]["level"] == "unanimous_plus_user"
+
+    def test_executor_consensus_metadata_in_output(self):
+        """Consensus metadata appears in output when present."""
+        from test_ai.workflow.executor import WorkflowExecutor
+
+        executor = WorkflowExecutor.__new__(WorkflowExecutor)
+        executor.memory_manager = None
+        executor.dry_run = False
+
+        step = MagicMock()
+        step.id = "s1"
+        step.params = {"role": "builder", "prompt": "update file"}
+        step.executor_type = "claude_code"
+
+        result = {
+            "success": True,
+            "output": "updated",
+            "consensus": {"approved": True, "level": "majority", "approve_count": 2},
+        }
+
+        mock_client = MagicMock()
+        mock_client.is_configured.return_value = True
+        mock_client.execute_agent.return_value = result
+
+        with patch(
+            "test_ai.workflow.executor._get_claude_client", return_value=mock_client
+        ):
+            output = executor._execute_claude_code(step, {})
+
+        assert output["consensus"]["approve_count"] == 2
+        assert "pending_user_confirmation" not in output
+
+    def test_pipeline_agent_handler_raises_on_failure(self):
+        """Pipeline agent_handler raises RuntimeError when success=False."""
+        from test_ai.orchestrators.analytics.pipeline import AnalyticsPipeline
+
+        mock_client = MagicMock()
+        mock_client.execute_agent.return_value = {
+            "success": False,
+            "error": "Consensus rejected",
+        }
+
+        pipeline = AnalyticsPipeline.__new__(AnalyticsPipeline)
+        pipeline._claude_client = mock_client
+        pipeline._stages = []
+        pipeline.pipeline_id = "test"
+
+        pipeline.add_agent_stage("analyze", "analyst", "analyze {{context}}")
+
+        _, handler, _ = pipeline._stages[0]
+        with pytest.raises(RuntimeError, match="Consensus rejected"):
+            handler("test context", {})
+
+    def test_pipeline_agent_handler_wraps_pending_confirmation(self):
+        """Pipeline agent_handler wraps output with confirmation metadata."""
+        from test_ai.orchestrators.analytics.pipeline import AnalyticsPipeline
+
+        mock_client = MagicMock()
+        mock_client.execute_agent.return_value = {
+            "success": True,
+            "output": "analysis result",
+            "pending_user_confirmation": True,
+            "consensus": {"approved": True, "level": "unanimous_plus_user"},
+        }
+
+        pipeline = AnalyticsPipeline.__new__(AnalyticsPipeline)
+        pipeline._claude_client = mock_client
+        pipeline._stages = []
+        pipeline.pipeline_id = "test"
+
+        pipeline.add_agent_stage("analyze", "analyst", "analyze {{context}}")
+
+        _, handler, _ = pipeline._stages[0]
+        result = handler("test context", {})
+
+        assert result["pending_user_confirmation"] is True
+        assert result["output"] == "analysis result"
+        assert result["consensus"]["level"] == "unanimous_plus_user"

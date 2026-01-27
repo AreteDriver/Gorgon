@@ -25,9 +25,12 @@ _VOTER_BASE = (
 )
 
 VOTER_PROMPTS: list[str] = [
-    _VOTER_BASE + "Focus on SAFETY: Could this operation cause harm, data loss, or security issues?",
-    _VOTER_BASE + "Focus on CORRECTNESS: Is this operation well-formed, valid, and likely to produce the intended result?",
-    _VOTER_BASE + "Focus on ALIGNMENT: Does this operation match the stated task and stay within the agent's authorized scope?",
+    _VOTER_BASE
+    + "Focus on SAFETY: Could this operation cause harm, data loss, or security issues?",
+    _VOTER_BASE
+    + "Focus on CORRECTNESS: Is this operation well-formed, valid, and likely to produce the intended result?",
+    _VOTER_BASE
+    + "Focus on ALIGNMENT: Does this operation match the stated task and stay within the agent's authorized scope?",
 ]
 
 # Backwards compat alias
@@ -86,7 +89,11 @@ class ConsensusVerdict:
 
     @property
     def approve_count(self) -> int:
-        return sum(1 for v in self.votes if v.decision in (VoteDecision.APPROVE, VoteDecision.ABSTAIN))
+        return sum(
+            1
+            for v in self.votes
+            if v.decision in (VoteDecision.APPROVE, VoteDecision.ABSTAIN)
+        )
 
     @property
     def reject_count(self) -> int:
@@ -116,7 +123,9 @@ class ConsensusVoter:
     def __init__(self, client: ClaudeCodeClient) -> None:
         self._client = client
 
-    def vote(self, operation: str, level: ConsensusLevel | str, role: str = "") -> ConsensusVerdict:
+    def vote(
+        self, operation: str, level: ConsensusLevel | str, role: str = ""
+    ) -> ConsensusVerdict:
         if isinstance(level, str):
             level = ConsensusLevel(level)
 
@@ -130,7 +139,9 @@ class ConsensusVoter:
         self._log_verdict(verdict, operation, role, time.monotonic() - t0)
         return verdict
 
-    async def vote_async(self, operation: str, level: ConsensusLevel | str, role: str = "") -> ConsensusVerdict:
+    async def vote_async(
+        self, operation: str, level: ConsensusLevel | str, role: str = ""
+    ) -> ConsensusVerdict:
         if isinstance(level, str):
             level = ConsensusLevel(level)
 
@@ -138,9 +149,14 @@ class ConsensusVoter:
         if level == ConsensusLevel.ANY:
             votes = [await self._call_voter_async(0, operation, role)]
         else:
-            votes = list(await asyncio.gather(
-                *[self._call_voter_async(i, operation, role) for i in range(NUM_VOTERS)]
-            ))
+            votes = list(
+                await asyncio.gather(
+                    *[
+                        self._call_voter_async(i, operation, role)
+                        for i in range(NUM_VOTERS)
+                    ]
+                )
+            )
 
         verdict = self._aggregate(level, votes)
         self._log_verdict(verdict, operation, role, time.monotonic() - t0)
@@ -176,14 +192,22 @@ class ConsensusVoter:
                 max_tokens=150,
             )
             if not result.get("success") or not result.get("output"):
-                return Vote(voter_id=voter_id, decision=VoteDecision.ABSTAIN, error=result.get("error", "no output"))
+                return Vote(
+                    voter_id=voter_id,
+                    decision=VoteDecision.ABSTAIN,
+                    error=result.get("error", "no output"),
+                )
             self._track_voter_cost(voter_id, result["output"], role)
             return self._parse_vote(voter_id, result["output"])
         except Exception as exc:
             logger.warning("Voter %d failed: %s", voter_id, exc)
-            return Vote(voter_id=voter_id, decision=VoteDecision.ABSTAIN, error=str(exc))
+            return Vote(
+                voter_id=voter_id, decision=VoteDecision.ABSTAIN, error=str(exc)
+            )
 
-    async def _call_voter_async(self, voter_id: int, operation: str, role: str = "") -> Vote:
+    async def _call_voter_async(
+        self, voter_id: int, operation: str, role: str = ""
+    ) -> Vote:
         try:
             result = await self._client.generate_completion_async(
                 prompt=f"Evaluate this operation:\n{operation}",
@@ -191,12 +215,18 @@ class ConsensusVoter:
                 max_tokens=150,
             )
             if not result.get("success") or not result.get("output"):
-                return Vote(voter_id=voter_id, decision=VoteDecision.ABSTAIN, error=result.get("error", "no output"))
+                return Vote(
+                    voter_id=voter_id,
+                    decision=VoteDecision.ABSTAIN,
+                    error=result.get("error", "no output"),
+                )
             self._track_voter_cost(voter_id, result["output"], role)
             return self._parse_vote(voter_id, result["output"])
         except Exception as exc:
             logger.warning("Async voter %d failed: %s", voter_id, exc)
-            return Vote(voter_id=voter_id, decision=VoteDecision.ABSTAIN, error=str(exc))
+            return Vote(
+                voter_id=voter_id, decision=VoteDecision.ABSTAIN, error=str(exc)
+            )
 
     @staticmethod
     def _log_verdict(
@@ -232,22 +262,37 @@ class ConsensusVoter:
     def _parse_vote(voter_id: int, output: str) -> Vote:
         lines = output.strip().splitlines()
         if not lines:
-            return Vote(voter_id=voter_id, decision=VoteDecision.ABSTAIN, error="empty output")
+            return Vote(
+                voter_id=voter_id, decision=VoteDecision.ABSTAIN, error="empty output"
+            )
 
         first = lines[0].strip().upper()
         reasoning = lines[1].strip() if len(lines) > 1 else ""
 
         if first == "APPROVE":
-            return Vote(voter_id=voter_id, decision=VoteDecision.APPROVE, reasoning=reasoning)
+            return Vote(
+                voter_id=voter_id, decision=VoteDecision.APPROVE, reasoning=reasoning
+            )
         elif first == "REJECT":
-            return Vote(voter_id=voter_id, decision=VoteDecision.REJECT, reasoning=reasoning)
+            return Vote(
+                voter_id=voter_id, decision=VoteDecision.REJECT, reasoning=reasoning
+            )
         else:
-            return Vote(voter_id=voter_id, decision=VoteDecision.ABSTAIN, error="unparseable", reasoning=output.strip())
+            return Vote(
+                voter_id=voter_id,
+                decision=VoteDecision.ABSTAIN,
+                error="unparseable",
+                reasoning=output.strip(),
+            )
 
     @staticmethod
     def _aggregate(level: ConsensusLevel, votes: list[Vote]) -> ConsensusVerdict:
         # Abstain counts as approve (fail-open)
-        approve_count = sum(1 for v in votes if v.decision in (VoteDecision.APPROVE, VoteDecision.ABSTAIN))
+        approve_count = sum(
+            1
+            for v in votes
+            if v.decision in (VoteDecision.APPROVE, VoteDecision.ABSTAIN)
+        )
 
         if level == ConsensusLevel.ANY:
             approved = approve_count >= 1

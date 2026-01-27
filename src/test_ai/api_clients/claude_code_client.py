@@ -294,7 +294,9 @@ class ClaudeCodeClient:
         # Fallback: highest across all capabilities for this role
         return lib.get_highest_consensus_for_role(role, DEFAULT_ROLE_SKILL_AGENTS)
 
-    def _check_consensus(self, role: str, task: str, enforcement: dict) -> Optional[dict]:
+    def _check_consensus(
+        self, role: str, task: str, enforcement: dict
+    ) -> Optional[dict]:
         """Run consensus vote, returning None to skip or a verdict dict."""
         try:
             if not enforcement.get("passed", True):
@@ -314,7 +316,9 @@ class ClaudeCodeClient:
             logger.warning("Consensus check failed, skipping", exc_info=True)
             return None
 
-    async def _check_consensus_async(self, role: str, task: str, enforcement: dict) -> Optional[dict]:
+    async def _check_consensus_async(
+        self, role: str, task: str, enforcement: dict
+    ) -> Optional[dict]:
         """Async version of _check_consensus."""
         try:
             if not enforcement.get("passed", True):
@@ -588,7 +592,9 @@ class ClaudeCodeClient:
             result = {"success": True, "output": output, "role": role}
             result["enforcement"] = self._check_enforcement(role, output)
 
-            consensus = await self._check_consensus_async(role, task, result["enforcement"])
+            consensus = await self._check_consensus_async(
+                role, task, result["enforcement"]
+            )
             if consensus is not None:
                 result["consensus"] = consensus
                 if not consensus["approved"]:
