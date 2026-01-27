@@ -20,7 +20,15 @@ class ConditionConfig:
     """Condition for step execution."""
 
     field: str
-    operator: Literal["equals", "not_equals", "contains", "greater_than", "less_than", "in", "not_empty"]
+    operator: Literal[
+        "equals",
+        "not_equals",
+        "contains",
+        "greater_than",
+        "less_than",
+        "in",
+        "not_empty",
+    ]
     value: Any = None
 
     def evaluate(self, context: dict) -> bool:
@@ -40,7 +48,9 @@ class ConditionConfig:
         elif self.operator == "less_than":
             return actual < self.value if isinstance(actual, (int, float)) else False
         elif self.operator == "in":
-            return actual in self.value if isinstance(self.value, (list, str)) else False
+            return (
+                actual in self.value if isinstance(self.value, (list, str)) else False
+            )
         elif self.operator == "not_empty":
             return bool(actual)
         return False

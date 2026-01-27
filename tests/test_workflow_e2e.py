@@ -50,6 +50,7 @@ def _valid_yaml_paths() -> list[Path]:
 # 1. YAML Loading Validation
 # ---------------------------------------------------------------------------
 
+
 class TestWorkflowYAMLLoading:
     """Load all YAML workflows and verify structural validity."""
 
@@ -63,8 +64,16 @@ class TestWorkflowYAMLLoading:
         assert len(wf.steps) >= 1, f"{workflow_path.name}: no steps"
 
     def test_all_step_types_recognized(self, workflow_path: Path):
-        valid_types = {"claude_code", "openai", "shell", "parallel",
-                       "checkpoint", "fan_out", "fan_in", "map_reduce"}
+        valid_types = {
+            "claude_code",
+            "openai",
+            "shell",
+            "parallel",
+            "checkpoint",
+            "fan_out",
+            "fan_in",
+            "map_reduce",
+        }
         wf = load_workflow(workflow_path, trusted_dir=WORKFLOWS_DIR)
         for step in wf.steps:
             assert step.type in valid_types, (
@@ -77,7 +86,9 @@ class TestWorkflowYAMLLoading:
         assert all(ids), f"{workflow_path.name}: step with empty id"
         assert len(ids) == len(set(ids)), f"{workflow_path.name}: duplicate step ids"
 
-    @pytest.mark.parametrize("stem", sorted(KNOWN_INVALID_YAMLS) if KNOWN_INVALID_YAMLS else ["_skip_"])
+    @pytest.mark.parametrize(
+        "stem", sorted(KNOWN_INVALID_YAMLS) if KNOWN_INVALID_YAMLS else ["_skip_"]
+    )
     def test_invalid_workflows_raise_on_load(self, stem: str):
         """Workflows with known validation issues should fail."""
         if stem == "_skip_":
@@ -93,12 +104,15 @@ class TestWorkflowYAMLLoading:
 # 2. Feature Build E2E (dry_run)
 # ---------------------------------------------------------------------------
 
+
 class TestFeatureBuildE2E:
     """Execute feature-build.yaml end-to-end in dry_run mode."""
 
     @pytest.fixture
     def workflow(self) -> WorkflowConfig:
-        return load_workflow(WORKFLOWS_DIR / "feature-build.yaml", trusted_dir=WORKFLOWS_DIR)
+        return load_workflow(
+            WORKFLOWS_DIR / "feature-build.yaml", trusted_dir=WORKFLOWS_DIR
+        )
 
     def _make_inputs(self, tmp_path: Path) -> dict:
         (tmp_path / "test_dummy.py").write_text("def test_pass(): assert True\n")
@@ -145,12 +159,15 @@ class TestFeatureBuildE2E:
 # 3. Feature Build Mocked — realistic AI responses
 # ---------------------------------------------------------------------------
 
+
 class TestFeatureBuildMocked:
     """Feature-build with patched AI returning role-appropriate responses."""
 
     @pytest.fixture
     def workflow(self) -> WorkflowConfig:
-        return load_workflow(WORKFLOWS_DIR / "feature-build.yaml", trusted_dir=WORKFLOWS_DIR)
+        return load_workflow(
+            WORKFLOWS_DIR / "feature-build.yaml", trusted_dir=WORKFLOWS_DIR
+        )
 
     @staticmethod
     def _mock_claude(step: StepConfig, context: dict) -> dict:
@@ -172,13 +189,18 @@ class TestFeatureBuildMocked:
     def test_context_flows_plan_to_review(self, workflow, tmp_path):
         (tmp_path / "test_dummy.py").write_text("def test_pass(): assert True\n")
 
-        with patch.object(WorkflowExecutor, "_execute_claude_code", side_effect=self._mock_claude):
+        with patch.object(
+            WorkflowExecutor, "_execute_claude_code", side_effect=self._mock_claude
+        ):
             executor = WorkflowExecutor()
-            result = executor.execute(workflow, inputs={
-                "feature_request": "Add auth",
-                "codebase_path": str(tmp_path),
-                "test_command": "true",
-            })
+            result = executor.execute(
+                workflow,
+                inputs={
+                    "feature_request": "Add auth",
+                    "codebase_path": str(tmp_path),
+                    "test_command": "true",
+                },
+            )
 
         # Workflow succeeds (review may be skipped due to condition)
         assert result.status == "success", f"Workflow failed: {result.error}"
@@ -190,13 +212,18 @@ class TestFeatureBuildMocked:
         If test_command fails, workflow aborts (run_tests on_failure: abort)."""
         (tmp_path / "test_dummy.py").write_text("def test_pass(): assert True\n")
 
-        with patch.object(WorkflowExecutor, "_execute_claude_code", side_effect=self._mock_claude):
+        with patch.object(
+            WorkflowExecutor, "_execute_claude_code", side_effect=self._mock_claude
+        ):
             executor = WorkflowExecutor()
-            result = executor.execute(workflow, inputs={
-                "feature_request": "Add auth",
-                "codebase_path": str(tmp_path),
-                "test_command": "false",
-            })
+            result = executor.execute(
+                workflow,
+                inputs={
+                    "feature_request": "Add auth",
+                    "codebase_path": str(tmp_path),
+                    "test_command": "false",
+                },
+            )
 
         assert result.status == "failed"
 
@@ -205,11 +232,14 @@ class TestFeatureBuildMocked:
 # 4. Code Review E2E (dry_run) — workflow has invalid 'in' operator
 # ---------------------------------------------------------------------------
 
+
 class TestCodeReviewE2E:
     """Code-review.yaml now loads successfully with 'in' operator support."""
 
     def test_loads_and_dry_runs(self):
-        wf = load_workflow(WORKFLOWS_DIR / "code-review.yaml", trusted_dir=WORKFLOWS_DIR)
+        wf = load_workflow(
+            WORKFLOWS_DIR / "code-review.yaml", trusted_dir=WORKFLOWS_DIR
+        )
         assert wf.name
         assert len(wf.steps) >= 1
         executor = WorkflowExecutor(dry_run=True)
@@ -226,6 +256,7 @@ class TestCodeReviewE2E:
 # ---------------------------------------------------------------------------
 # 5. Conditional Execution
 # ---------------------------------------------------------------------------
+
 
 class TestConditionalExecution:
     """Test that conditions properly skip steps."""
@@ -309,6 +340,7 @@ class TestConditionalExecution:
 # 6. Error Recovery E2E
 # ---------------------------------------------------------------------------
 
+
 class TestErrorRecoveryE2E:
     """Test mixed failure strategies across steps."""
 
@@ -372,6 +404,7 @@ class TestErrorRecoveryE2E:
 # 7. Context Propagation
 # ---------------------------------------------------------------------------
 
+
 class TestContextPropagation:
     """Verify output from step N feeds into step N+1 via variable substitution."""
 
@@ -391,8 +424,10 @@ class TestContextPropagation:
                 StepConfig(
                     id="step2",
                     type="shell",
-                    params={"command": "echo received: ${stdout}",
-                            "escape_variables": False},
+                    params={
+                        "command": "echo received: ${stdout}",
+                        "escape_variables": False,
+                    },
                     outputs=["stdout"],
                 ),
             ],
@@ -476,6 +511,7 @@ class TestContextPropagation:
 # 8. Token Budget Enforcement
 # ---------------------------------------------------------------------------
 
+
 class TestTokenBudgetEnforcement:
     """Test that budget limits halt execution."""
 
@@ -514,11 +550,14 @@ class TestTokenBudgetEnforcement:
 # 9. Condition Operators
 # ---------------------------------------------------------------------------
 
+
 class TestConditionOperators:
     """Test each condition operator in isolation."""
 
     def test_in_operator_with_list(self):
-        cond = ConditionConfig(field="status", operator="in", value=["active", "pending"])
+        cond = ConditionConfig(
+            field="status", operator="in", value=["active", "pending"]
+        )
         assert cond.evaluate({"status": "active"}) is True
         assert cond.evaluate({"status": "closed"}) is False
 
@@ -561,6 +600,7 @@ class TestConditionOperators:
 # 10. Shell Output Mapping
 # ---------------------------------------------------------------------------
 
+
 class TestShellOutputMapping:
     """Verify shell stdout maps to custom output names."""
 
@@ -580,8 +620,10 @@ class TestShellOutputMapping:
                 StepConfig(
                     id="use_content",
                     type="shell",
-                    params={"command": "echo got: ${code_content}",
-                            "escape_variables": False},
+                    params={
+                        "command": "echo got: ${code_content}",
+                        "escape_variables": False,
+                    },
                     outputs=["result"],
                 ),
             ],
@@ -596,6 +638,7 @@ class TestShellOutputMapping:
 # ---------------------------------------------------------------------------
 # 11. Retry E2E
 # ---------------------------------------------------------------------------
+
 
 class TestRetryE2E:
     """Test retry logic with mocked handlers."""
@@ -636,13 +679,16 @@ class TestRetryE2E:
 # 12. Checkpoint with YAML
 # ---------------------------------------------------------------------------
 
+
 class TestCheckpointWithYAML:
     """Test checkpoint and resume using feature-build.yaml."""
 
     def test_checkpoint_and_resume(self, tmp_path):
         from test_ai.state.checkpoint import CheckpointManager
 
-        wf = load_workflow(WORKFLOWS_DIR / "feature-build.yaml", trusted_dir=WORKFLOWS_DIR)
+        wf = load_workflow(
+            WORKFLOWS_DIR / "feature-build.yaml", trusted_dir=WORKFLOWS_DIR
+        )
         db_path = str(tmp_path / "checkpoint.db")
         cm = CheckpointManager(db_path=db_path)
 
