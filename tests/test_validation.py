@@ -11,6 +11,7 @@ from test_ai.utils.validation import (
     escape_shell_arg,
     contains_shell_metacharacters,
     sanitize_log_message,
+    sanitize_prompt_variable,
     substitute_shell_variables,
     validate_identifier,
     validate_safe_path,
@@ -469,3 +470,26 @@ class TestSecurityScenarios:
         assert "'" in result
         # The payload should be entirely quoted
         assert f"'{payload}'" in result
+
+    def test_prompt_injection_via_format_string(self):
+        """Test format string injection in prompt variables is prevented."""
+        # Attacker tries to access Python internals via format string
+        malicious = "{__class__.__init__.__globals__}"
+        result = sanitize_prompt_variable(malicious)
+        # Braces should be escaped so str.format() treats them as literals
+        assert result == "{{__class__.__init__.__globals__}}"
+
+    def test_prompt_variable_escapes_nested_braces(self):
+        """Test that nested template references are escaped."""
+        result = sanitize_prompt_variable("{other_variable}")
+        assert result == "{{other_variable}}"
+
+    def test_prompt_variable_length_limit(self):
+        """Test prompt variable length limit is enforced."""
+        with pytest.raises(ValidationError, match="exceeds maximum length"):
+            sanitize_prompt_variable("x" * 50001)
+
+    def test_prompt_variable_normal_text(self):
+        """Test normal text passes through unchanged."""
+        text = "Generate a Unity terrain with mountains and rivers"
+        assert sanitize_prompt_variable(text) == text

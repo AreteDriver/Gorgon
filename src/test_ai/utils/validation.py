@@ -340,6 +340,33 @@ def sanitize_log_message(
     return result
 
 
+def sanitize_prompt_variable(value: str, max_length: int = 50000) -> str:
+    """Sanitize a user-supplied value before prompt template interpolation.
+
+    Prevents format string injection by escaping curly braces in the value,
+    and enforces a length limit.
+
+    Args:
+        value: Raw user input to be inserted into a prompt template.
+        max_length: Maximum allowed length for the value.
+
+    Returns:
+        Sanitized string safe for use with str.format().
+
+    Raises:
+        ValidationError: If value exceeds max_length.
+    """
+    text = str(value)
+    if len(text) > max_length:
+        raise ValidationError(
+            f"Prompt variable exceeds maximum length: {len(text)} > {max_length}"
+        )
+    # Escape any braces that aren't the template's own placeholders.
+    # Double-braces are treated as literal braces by str.format().
+    text = text.replace("{", "{{").replace("}", "}}")
+    return text
+
+
 class PathValidator:
     """Context-aware path validator for a specific base directory.
 

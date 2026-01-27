@@ -2,11 +2,15 @@
 
 import json
 import logging
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
 from test_ai.config import get_settings
-from test_ai.utils.validation import validate_identifier, PathValidator
+from test_ai.utils.validation import (
+    validate_identifier,
+    sanitize_prompt_variable,
+    PathValidator,
+)
 from test_ai.errors import ValidationError
 
 logger = logging.getLogger(__name__)
@@ -32,9 +36,15 @@ class PromptTemplate(BaseModel):
         """Validate template ID is safe for use as filename."""
         return validate_identifier(v, name="template_id")
 
-    def format(self, **kwargs) -> str:
-        """Format the prompt with variables."""
-        return self.user_prompt.format(**kwargs)
+    def format(self, **kwargs: Any) -> str:
+        """Format the prompt with variables.
+
+        All values are sanitized to prevent format string injection.
+        Curly braces in user input are escaped so they cannot reference
+        Python object attributes or other template variables.
+        """
+        sanitized = {k: sanitize_prompt_variable(str(v)) for k, v in kwargs.items()}
+        return self.user_prompt.format(**sanitized)
 
 
 class PromptTemplateManager:
