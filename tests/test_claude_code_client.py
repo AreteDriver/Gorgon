@@ -142,6 +142,52 @@ class TestSkillContextInjection:
         assert client.role_prompts["builder"] == DEFAULT_ROLE_PROMPTS["builder"]
 
 
+class TestEnforcementIntegration:
+    """Test enforcement is wired into execute_agent results."""
+
+    def test_execute_agent_includes_enforcement_key(self, mock_settings):
+        """Successful execution includes enforcement dict."""
+        mock_library = MagicMock()
+        mock_library.build_skill_context.return_value = ""
+        mock_library.get_skills_for_agent.return_value = []
+
+        with (
+            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch("test_ai.api_clients.claude_code_client.anthropic", None),
+            patch("test_ai.skills.SkillLibrary", return_value=mock_library),
+        ):
+            client = ClaudeCodeClient()
+
+        # Mock CLI execution to return output
+        with patch.object(client, "is_configured", return_value=True), \
+             patch.object(client, "_execute_via_cli", return_value="safe output"):
+            client.mode = "cli"
+            result = client.execute_agent("builder", "write tests")
+
+        assert result["success"] is True
+        assert "enforcement" in result
+        assert result["enforcement"]["action"] == "allow"
+        assert result["enforcement"]["passed"] is True
+
+    def test_enforcement_failure_is_fail_open(self, mock_settings):
+        """If enforcer raises, execution still succeeds."""
+        with (
+            patch("test_ai.api_clients.claude_code_client.get_settings", return_value=mock_settings),
+            patch("test_ai.api_clients.claude_code_client.anthropic", None),
+        ):
+            client = ClaudeCodeClient()
+
+        # Force enforcer to raise
+        with patch.object(client, "is_configured", return_value=True), \
+             patch.object(client, "_execute_via_cli", return_value="output"), \
+             patch.object(type(client), "enforcer", new_callable=lambda: property(lambda self: (_ for _ in ()).throw(RuntimeError("boom")))):
+            client.mode = "cli"
+            result = client.execute_agent("builder", "task")
+
+        assert result["success"] is True
+        assert result["enforcement"]["action"] == "allow"
+
+
 class TestDefaultRoleSkillAgents:
     """Verify the default mapping structure."""
 

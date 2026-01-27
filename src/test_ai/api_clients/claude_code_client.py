@@ -147,6 +147,8 @@ class ClaudeCodeClient:
         self.api_key = settings.anthropic_api_key
         self.cli_path = settings.claude_cli_path
         self.client = None
+        self._enforcer = None
+        self._enforcer_init_attempted = False
         self.role_prompts = self._load_role_prompts(settings)
         self._inject_skill_context(settings)
 
@@ -210,6 +212,34 @@ class ClaudeCodeClient:
             if context_parts:
                 self.role_prompts[role] += "\n\n---\n\n" + "\n\n".join(context_parts)
 
+    @property
+    def enforcer(self):
+        """Lazy-init SkillEnforcer, returning None on failure."""
+        if not self._enforcer_init_attempted:
+            self._enforcer_init_attempted = True
+            try:
+                from test_ai.skills import SkillEnforcer, SkillLibrary
+
+                self._enforcer = SkillEnforcer(
+                    SkillLibrary(),
+                    role_skill_agents=DEFAULT_ROLE_SKILL_AGENTS,
+                )
+            except Exception:
+                logger.debug("Failed to initialize SkillEnforcer")
+        return self._enforcer
+
+    def _check_enforcement(self, role: str, output: str) -> dict:
+        """Run enforcement check, failing open on errors."""
+        try:
+            enf = self.enforcer
+            if enf is None:
+                return {"action": "allow", "passed": True, "violations": []}
+            result = enf.check_output(role, output)
+            return result.to_dict()
+        except Exception:
+            logger.warning("Enforcement check failed, allowing output", exc_info=True)
+            return {"action": "allow", "passed": True, "violations": []}
+
     def is_configured(self) -> bool:
         """Check if Claude Code client is configured."""
         if self.mode == "api":
@@ -270,7 +300,9 @@ class ClaudeCodeClient:
                 full_prompt = f"{system_prompt}\n\n{user_prompt}"
                 output = self._execute_via_cli(prompt=full_prompt)
 
-            return {"success": True, "output": output, "role": role}
+            result = {"success": True, "output": output, "role": role}
+            result["enforcement"] = self._check_enforcement(role, output)
+            return result
         except Exception as e:
             return {"success": False, "error": str(e), "role": role}
 
@@ -437,7 +469,9 @@ class ClaudeCodeClient:
                 full_prompt = f"{system_prompt}\n\n{user_prompt}"
                 output = await self._execute_via_cli_async(prompt=full_prompt)
 
-            return {"success": True, "output": output, "role": role}
+            result = {"success": True, "output": output, "role": role}
+            result["enforcement"] = self._check_enforcement(role, output)
+            return result
         except Exception as e:
             return {"success": False, "error": str(e), "role": role}
 
