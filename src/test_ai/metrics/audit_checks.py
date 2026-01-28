@@ -119,8 +119,7 @@ async def check_error_rate(
     recommendation = None
     if status != AuditStatus.OK:
         recommendation = (
-            f"Error rate is {rate:.1%}. "
-            "Investigate top failure reasons in job logs."
+            f"Error rate is {rate:.1%}. Investigate top failure reasons in job logs."
         )
 
     return AuditResult(
@@ -183,9 +182,7 @@ async def check_skill_integrity(
         for file_path_str, expected_hash in baseline.skill_hashes.items():
             path = Path(file_path_str)
             if not path.exists():
-                modified.append(
-                    {"file": file_path_str, "issue": "missing"}
-                )
+                modified.append({"file": file_path_str, "issue": "missing"})
                 continue
             current_hash = hashlib.md5(path.read_bytes()).hexdigest()
             if current_hash != expected_hash:
@@ -250,9 +247,7 @@ async def check_config_drift(
 
             differences = _diff_configs(documented, current)
             if differences:
-                drift.append(
-                    {"file": config_name, "differences": differences}
-                )
+                drift.append({"file": config_name, "differences": differences})
 
     count = len(drift)
     status = _evaluate(count, check.threshold_warning, check.threshold_critical)
@@ -300,9 +295,7 @@ async def check_resource_usage(
     mem_ratio = mem / max(baseline_mem, 0.1)
     worst_ratio = max(cpu_ratio, mem_ratio)
 
-    status = _evaluate(
-        worst_ratio, check.threshold_warning, check.threshold_critical
-    )
+    status = _evaluate(worst_ratio, check.threshold_warning, check.threshold_critical)
 
     recommendation = None
     if status != AuditStatus.OK:

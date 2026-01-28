@@ -171,9 +171,7 @@ class TestSystemAuditor:
     async def test_run_scheduled_audits(
         self, backend: SQLiteBackend, baseline: SystemBaseline
     ) -> None:
-        auditor = SystemAuditor(
-            backend, baseline=baseline, checks=[]
-        )
+        auditor = SystemAuditor(backend, baseline=baseline, checks=[])
         # Add a simple custom check
         check = AuditCheck(
             name="custom_check",
@@ -265,9 +263,7 @@ class TestSystemBaseline:
         assert loaded.task_completion_time_avg == baseline.task_completion_time_avg
         assert loaded.idle_cpu_percent == baseline.idle_cpu_percent
 
-    def test_new_baseline_deactivates_old(
-        self, backend: SQLiteBackend
-    ) -> None:
+    def test_new_baseline_deactivates_old(self, backend: SQLiteBackend) -> None:
         b1 = SystemBaseline(
             captured_at=datetime.now(timezone.utc),
             task_completion_time_avg=4.0,
@@ -310,9 +306,7 @@ class TestAuditChecks:
     async def test_check_error_rate_ok(self, backend: SQLiteBackend) -> None:
         # Insert some jobs
         for _ in range(10):
-            backend.execute(
-                "INSERT INTO jobs (status) VALUES (?)", ("completed",)
-            )
+            backend.execute("INSERT INTO jobs (status) VALUES (?)", ("completed",))
         with backend.transaction():
             pass
 
@@ -330,9 +324,7 @@ class TestAuditChecks:
     @pytest.mark.asyncio
     async def test_check_error_rate_warning(self, backend: SQLiteBackend) -> None:
         for _ in range(9):
-            backend.execute(
-                "INSERT INTO jobs (status) VALUES (?)", ("completed",)
-            )
+            backend.execute("INSERT INTO jobs (status) VALUES (?)", ("completed",))
         backend.execute("INSERT INTO jobs (status) VALUES (?)", ("failed",))
         with backend.transaction():
             pass
@@ -349,9 +341,7 @@ class TestAuditChecks:
         assert result.status == AuditStatus.WARNING
 
     @pytest.mark.asyncio
-    async def test_check_skill_integrity_ok(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_check_skill_integrity_ok(self, tmp_path: Path) -> None:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         skill_file = skills_dir / "test.md"
@@ -383,9 +373,7 @@ class TestAuditChecks:
         assert result.status == AuditStatus.OK
 
     @pytest.mark.asyncio
-    async def test_check_skill_integrity_modified(
-        self, tmp_path: Path
-    ) -> None:
+    async def test_check_skill_integrity_modified(self, tmp_path: Path) -> None:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         skill_file = skills_dir / "test.md"

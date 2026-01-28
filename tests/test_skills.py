@@ -4,7 +4,7 @@ from pathlib import Path
 
 import pytest
 
-from test_ai.skills import SkillLibrary, SkillCapability, SkillDefinition, SkillRegistry
+from test_ai.skills import SkillLibrary, SkillCapability, SkillDefinition
 from test_ai.skills.loader import load_skill, load_registry
 
 SKILLS_DIR = Path(__file__).parent.parent / "skills"
@@ -62,9 +62,7 @@ class TestLoadRegistry:
 class TestSkillDefinition:
     def test_get_capability(self):
         cap = SkillCapability(name="read_file", description="Read a file")
-        skill = SkillDefinition(
-            name="test", agent="system", capabilities=[cap]
-        )
+        skill = SkillDefinition(name="test", agent="system", capabilities=[cap])
         assert skill.get_capability("read_file") is not None
         assert skill.get_capability("nonexistent") is None
 
@@ -117,7 +115,9 @@ class TestSkillLibrary:
 
     def test_get_consensus_level(self, library):
         assert library.get_consensus_level("file_operations", "read_file") == "any"
-        assert library.get_consensus_level("file_operations", "delete_file") == "unanimous"
+        assert (
+            library.get_consensus_level("file_operations", "delete_file") == "unanimous"
+        )
 
     def test_get_consensus_level_missing(self, library):
         assert library.get_consensus_level("nonexistent", "read_file") is None

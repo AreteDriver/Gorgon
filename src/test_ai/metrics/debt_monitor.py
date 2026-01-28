@@ -449,9 +449,7 @@ class SystemAuditor:
                     self._register_debt_from_result(result)
 
             except Exception:
-                logger.exception(
-                    "Audit check '%s' failed", check.check_function
-                )
+                logger.exception("Audit check '%s' failed", check.check_function)
 
         return results
 
@@ -479,9 +477,7 @@ class SystemAuditor:
                 if result.status != AuditStatus.OK:
                     self._register_debt_from_result(result)
             except Exception:
-                logger.exception(
-                    "Audit check '%s' failed", check.check_function
-                )
+                logger.exception("Audit check '%s' failed", check.check_function)
 
         return results
 
@@ -597,8 +593,7 @@ class SystemAuditor:
                 lines.append(f"  - {r.check_name}: [{icon}]")
                 if r.baseline is not None:
                     lines.append(
-                        f"    Baseline: {r.baseline:.2f} -> "
-                        f"Current: {r.value:.2f}"
+                        f"    Baseline: {r.baseline:.2f} -> Current: {r.value:.2f}"
                     )
                 if r.recommendation:
                     lines.append(f"    Recommendation: {r.recommendation}")
@@ -610,9 +605,7 @@ class SystemAuditor:
             lines.append("")
 
         lines.append("-" * 63)
-        lines.append(
-            f"  SUMMARY: {warnings} warning(s), {criticals} critical(s)"
-        )
+        lines.append(f"  SUMMARY: {warnings} warning(s), {criticals} critical(s)")
         lines.append("=" * 63)
 
         return "\n".join(lines)
@@ -657,9 +650,7 @@ def capture_baseline(
                     config_file.read_text()
                 )
             except Exception:
-                logger.warning(
-                    "Could not parse config file %s", config_file.name
-                )
+                logger.warning("Could not parse config file %s", config_file.name)
 
     # Capture package versions
     package_versions: dict[str, str] = {}
