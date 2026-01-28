@@ -24,6 +24,23 @@ from .prometheus_server import (
     MetricsPusher,
     get_grafana_dashboard,
 )
+from .debt_monitor import (
+    AuditCheck,
+    AuditFrequency,
+    AuditResult,
+    AuditStatus,
+    DebtSeverity,
+    DebtSource,
+    DebtStatus,
+    SystemAuditor,
+    SystemBaseline,
+    TechnicalDebt,
+    TechnicalDebtRegistry,
+    capture_baseline,
+    load_active_baseline,
+    save_baseline,
+)
+from .audit_checks import register_default_checks
 
 __all__ = [
     # Collector
@@ -43,4 +60,20 @@ __all__ = [
     "PrometheusPushGateway",
     "MetricsPusher",
     "get_grafana_dashboard",
+    # Debt Monitoring
+    "AuditCheck",
+    "AuditFrequency",
+    "AuditResult",
+    "AuditStatus",
+    "DebtSeverity",
+    "DebtSource",
+    "DebtStatus",
+    "SystemAuditor",
+    "SystemBaseline",
+    "TechnicalDebt",
+    "TechnicalDebtRegistry",
+    "capture_baseline",
+    "load_active_baseline",
+    "save_baseline",
+    "register_default_checks",
 ]
