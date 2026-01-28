@@ -20,6 +20,8 @@ from ..state.backends import DatabaseBackend
 
 logger = logging.getLogger(__name__)
 
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
+
 
 class AuditFrequency(Enum):
     """How often an audit check should run."""
@@ -238,25 +240,24 @@ class TechnicalDebtRegistry:
         Args:
             debt: The technical debt item to register.
         """
-        self.backend.execute(
-            """INSERT OR IGNORE INTO technical_debt
-               (id, category, severity, title, description,
-                detected_at, source, estimated_effort, status)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-            (
-                debt.id,
-                debt.category,
-                debt.severity.value,
-                debt.title,
-                debt.description,
-                debt.detected_at.isoformat(),
-                debt.source.value,
-                debt.estimated_effort,
-                debt.status.value,
-            ),
-        )
         with self.backend.transaction():
-            pass  # commit
+            self.backend.execute(
+                """INSERT OR IGNORE INTO technical_debt
+                   (id, category, severity, title, description,
+                    detected_at, source, estimated_effort, status)
+                   VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    debt.id,
+                    debt.category,
+                    debt.severity.value,
+                    debt.title,
+                    debt.description,
+                    debt.detected_at.isoformat(),
+                    debt.source.value,
+                    debt.estimated_effort,
+                    debt.status.value,
+                ),
+            )
 
     def resolve(self, debt_id: str, resolution: str) -> None:
         """Mark a debt item as resolved.
@@ -266,14 +267,13 @@ class TechnicalDebtRegistry:
             resolution: Description of the resolution.
         """
         now = datetime.now(timezone.utc).isoformat()
-        self.backend.execute(
-            """UPDATE technical_debt
-               SET status = ?, resolution = ?, resolved_at = ?
-               WHERE id = ?""",
-            (DebtStatus.RESOLVED.value, resolution, now, debt_id),
-        )
         with self.backend.transaction():
-            pass
+            self.backend.execute(
+                """UPDATE technical_debt
+                   SET status = ?, resolution = ?, resolved_at = ?
+                   WHERE id = ?""",
+                (DebtStatus.RESOLVED.value, resolution, now, debt_id),
+            )
 
     def update_status(self, debt_id: str, status: DebtStatus) -> None:
         """Update the status of a debt item.
@@ -282,12 +282,11 @@ class TechnicalDebtRegistry:
             debt_id: ID of the debt item.
             status: New status.
         """
-        self.backend.execute(
-            "UPDATE technical_debt SET status = ? WHERE id = ?",
-            (status.value, debt_id),
-        )
         with self.backend.transaction():
-            pass
+            self.backend.execute(
+                "UPDATE technical_debt SET status = ? WHERE id = ?",
+                (status.value, debt_id),
+            )
 
     def list_open(self) -> list[dict[str, Any]]:
         """List all open technical debt items.
@@ -483,18 +482,17 @@ class SystemAuditor:
 
     def _store_result(self, result: AuditResult) -> None:
         """Persist an audit result to the database."""
-        self.backend.execute(
-            """INSERT INTO audit_results (check_name, category, status, result_data)
-               VALUES (?, ?, ?, ?)""",
-            (
-                result.check_name,
-                result.category,
-                result.status.value,
-                json.dumps(result.to_dict()),
-            ),
-        )
         with self.backend.transaction():
-            pass
+            self.backend.execute(
+                """INSERT INTO audit_results (check_name, category, status, result_data)
+                   VALUES (?, ?, ?, ?)""",
+                (
+                    result.check_name,
+                    result.category,
+                    result.status.value,
+                    json.dumps(result.to_dict()),
+                ),
+            )
 
     def _register_debt_from_result(self, result: AuditResult) -> None:
         """Register a technical debt item from an audit result."""
@@ -635,7 +633,10 @@ def capture_baseline(
     skill_hashes: dict[str, str] = {}
     if skills_path.exists():
         for skill_file in skills_path.rglob("*.md"):
-            skill_hashes[str(skill_file)] = hashlib.md5(
+            if skill_file.stat().st_size > MAX_FILE_SIZE:
+                logger.warning("Skipping oversized file: %s", skill_file)
+                continue
+            skill_hashes[str(skill_file)] = hashlib.sha256(
                 skill_file.read_bytes()
             ).hexdigest()
 
@@ -643,6 +644,9 @@ def capture_baseline(
     config_snapshots: dict[str, dict] = {}
     if config_path.exists():
         for config_file in config_path.glob("*.yaml"):
+            if config_file.stat().st_size > MAX_FILE_SIZE:
+                logger.warning("Skipping oversized config: %s", config_file)
+                continue
             try:
                 import yaml
 
@@ -692,28 +696,27 @@ def save_baseline(backend: DatabaseBackend, baseline: SystemBaseline) -> None:
         backend: Database backend.
         baseline: The baseline to persist.
     """
-    # Deactivate previous baselines
-    backend.execute("UPDATE audit_baselines SET is_active = 0")
-
-    backend.execute(
-        """INSERT INTO audit_baselines
-           (captured_at, task_completion_time_avg, agent_spawn_time_avg,
-            idle_cpu_percent, idle_memory_percent,
-            skill_hashes, config_snapshots, package_versions)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
-        (
-            baseline.captured_at.isoformat(),
-            baseline.task_completion_time_avg,
-            baseline.agent_spawn_time_avg,
-            baseline.idle_cpu_percent,
-            baseline.idle_memory_percent,
-            json.dumps(baseline.skill_hashes),
-            json.dumps(baseline.config_snapshots),
-            json.dumps(baseline.package_versions),
-        ),
-    )
     with backend.transaction():
-        pass
+        # Deactivate previous baselines
+        backend.execute("UPDATE audit_baselines SET is_active = 0")
+
+        backend.execute(
+            """INSERT INTO audit_baselines
+               (captured_at, task_completion_time_avg, agent_spawn_time_avg,
+                idle_cpu_percent, idle_memory_percent,
+                skill_hashes, config_snapshots, package_versions)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?)""",
+            (
+                baseline.captured_at.isoformat(),
+                baseline.task_completion_time_avg,
+                baseline.agent_spawn_time_avg,
+                baseline.idle_cpu_percent,
+                baseline.idle_memory_percent,
+                json.dumps(baseline.skill_hashes),
+                json.dumps(baseline.config_snapshots),
+                json.dumps(baseline.package_versions),
+            ),
+        )
 
 
 def load_active_baseline(backend: DatabaseBackend) -> SystemBaseline | None:

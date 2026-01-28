@@ -48,7 +48,10 @@ class GmailClient:
                     )
                     creds = flow.run_local_server(port=0)
 
-                with open(token_path, "w") as token:
+                import os
+
+                fd = os.open(token_path, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+                with os.fdopen(fd, "w") as token:
                     token.write(creds.to_json())
 
             self.service = build("gmail", "v1", credentials=creds)

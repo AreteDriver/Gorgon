@@ -349,7 +349,7 @@ class TestAuditChecks:
 
         import hashlib
 
-        expected_hash = hashlib.md5(skill_file.read_bytes()).hexdigest()
+        expected_hash = hashlib.sha256(skill_file.read_bytes()).hexdigest()
         baseline = SystemBaseline(
             captured_at=datetime.now(timezone.utc),
             task_completion_time_avg=0,

@@ -6,6 +6,7 @@ These are registered with the SystemAuditor at startup.
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -23,6 +24,8 @@ from .debt_monitor import (
 )
 
 logger = logging.getLogger(__name__)
+
+MAX_FILE_SIZE = 10 * 1024 * 1024  # 10 MB
 
 
 def _evaluate(
@@ -138,7 +141,8 @@ async def check_dependencies(
 ) -> AuditResult:
     """Check for outdated Python packages."""
     try:
-        result = subprocess.run(
+        result = await asyncio.to_thread(
+            subprocess.run,
             ["pip", "list", "--outdated", "--format=json"],
             capture_output=True,
             text=True,
@@ -184,7 +188,11 @@ async def check_skill_integrity(
             if not path.exists():
                 modified.append({"file": file_path_str, "issue": "missing"})
                 continue
-            current_hash = hashlib.md5(path.read_bytes()).hexdigest()
+            if path.stat().st_size > MAX_FILE_SIZE:
+                logger.warning("Skipping oversized file: %s", path)
+                continue
+            content = await asyncio.to_thread(path.read_bytes)
+            current_hash = hashlib.sha256(content).hexdigest()
             if current_hash != expected_hash:
                 modified.append(
                     {
@@ -239,8 +247,12 @@ async def check_config_drift(
             if not config_file.exists():
                 drift.append({"file": config_name, "issue": "missing"})
                 continue
+            if config_file.stat().st_size > MAX_FILE_SIZE:
+                logger.warning("Skipping oversized config: %s", config_file)
+                continue
             try:
-                current = yaml.safe_load(config_file.read_text())
+                text = await asyncio.to_thread(config_file.read_text)
+                current = yaml.safe_load(text)
             except Exception:
                 drift.append({"file": config_name, "issue": "parse_error"})
                 continue
@@ -277,7 +289,7 @@ async def check_resource_usage(
     try:
         import psutil
 
-        cpu = psutil.cpu_percent(interval=1)
+        cpu = await asyncio.to_thread(psutil.cpu_percent, 1)
         mem = psutil.virtual_memory().percent
     except ImportError:
         return AuditResult(
