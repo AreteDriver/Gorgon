@@ -834,7 +834,12 @@ def get_webhook(webhook_id: str, authorization: Optional[str] = Header(None)):
         raise not_found("Webhook", webhook_id)
 
     # Redact secret — only shown at creation time
-    result = webhook.model_dump() if hasattr(webhook, "model_dump") else vars(webhook)
+    if hasattr(webhook, "model_dump"):
+        result = webhook.model_dump()
+    elif isinstance(webhook, dict):
+        result = dict(webhook)
+    else:
+        result = vars(webhook)
     result["secret"] = "***REDACTED***"
     return result
 
