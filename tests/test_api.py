@@ -521,9 +521,7 @@ class TestWebhookEndpoints:
         import json
 
         body = json.dumps({"data": {"id": 123}}).encode()
-        sig = "sha256=" + hmac.new(
-            secret.encode(), body, hashlib.sha256
-        ).hexdigest()
+        sig = "sha256=" + hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
         response = client.post(
             "/hooks/trigger-test",
             content=body,

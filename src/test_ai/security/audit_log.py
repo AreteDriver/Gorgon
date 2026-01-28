@@ -20,25 +20,29 @@ from starlette.middleware.base import BaseHTTPMiddleware
 logger = logging.getLogger("gorgon.audit")
 
 # Paths that always generate audit events regardless of method
-_ALWAYS_AUDIT_PATHS = frozenset((
-    "/v1/auth/",
-    "/auth/",
-    "/login",
-))
+_ALWAYS_AUDIT_PATHS = frozenset(
+    (
+        "/v1/auth/",
+        "/auth/",
+        "/login",
+    )
+)
 
 # HTTP methods that indicate mutations
 _MUTATION_METHODS = frozenset(("POST", "PUT", "PATCH", "DELETE"))
 
 # Paths to skip (health checks, metrics)
-_SKIP_PATHS = frozenset((
-    "/health",
-    "/health/live",
-    "/health/ready",
-    "/metrics",
-    "/docs",
-    "/openapi.json",
-    "/redoc",
-))
+_SKIP_PATHS = frozenset(
+    (
+        "/health",
+        "/health/live",
+        "/health/ready",
+        "/metrics",
+        "/docs",
+        "/openapi.json",
+        "/redoc",
+    )
+)
 
 
 def _classify_event(method: str, path: str, status_code: int) -> str:
@@ -87,7 +91,9 @@ class AuditLogMiddleware(BaseHTTPMiddleware):
         """
         super().__init__(app)
         self.log_reads = log_reads
-        self.exclude_paths = (_SKIP_PATHS | exclude_paths) if exclude_paths else _SKIP_PATHS
+        self.exclude_paths = (
+            (_SKIP_PATHS | exclude_paths) if exclude_paths else _SKIP_PATHS
+        )
 
     async def dispatch(self, request: Request, call_next) -> Response:
         path = request.url.path

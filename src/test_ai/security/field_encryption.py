@@ -64,7 +64,9 @@ class FieldEncryptor:
             ValueError: If the ciphertext is not properly prefixed or is invalid.
         """
         if not ciphertext.startswith(_ENCRYPTED_PREFIX):
-            raise ValueError("Ciphertext missing 'enc:' prefix — not an encrypted value")
+            raise ValueError(
+                "Ciphertext missing 'enc:' prefix — not an encrypted value"
+            )
         raw = ciphertext[len(_ENCRYPTED_PREFIX) :]
         try:
             return self._fernet.decrypt(raw.encode("utf-8")).decode("utf-8")

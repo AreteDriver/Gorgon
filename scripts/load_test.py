@@ -66,9 +66,7 @@ def make_request(
         )
     except Exception as e:
         latency = time.monotonic() - start
-        return RequestResult(
-            endpoint=endpoint, status=0, latency=latency, error=str(e)
-        )
+        return RequestResult(endpoint=endpoint, status=0, latency=latency, error=str(e))
 
 
 def get_auth_token(base_url: str) -> Optional[str]:
@@ -113,13 +111,15 @@ def build_test_plan(base_url: str, token: Optional[str]) -> list:
 
     # Auth login (rate-limited to 5/min so we include it but at low weight)
     login_body = json.dumps({"user_id": "loadtest", "password": "demo"}).encode()
-    plan.append((
-        "POST",
-        f"{base_url}/v1/auth/login",
-        "POST /v1/auth/login",
-        {"Content-Type": "application/json"},
-        login_body,
-    ))
+    plan.append(
+        (
+            "POST",
+            f"{base_url}/v1/auth/login",
+            "POST /v1/auth/login",
+            {"Content-Type": "application/json"},
+            login_body,
+        )
+    )
 
     return plan
 
@@ -196,9 +196,7 @@ def print_report(stats: dict[str, EndpointStats], duration: int) -> None:
     total_req = sum(s.total for s in stats.values())
     total_ok = sum(s.successes for s in stats.values())
     total_fail = sum(s.failures for s in stats.values())
-    all_latencies = sorted(
-        lat for s in stats.values() for lat in s.latencies
-    )
+    all_latencies = sorted(lat for s in stats.values() for lat in s.latencies)
 
     print()
     print("=" * 70)
@@ -219,7 +217,9 @@ def print_report(stats: dict[str, EndpointStats], duration: int) -> None:
         print(f"  p99:  {percentile(all_latencies, 99) * 1000:.1f} ms")
         print()
 
-    print(f"{'Endpoint':<30} {'Total':>7} {'OK':>7} {'Fail':>7} {'Avg(ms)':>9} {'p95(ms)':>9}")
+    print(
+        f"{'Endpoint':<30} {'Total':>7} {'OK':>7} {'Fail':>7} {'Avg(ms)':>9} {'p95(ms)':>9}"
+    )
     print("-" * 70)
     for ep in stats.values():
         if not ep.latencies:
@@ -237,13 +237,21 @@ def print_report(stats: dict[str, EndpointStats], duration: int) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Load test for Gorgon API")
     parser.add_argument(
-        "--url", default="http://localhost:8000", help="Base URL (default: http://localhost:8000)"
+        "--url",
+        default="http://localhost:8000",
+        help="Base URL (default: http://localhost:8000)",
     )
     parser.add_argument(
-        "--concurrency", type=int, default=10, help="Number of concurrent workers (default: 10)"
+        "--concurrency",
+        type=int,
+        default=10,
+        help="Number of concurrent workers (default: 10)",
     )
     parser.add_argument(
-        "--duration", type=int, default=30, help="Test duration in seconds (default: 30)"
+        "--duration",
+        type=int,
+        default=30,
+        help="Test duration in seconds (default: 30)",
     )
     args = parser.parse_args()
 
