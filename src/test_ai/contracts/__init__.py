@@ -12,6 +12,7 @@ from .definitions import (
     get_contract,
 )
 from .validator import ContractValidator
+from .enforcer import ContractEnforcer, EnforcementResult, EnforcementStats
 
 __all__ = [
     "AgentContract",
@@ -23,4 +24,8 @@ __all__ = [
     "TESTER_CONTRACT",
     "REVIEWER_CONTRACT",
     "get_contract",
+    # Contract enforcement
+    "ContractEnforcer",
+    "EnforcementResult",
+    "EnforcementStats",
 ]

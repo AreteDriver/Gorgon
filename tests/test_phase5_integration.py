@@ -31,8 +31,13 @@ def backend():
 
 
 @pytest.fixture
-def client(backend):
+def client(backend, monkeypatch):
     """Create a test client with fresh security state."""
+    from test_ai.config.settings import get_settings
+
+    monkeypatch.setenv("ALLOW_DEMO_AUTH", "true")
+    get_settings.cache_clear()
+
     with patch("test_ai.api.get_database", return_value=backend):
         with patch("test_ai.api.run_migrations", return_value=[]):
             with patch(
@@ -87,6 +92,7 @@ def client(backend):
                             yield test_client
 
                         limiter.enabled = True
+                        get_settings.cache_clear()
 
 
 class TestRequestSizeLimits:

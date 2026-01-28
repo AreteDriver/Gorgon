@@ -188,6 +188,7 @@ class WorkflowExecutor:
         | None = None,
         memory_manager: WorkflowMemoryManager | None = None,
         memory_config: MemoryConfig | None = None,
+        feedback_engine=None,
     ):
         """Initialize executor.
 
@@ -200,6 +201,7 @@ class WorkflowExecutor:
             fallback_callbacks: Dict of named callbacks for fallback handling
             memory_manager: Optional WorkflowMemoryManager for agent memory
             memory_config: Optional MemoryConfig for memory behavior
+            feedback_engine: Optional FeedbackEngine for outcome tracking and learning
         """
         self.checkpoint_manager = checkpoint_manager
         self.contract_validator = contract_validator
@@ -209,6 +211,7 @@ class WorkflowExecutor:
         self.fallback_callbacks = fallback_callbacks or {}
         self.memory_manager = memory_manager
         self.memory_config = memory_config
+        self.feedback_engine = feedback_engine
         self._handlers: dict[str, StepHandler] = {
             "shell": self._execute_shell,
             "checkpoint": self._execute_checkpoint,
@@ -292,7 +295,7 @@ class WorkflowExecutor:
     def _record_step_completion(
         self, step: StepConfig, step_result: StepResult, result: ExecutionResult
     ) -> None:
-        """Record step completion in result and budget manager.
+        """Record step completion in result, budget manager, and feedback engine.
 
         Args:
             step: Completed step
@@ -305,6 +308,22 @@ class WorkflowExecutor:
 
         if self.budget_manager and step_result.tokens_used > 0:
             self.budget_manager.record_usage(step.id, step_result.tokens_used)
+
+        # Feed step outcome into the intelligence layer
+        if self.feedback_engine:
+            try:
+                self.feedback_engine.process_step_result(
+                    step_id=step.id,
+                    workflow_id=self._current_workflow_id or "",
+                    agent_role=step.params.get("role", step.type),
+                    provider=step.type,
+                    model=step.params.get("model", ""),
+                    step_result=step_result,
+                    cost_usd=0.0,  # Cost tracked separately via cost_tracker
+                    tokens_used=step_result.tokens_used,
+                )
+            except Exception as fb_err:
+                logger.debug(f"Feedback engine error (non-fatal): {fb_err}")
 
     def _store_step_outputs(self, step: StepConfig, step_result: StepResult) -> None:
         """Store step outputs in execution context.
@@ -490,6 +509,19 @@ class WorkflowExecutor:
                 self.memory_manager.save_all()
             except Exception as mem_err:
                 logger.warning(f"Failed to save agent memories: {mem_err}")
+
+        # Feed workflow outcome into the intelligence layer
+        if self.feedback_engine:
+            try:
+                self.feedback_engine.process_workflow_result(
+                    workflow_id=workflow_id or "",
+                    workflow_name=workflow.name,
+                    execution_result=result,
+                )
+            except Exception as fb_err:
+                logger.debug(
+                    f"Feedback engine workflow processing error (non-fatal): {fb_err}"
+                )
 
         # Clear workflow ID
         self._current_workflow_id = None

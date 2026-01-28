@@ -46,6 +46,7 @@ from .versioning import (
     compare_versions,
 )
 from .version_manager import WorkflowVersionManager
+from .composer import WorkflowComposer, SubWorkflowResult
 from .auto_parallel import (
     DependencyGraph,
     ParallelGroup,
@@ -108,4 +109,7 @@ __all__ = [
     "can_run_parallel",
     "get_ready_steps",
     "validate_no_cycles",
+    # Workflow composability
+    "WorkflowComposer",
+    "SubWorkflowResult",
 ]

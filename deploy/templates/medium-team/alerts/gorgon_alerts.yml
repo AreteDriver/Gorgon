@@ -1,0 +1,125 @@
+# Prometheus alerting rules for Gorgon
+# Mount to /etc/prometheus/alerts/ in the Prometheus container
+
+groups:
+  - name: gorgon_availability
+    interval: 15s
+    rules:
+      - alert: GorgonDown
+        expr: up{job="gorgon"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Gorgon application is down"
+          description: "The Gorgon scrape target has been unreachable for over 1 minute."
+
+      - alert: GorgonHighErrorRate
+        expr: >
+          (gorgon_workflows_failed_total / (gorgon_workflows_completed_total + gorgon_workflows_failed_total)) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Workflow failure rate above 10%"
+          description: "{{ $value | humanizePercentage }} of workflows are failing over the last 5 minutes."
+
+      - alert: GorgonHighErrorRateCritical
+        expr: >
+          (gorgon_workflows_failed_total / (gorgon_workflows_completed_total + gorgon_workflows_failed_total)) > 0.25
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Workflow failure rate above 25%"
+          description: "{{ $value | humanizePercentage }} of workflows are failing. Immediate attention required."
+
+  - name: gorgon_performance
+    interval: 30s
+    rules:
+      - alert: GorgonSlowWorkflows
+        expr: gorgon_workflow_duration_ms{quantile="0.95"} > 300000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 workflow duration exceeds 5 minutes"
+          description: "p95 workflow duration is {{ $value | humanize }}ms."
+
+      - alert: GorgonSlowSteps
+        expr: gorgon_step_duration_ms{quantile="0.95"} > 60000
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "p95 step duration exceeds 60 seconds"
+          description: "p95 step duration is {{ $value | humanize }}ms."
+
+      - alert: GorgonHighTokenUsage
+        expr: rate(gorgon_workflow_tokens_sum[5m]) > 100000
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High token consumption rate"
+          description: "Token usage is {{ $value | humanize }} tokens/sec over 5 minutes. Check for runaway workflows."
+
+  - name: gorgon_saturation
+    interval: 30s
+    rules:
+      - alert: GorgonHighActiveWorkflows
+        expr: gorgon_active_workflows > 50
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High number of active workflows"
+          description: "{{ $value }} workflows are currently active. System may be saturated."
+
+      - alert: GorgonActiveWorkflowsCritical
+        expr: gorgon_active_workflows > 100
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Active workflow count critical"
+          description: "{{ $value }} active workflows. System is likely overloaded."
+
+      - alert: GorgonSuccessRateLow
+        expr: gorgon_success_rate < 80
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Overall success rate below 80%"
+          description: "Success rate is {{ $value }}%."
+
+  - name: gorgon_infrastructure
+    interval: 30s
+    rules:
+      - alert: PostgresDown
+        expr: up{job="postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "PostgreSQL is down"
+          description: "PostgreSQL exporter has been unreachable for over 1 minute."
+
+      - alert: RedisDown
+        expr: up{job="redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Redis is down"
+          description: "Redis exporter has been unreachable for over 1 minute."
+
+      - alert: PrometheusTargetMissing
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Prometheus target {{ $labels.job }} is down"
+          description: "Target {{ $labels.instance }} in job {{ $labels.job }} has been down for 5 minutes."

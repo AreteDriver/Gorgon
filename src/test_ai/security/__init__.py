@@ -4,6 +4,7 @@ Provides middleware and utilities for:
 - Request size limits
 - Brute force protection
 - Rate limiting for sensitive endpoints
+- Audit logging for compliance
 """
 
 from test_ai.security.request_limits import (
@@ -19,6 +20,8 @@ from test_ai.security.brute_force import (
     BruteForceProtection,
     get_brute_force_protection,
 )
+from test_ai.security.audit_log import AuditLogMiddleware
+from test_ai.security.field_encryption import FieldEncryptor, get_field_encryptor
 
 __all__ = [
     # Request limits
@@ -32,4 +35,9 @@ __all__ = [
     "BruteForceMiddleware",
     "BruteForceProtection",
     "get_brute_force_protection",
+    # Audit logging
+    "AuditLogMiddleware",
+    # Field encryption
+    "FieldEncryptor",
+    "get_field_encryptor",
 ]

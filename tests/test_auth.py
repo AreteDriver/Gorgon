@@ -38,10 +38,11 @@ class TestTokenAuth:
         assert isinstance(token, str)
         assert len(token) > 0
 
-    def test_create_token_contains_user_id(self, auth):
-        """Token contains user ID."""
+    def test_create_token_is_opaque(self, auth):
+        """Token is opaque and does not leak user ID."""
         token = auth.create_token("user123")
-        assert "user123" in token
+        assert "user123" not in token
+        assert len(token) >= 32
 
     def test_create_token_unique(self, auth):
         """Each token is unique."""
@@ -192,7 +193,7 @@ class TestGlobalFunctions:
         """create_access_token creates valid token."""
         token = create_access_token("test_user")
         assert isinstance(token, str)
-        assert "test_user" in token
+        assert len(token) >= 32
 
     def test_verify_token_function(self):
         """verify_token function works with global auth."""
@@ -217,24 +218,18 @@ class TestTokenFormat:
         with patch("test_ai.auth.token_auth.get_settings", return_value=mock_settings):
             return TokenAuth()
 
-    def test_token_starts_with_prefix(self, auth):
-        """Token starts with 'token_' prefix."""
+    def test_token_is_url_safe(self, auth):
+        """Token is URL-safe base64."""
         token = auth.create_token("user")
-        assert token.startswith("token_")
+        # secrets.token_urlsafe uses A-Z, a-z, 0-9, -, _
+        import re
 
-    def test_token_has_timestamp(self, auth):
-        """Token contains timestamp component."""
-        before = datetime.now().timestamp()
+        assert re.fullmatch(r"[A-Za-z0-9_-]+", token)
+
+    def test_token_has_sufficient_entropy(self, auth):
+        """Token has at least 32 bytes of entropy (43+ chars in base64)."""
         token = auth.create_token("user")
-        after = datetime.now().timestamp()
-
-        # Extract timestamp from token (format: token_userid_timestamp)
-        parts = token.split("_")
-        assert len(parts) >= 3
-
-        # Last part should be timestamp
-        timestamp = float(parts[-1])
-        assert before <= timestamp <= after
+        assert len(token) >= 43
 
     def test_special_characters_in_user_id(self, auth):
         """Handles special characters in user ID."""

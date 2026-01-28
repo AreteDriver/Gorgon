@@ -311,7 +311,16 @@ class AgentMemory:
                 limit=remaining,
             )
             if recent:
-                result["recent"] = recent
+                # Filter out memory types that were explicitly excluded
+                excluded_types: set[str] = set()
+                if not include_facts:
+                    excluded_types.add("fact")
+                if not include_preferences:
+                    excluded_types.add("preference")
+                if excluded_types:
+                    recent = [m for m in recent if m.memory_type not in excluded_types]
+                if recent:
+                    result["recent"] = recent
 
         return result
 

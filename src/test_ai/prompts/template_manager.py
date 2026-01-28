@@ -2,6 +2,7 @@
 
 import json
 import logging
+import stat
 from typing import Any, Dict, List, Optional
 from pydantic import BaseModel, Field, field_validator
 
@@ -72,6 +73,9 @@ class PromptTemplateManager:
         """
         try:
             file_path = self._get_template_path(template.id)
+            dir_mode = file_path.parent.stat().st_mode
+            if not (dir_mode & stat.S_IWUSR):
+                raise OSError(f"Directory not writable: {file_path.parent}")
             with open(file_path, "w") as f:
                 json.dump(template.model_dump(), f, indent=2)
             return True

@@ -1,5 +1,6 @@
 """Token-based authentication."""
 
+import secrets
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -14,8 +15,8 @@ class TokenAuth:
         self._tokens = {}
 
     def create_token(self, user_id: str) -> str:
-        """Create a new access token."""
-        token = f"token_{user_id}_{datetime.now().timestamp()}"
+        """Create a new cryptographically secure access token."""
+        token = secrets.token_urlsafe(32)
         expiry = datetime.now() + timedelta(
             minutes=self.settings.access_token_expire_minutes
         )
@@ -42,15 +43,22 @@ class TokenAuth:
         return False
 
 
-# Global instance
-_auth = TokenAuth()
+_auth: Optional[TokenAuth] = None
+
+
+def _get_auth() -> TokenAuth:
+    """Lazy-initialize the global TokenAuth instance."""
+    global _auth
+    if _auth is None:
+        _auth = TokenAuth()
+    return _auth
 
 
 def create_access_token(user_id: str) -> str:
     """Create an access token for a user."""
-    return _auth.create_token(user_id)
+    return _get_auth().create_token(user_id)
 
 
 def verify_token(token: str) -> Optional[str]:
     """Verify a token and return user_id if valid."""
-    return _auth.verify_token(token)
+    return _get_auth().verify_token(token)

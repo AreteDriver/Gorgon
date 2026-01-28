@@ -58,6 +58,7 @@ from test_ai.security import (
     BruteForceMiddleware,
     BruteForceConfig,
     get_brute_force_protection,
+    AuditLogMiddleware,
 )
 from test_ai.tracing.middleware import TracingMiddleware
 from test_ai.api_clients.resilience import get_all_provider_stats
@@ -306,6 +307,9 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
 # Register middleware (order matters: last added runs first on request)
 # 1. RequestLoggingMiddleware - request logging and shutdown handling
 app.add_middleware(RequestLoggingMiddleware)
+
+# 1b. AuditLogMiddleware - structured audit trail for compliance
+app.add_middleware(AuditLogMiddleware)
 
 # 2. TracingMiddleware - distributed tracing (conditionally enabled via settings)
 _tracing_settings = get_settings()
@@ -576,7 +580,8 @@ def get_yaml_workflow_definition(
         }
     except Exception as e:
         logger.error(f"Failed to load YAML workflow {workflow_id}: {e}")
-        raise internal_error(f"Failed to load workflow: {e}")
+        logger.error("Failed to load workflow: %s", e)
+        raise internal_error("Failed to load workflow")
 
 
 class YAMLWorkflowExecuteRequest(BaseModel):
@@ -646,7 +651,8 @@ def execute_yaml_workflow(
         }
     except Exception as e:
         logger.error(f"Failed to execute YAML workflow {body.workflow_id}: {e}")
-        raise internal_error(f"Workflow execution failed: {e}")
+        logger.error("Workflow execution failed: %s", e)
+        raise internal_error("Workflow execution failed")
 
 
 @v1_router.get("/prompts", responses=AUTH_RESPONSES)
@@ -820,14 +826,17 @@ def list_webhooks(authorization: Optional[str] = Header(None)):
 
 @v1_router.get("/webhooks/{webhook_id}", responses=CRUD_RESPONSES)
 def get_webhook(webhook_id: str, authorization: Optional[str] = Header(None)):
-    """Get a specific webhook (includes secret)."""
+    """Get a specific webhook (secret redacted)."""
     verify_auth(authorization)
     webhook = webhook_manager.get_webhook(webhook_id)
 
     if not webhook:
         raise not_found("Webhook", webhook_id)
 
-    return webhook
+    # Redact secret — only shown at creation time
+    result = webhook.model_dump() if hasattr(webhook, "model_dump") else vars(webhook)
+    result["secret"] = "***REDACTED***"
+    return result
 
 
 @v1_router.post("/webhooks", responses=CRUD_RESPONSES)
@@ -934,10 +943,11 @@ async def trigger_webhook(
     # Get raw body for signature verification
     body = await request.body()
 
-    # Verify signature if provided (recommended but optional for testing)
-    if x_webhook_signature:
-        if not webhook_manager.verify_signature(webhook_id, body, x_webhook_signature):
-            raise unauthorized("Invalid webhook signature")
+    # Verify HMAC signature (required)
+    if not x_webhook_signature:
+        raise unauthorized("Missing X-Webhook-Signature header")
+    if not webhook_manager.verify_signature(webhook_id, body, x_webhook_signature):
+        raise unauthorized("Invalid webhook signature")
 
     # Parse payload
     try:
@@ -1316,12 +1326,12 @@ def database_health_check():
             "timestamp": datetime.now().isoformat(),
         }
     except Exception as e:
+        logger.error("Database health check failed: %s", e)
         raise HTTPException(
             status_code=503,
             detail={
                 "status": "unhealthy",
                 "database": "disconnected",
-                "error": str(e),
                 "timestamp": datetime.now().isoformat(),
             },
         )

@@ -29,7 +29,7 @@ class Settings(BaseSettings):
     )
 
     # API Keys
-    openai_api_key: str = Field(..., description="OpenAI API key")
+    openai_api_key: str = Field(default="", description="OpenAI API key")
     github_token: Optional[str] = Field(
         None, description="GitHub personal access token"
     )
@@ -112,8 +112,8 @@ class Settings(BaseSettings):
         description="API credentials as 'user1:hash1,user2:hash2'. Hash passwords with SHA-256.",
     )
     allow_demo_auth: bool = Field(
-        True,
-        description="Allow demo authentication (user: any, password: 'demo'). Disable in production.",
+        False,
+        description="Allow demo authentication (user: any, password: 'demo'). Set ALLOW_DEMO_AUTH=true to enable.",
     )
 
     # Shell execution limits
