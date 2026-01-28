@@ -8,7 +8,6 @@ Covers:
 - CostIntelligence (cost analysis and recommendations)
 """
 
-import asyncio
 from datetime import datetime, timedelta
 from unittest.mock import MagicMock, patch
 
@@ -17,13 +16,15 @@ import pytest
 # ---------------------------------------------------------------------------
 # IntegrationGraph tests
 # ---------------------------------------------------------------------------
+from test_ai.contracts.enforcer import ContractEnforcer
+from test_ai.intelligence.cost_intelligence import CostIntelligence
 from test_ai.intelligence.integration_graph import (
-    DispatchResult,
     IntegrationGraph,
-    TriggerRule,
     _evaluate_condition,
     _resolve_dotted_path,
 )
+from test_ai.intelligence.prompt_evolution import PromptEvolution
+from test_ai.workflow.composer import WorkflowComposer, _resolve_value
 
 
 class TestResolveDottedPath:
@@ -45,23 +46,35 @@ class TestResolveDottedPath:
 
 class TestEvaluateCondition:
     def test_equals(self):
-        assert _evaluate_condition({"field": "action", "equals": "opened"}, {"action": "opened"})
-        assert not _evaluate_condition({"field": "action", "equals": "closed"}, {"action": "opened"})
+        assert _evaluate_condition(
+            {"field": "action", "equals": "opened"}, {"action": "opened"}
+        )
+        assert not _evaluate_condition(
+            {"field": "action", "equals": "closed"}, {"action": "opened"}
+        )
 
     def test_not_equals(self):
         assert _evaluate_condition({"field": "x", "not_equals": "a"}, {"x": "b"})
 
     def test_contains(self):
-        assert _evaluate_condition({"field": "tags", "contains": "bug"}, {"tags": ["bug", "fix"]})
-        assert _evaluate_condition({"field": "name", "contains": "test"}, {"name": "my_test_thing"})
+        assert _evaluate_condition(
+            {"field": "tags", "contains": "bug"}, {"tags": ["bug", "fix"]}
+        )
+        assert _evaluate_condition(
+            {"field": "name", "contains": "test"}, {"name": "my_test_thing"}
+        )
 
     def test_exists(self):
         assert _evaluate_condition({"field": "x", "exists": True}, {"x": 1})
         assert _evaluate_condition({"field": "x", "exists": False}, {"y": 1})
 
     def test_in_operator(self):
-        assert _evaluate_condition({"field": "status", "in": ["open", "closed"]}, {"status": "open"})
-        assert not _evaluate_condition({"field": "status", "in": ["open"]}, {"status": "closed"})
+        assert _evaluate_condition(
+            {"field": "status", "in": ["open", "closed"]}, {"status": "open"}
+        )
+        assert not _evaluate_condition(
+            {"field": "status", "in": ["open"]}, {"status": "closed"}
+        )
 
     def test_no_operator_passes(self):
         assert _evaluate_condition({"field": "x"}, {"x": 1})
@@ -101,7 +114,7 @@ class TestIntegrationGraph:
 
     def test_dispatch_disabled_trigger(self):
         g = IntegrationGraph()
-        tid = g.register_trigger("github", "pr_opened", "review", enabled=False)
+        g.register_trigger("github", "pr_opened", "review", enabled=False)
         results = g.dispatch_event("github", "pr_opened", {"action": "opened"})
         assert len(results) == 1
         assert not results[0].dispatched
@@ -110,7 +123,9 @@ class TestIntegrationGraph:
     def test_dispatch_condition_not_met(self):
         g = IntegrationGraph()
         g.register_trigger(
-            "github", "pr_opened", "review",
+            "github",
+            "pr_opened",
+            "review",
             conditions=[{"field": "action", "equals": "closed"}],
         )
         results = g.dispatch_event("github", "pr_opened", {"action": "opened"})
@@ -119,10 +134,14 @@ class TestIntegrationGraph:
     def test_dispatch_with_transform(self):
         g = IntegrationGraph()
         g.register_trigger(
-            "github", "pr_opened", "review",
+            "github",
+            "pr_opened",
+            "review",
             transform={"title": "pull_request.title"},
         )
-        results = g.dispatch_event("github", "pr_opened", {"pull_request": {"title": "fix bug"}})
+        results = g.dispatch_event(
+            "github", "pr_opened", {"pull_request": {"title": "fix bug"}}
+        )
         assert results[0].inputs == {"title": "fix bug"}
 
     def test_dispatch_callback_called(self):
@@ -141,10 +160,13 @@ class TestIntegrationGraph:
 
     def test_register_chain(self):
         g = IntegrationGraph()
-        chain_id = g.register_chain("ci-pipeline", [
-            {"source": "github", "event": "push", "workflow_name": "build"},
-            {"source": "github", "event": "build_done", "workflow_name": "deploy"},
-        ])
+        chain_id = g.register_chain(
+            "ci-pipeline",
+            [
+                {"source": "github", "event": "push", "workflow_name": "build"},
+                {"source": "github", "event": "build_done", "workflow_name": "deploy"},
+            ],
+        )
         assert chain_id.startswith("chain-")
         assert len(g.list_triggers()) == 2
 
@@ -190,7 +212,6 @@ class TestIntegrationGraph:
 # ---------------------------------------------------------------------------
 # PromptEvolution tests
 # ---------------------------------------------------------------------------
-from test_ai.intelligence.prompt_evolution import PromptEvolution
 
 
 class TestPromptEvolution:
@@ -280,8 +301,18 @@ class TestPromptEvolution:
 
         # History with high failure rate
         history = [
-            {"quality_score": 0.3, "success": False, "error": "missing field X", "missing_fields": ["X"]},
-            {"quality_score": 0.4, "success": False, "error": "missing field X", "missing_fields": ["X"]},
+            {
+                "quality_score": 0.3,
+                "success": False,
+                "error": "missing field X",
+                "missing_fields": ["X"],
+            },
+            {
+                "quality_score": 0.4,
+                "success": False,
+                "error": "missing field X",
+                "missing_fields": ["X"],
+            },
             {"quality_score": 0.9, "success": True},
         ]
         new_id = evo.evolve_prompt("tmpl", "builder", history)
@@ -302,7 +333,6 @@ class TestPromptEvolution:
 # ---------------------------------------------------------------------------
 # IntegrationGraph + PromptEvolution are done. Now ContractEnforcer.
 # ---------------------------------------------------------------------------
-from test_ai.contracts.enforcer import ContractEnforcer, EnforcementResult
 
 
 class TestContractEnforcer:
@@ -336,8 +366,6 @@ class TestContractEnforcer:
                 enforcer.validate_output("planner", {})
 
     def test_enforcement_stats(self):
-        from test_ai.contracts.base import ContractViolation
-
         enforcer = ContractEnforcer()
         with patch("test_ai.contracts.enforcer.get_contract") as mock_get:
             mock_contract = MagicMock()
@@ -372,7 +400,6 @@ class TestContractEnforcer:
 # ---------------------------------------------------------------------------
 # CostIntelligence tests
 # ---------------------------------------------------------------------------
-from test_ai.intelligence.cost_intelligence import CostIntelligence, SpendingAnalysis
 
 
 class TestCostIntelligence:
@@ -450,7 +477,10 @@ class TestCostIntelligence:
         assert forecast.projected_30d == 0.0
 
     def test_estimate_switch_impact(self):
-        entries = [self._make_entry(model="gpt-4o", cost=0.05, role="builder") for _ in range(10)]
+        entries = [
+            self._make_entry(model="gpt-4o", cost=0.05, role="builder")
+            for _ in range(10)
+        ]
         tracker = self._make_cost_tracker(entries)
         ci = CostIntelligence(tracker)
         impact = ci.estimate_switch_impact("builder", "gpt-4o", "gpt-4o-mini", days=30)
@@ -461,7 +491,10 @@ class TestCostIntelligence:
         assert impact.cost_change_pct < 0
 
     def test_recommend_savings(self):
-        entries = [self._make_entry(model="gpt-4o", cost=0.05, role="builder") for _ in range(30)]
+        entries = [
+            self._make_entry(model="gpt-4o", cost=0.05, role="builder")
+            for _ in range(30)
+        ]
         tracker = self._make_cost_tracker(entries)
         ci = CostIntelligence(tracker)
         recs = ci.recommend_savings(days=30)
@@ -472,7 +505,6 @@ class TestCostIntelligence:
 # ---------------------------------------------------------------------------
 # WorkflowComposer tests (mocked — doesn't need real workflows)
 # ---------------------------------------------------------------------------
-from test_ai.workflow.composer import WorkflowComposer, SubWorkflowResult, _resolve_value
 
 
 class TestResolveValue:

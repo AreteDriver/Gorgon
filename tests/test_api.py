@@ -24,9 +24,14 @@ def backend():
 
 
 @pytest.fixture
-def client(backend):
+def client(backend, monkeypatch):
     """Create a test client with mocked managers."""
+    from test_ai.config.settings import get_settings
     from test_ai.state.migrations import run_migrations as actual_run_migrations
+
+    # Enable demo auth for tests (disabled by default for security)
+    monkeypatch.setenv("ALLOW_DEMO_AUTH", "true")
+    get_settings.cache_clear()
 
     # Run actual migrations so tables exist
     actual_run_migrations(backend)
@@ -91,6 +96,7 @@ def client(backend):
 
                         # Re-enable rate limiting after tests
                         limiter.enabled = True
+                        get_settings.cache_clear()
 
 
 @pytest.fixture
@@ -539,9 +545,13 @@ class TestRateLimiting:
     """Tests for rate limiting."""
 
     @pytest.fixture
-    def rate_limited_client(self, backend):
+    def rate_limited_client(self, backend, monkeypatch):
         """Create a test client with rate limiting enabled."""
         from unittest.mock import patch, MagicMock
+        from test_ai.config.settings import get_settings
+
+        monkeypatch.setenv("ALLOW_DEMO_AUTH", "true")
+        get_settings.cache_clear()
 
         with patch("test_ai.api.get_database", return_value=backend):
             with patch("test_ai.api.run_migrations", return_value=[]):
@@ -593,6 +603,7 @@ class TestRateLimiting:
                                 original_limit
                             )
                             limiter.enabled = False
+                            get_settings.cache_clear()
 
     def test_login_rate_limit(self, rate_limited_client):
         """Login endpoint enforces rate limit after 5 requests."""
