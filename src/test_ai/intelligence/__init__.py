@@ -34,6 +34,22 @@ from test_ai.intelligence.feedback_engine import (
     Suggestion,
     WorkflowFeedback,
 )
+from test_ai.intelligence.prompt_evolution import (
+    PromptEvolution,
+    PromptVariant,
+    VariantStats,
+)
+from test_ai.intelligence.integration_graph import (
+    IntegrationGraph,
+    TriggerRule,
+    DispatchResult,
+    IntegrationChain,
+)
+from test_ai.intelligence.cost_intelligence import (
+    CostIntelligence,
+    SpendingAnalysis,
+    SavingsRecommendation,
+)
 
 __all__ = [
     # Outcome tracking
@@ -55,4 +71,17 @@ __all__ = [
     "FeedbackResult",
     "Suggestion",
     "WorkflowFeedback",
+    # Prompt evolution
+    "PromptEvolution",
+    "PromptVariant",
+    "VariantStats",
+    # Integration graph
+    "IntegrationGraph",
+    "TriggerRule",
+    "DispatchResult",
+    "IntegrationChain",
+    # Cost intelligence
+    "CostIntelligence",
+    "SpendingAnalysis",
+    "SavingsRecommendation",
 ]
