@@ -4,8 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import json
-from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 from fastapi import WebSocket
@@ -485,7 +484,7 @@ class TestBroadcaster:
         broadcaster.start(loop)
 
         mock_ws = AsyncMock(spec=WebSocket)
-        conn = await manager.connect(mock_ws)
+        await manager.connect(mock_ws)
         # Don't subscribe to exec-1
         mock_ws.send_json.reset_mock()
 
@@ -613,7 +612,7 @@ class TestExecutionManagerCallbacks:
 
     def test_callback_on_update_metrics(self) -> None:
         """Test callback is called on update_metrics."""
-        from test_ai.executions import ExecutionManager, ExecutionMetrics
+        from test_ai.executions import ExecutionManager
 
         mock_backend = MagicMock()
         mock_backend.transaction.return_value.__enter__ = MagicMock()
