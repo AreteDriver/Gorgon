@@ -4,6 +4,7 @@ import type {
   Workflow,
   Execution,
   Agent,
+  AgentDefinition,
   Budget,
   BudgetSummary,
   Checkpoint,
@@ -134,6 +135,16 @@ class GorgonApiClient {
   // ---------------------------------------------------------------------------
   // Agents
   // ---------------------------------------------------------------------------
+
+  async getAgentDefinitions(): Promise<AgentDefinition[]> {
+    const { data } = await this.client.get('/v1/agents');
+    return data;
+  }
+
+  async getAgentDefinition(agentId: string): Promise<AgentDefinition> {
+    const { data } = await this.client.get(`/v1/agents/${agentId}`);
+    return data;
+  }
 
   async getAgents(): Promise<Agent[]> {
     const { data } = await this.client.get('/agents');

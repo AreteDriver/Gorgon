@@ -91,6 +91,8 @@ from test_ai.api_errors import (
     bad_request,
     internal_error,
 )
+from test_ai.contracts.base import AgentRole
+from test_ai.contracts.definitions import _CONTRACT_REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -105,6 +107,7 @@ version_manager: WorkflowVersionManager | None = None
 execution_manager = None  # type: ExecutionManager | None
 mcp_manager: MCPConnectorManager | None = None
 settings_manager = None  # type: "SettingsManager | None"
+budget_manager = None  # type: "PersistentBudgetManager | None"
 
 # WebSocket components initialized in lifespan
 ws_manager = None  # type: "ConnectionManager | None"
@@ -149,6 +152,7 @@ async def lifespan(app: FastAPI):
         execution_manager, \
         mcp_manager, \
         settings_manager, \
+        budget_manager, \
         ws_manager, \
         ws_broadcaster
 
@@ -202,6 +206,11 @@ async def lifespan(app: FastAPI):
     from test_ai.settings import SettingsManager
 
     settings_manager = SettingsManager(backend=backend)
+
+    # Initialize budget manager
+    from test_ai.budget import PersistentBudgetManager
+
+    budget_manager = PersistentBudgetManager(backend=backend)
 
     # Initialize WebSocket components
     from test_ai.websocket import ConnectionManager, Broadcaster
@@ -1839,6 +1848,311 @@ def delete_api_key(provider: str, authorization: Optional[str] = Header(None)):
         return {"status": "success"}
 
     raise not_found("API Key", provider)
+
+
+# =============================================================================
+# Budget Endpoints
+# =============================================================================
+
+
+class BudgetCreateRequest(BaseModel):
+    """Request to create a budget."""
+
+    name: str
+    total_amount: float
+    period: str = "monthly"
+    agent_id: Optional[str] = None
+
+
+class BudgetUpdateRequest(BaseModel):
+    """Request to update a budget."""
+
+    name: Optional[str] = None
+    total_amount: Optional[float] = None
+    used_amount: Optional[float] = None
+    period: Optional[str] = None
+    agent_id: Optional[str] = None
+
+
+@v1_router.get("/budgets", responses=AUTH_RESPONSES)
+def list_budgets(
+    agent_id: Optional[str] = Query(None, description="Filter by agent ID"),
+    period: Optional[str] = Query(None, description="Filter by period (daily/weekly/monthly)"),
+    authorization: Optional[str] = Header(None),
+):
+    """List all budgets with optional filtering."""
+    verify_auth(authorization)
+
+    from test_ai.budget import BudgetPeriod
+
+    period_enum = None
+    if period:
+        try:
+            period_enum = BudgetPeriod(period)
+        except ValueError:
+            raise bad_request(
+                "Invalid period",
+                {"valid_periods": ["daily", "weekly", "monthly"]},
+            )
+
+    budgets = budget_manager.list_budgets(agent_id=agent_id, period=period_enum)
+    return [b.model_dump(mode="json") for b in budgets]
+
+
+@v1_router.get("/budgets/summary", responses=AUTH_RESPONSES)
+def get_budget_summary(authorization: Optional[str] = Header(None)):
+    """Get overall budget summary."""
+    verify_auth(authorization)
+
+    summary = budget_manager.get_summary()
+    return summary.model_dump()
+
+
+@v1_router.get("/budgets/{budget_id}", responses=CRUD_RESPONSES)
+def get_budget(budget_id: str, authorization: Optional[str] = Header(None)):
+    """Get a specific budget by ID."""
+    verify_auth(authorization)
+
+    budget = budget_manager.get_budget(budget_id)
+    if not budget:
+        raise not_found("Budget", budget_id)
+    return budget.model_dump(mode="json")
+
+
+@v1_router.post("/budgets", responses=CRUD_RESPONSES)
+def create_budget(
+    request: BudgetCreateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Create a new budget."""
+    verify_auth(authorization)
+
+    from test_ai.budget import BudgetCreate, BudgetPeriod
+
+    # Validate period
+    try:
+        period = BudgetPeriod(request.period)
+    except ValueError:
+        raise bad_request(
+            "Invalid period",
+            {"valid_periods": ["daily", "weekly", "monthly"]},
+        )
+
+    # Validate name
+    if not request.name or len(request.name) < 1:
+        raise bad_request("Budget name is required")
+
+    # Validate amount
+    if request.total_amount < 0:
+        raise bad_request("Total amount must be non-negative")
+
+    budget_create = BudgetCreate(
+        name=request.name,
+        total_amount=request.total_amount,
+        period=period,
+        agent_id=request.agent_id,
+    )
+
+    try:
+        budget = budget_manager.create_budget(budget_create)
+        return budget.model_dump(mode="json")
+    except ValueError as e:
+        raise bad_request(str(e))
+
+
+@v1_router.patch("/budgets/{budget_id}", responses=CRUD_RESPONSES)
+def update_budget(
+    budget_id: str,
+    request: BudgetUpdateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Update a budget."""
+    verify_auth(authorization)
+
+    from test_ai.budget import BudgetUpdate, BudgetPeriod
+
+    # Validate period if provided
+    period = None
+    if request.period is not None:
+        try:
+            period = BudgetPeriod(request.period)
+        except ValueError:
+            raise bad_request(
+                "Invalid period",
+                {"valid_periods": ["daily", "weekly", "monthly"]},
+            )
+
+    # Validate amounts if provided
+    if request.total_amount is not None and request.total_amount < 0:
+        raise bad_request("Total amount must be non-negative")
+    if request.used_amount is not None and request.used_amount < 0:
+        raise bad_request("Used amount must be non-negative")
+
+    budget_update = BudgetUpdate(
+        name=request.name,
+        total_amount=request.total_amount,
+        used_amount=request.used_amount,
+        period=period,
+        agent_id=request.agent_id,
+    )
+
+    budget = budget_manager.update_budget(budget_id, budget_update)
+    if not budget:
+        raise not_found("Budget", budget_id)
+    return budget.model_dump(mode="json")
+
+
+@v1_router.delete("/budgets/{budget_id}", responses=CRUD_RESPONSES)
+def delete_budget(budget_id: str, authorization: Optional[str] = Header(None)):
+    """Delete a budget."""
+    verify_auth(authorization)
+
+    if budget_manager.delete_budget(budget_id):
+        return {"status": "success"}
+    raise not_found("Budget", budget_id)
+
+
+@v1_router.post("/budgets/{budget_id}/add-usage", responses=CRUD_RESPONSES)
+def add_budget_usage(
+    budget_id: str,
+    amount: float = Query(..., ge=0, description="Amount to add to usage"),
+    authorization: Optional[str] = Header(None),
+):
+    """Add usage to a budget."""
+    verify_auth(authorization)
+
+    budget = budget_manager.add_usage(budget_id, amount)
+    if not budget:
+        raise not_found("Budget", budget_id)
+    return budget.model_dump(mode="json")
+
+
+@v1_router.post("/budgets/{budget_id}/reset", responses=CRUD_RESPONSES)
+def reset_budget_usage(budget_id: str, authorization: Optional[str] = Header(None)):
+    """Reset usage for a budget."""
+    verify_auth(authorization)
+
+    budget = budget_manager.reset_usage(budget_id)
+    if not budget:
+        raise not_found("Budget", budget_id)
+    return budget.model_dump(mode="json")
+
+
+# =============================================================================
+# Agents Endpoint
+# =============================================================================
+
+# Icon mapping for agent roles (used by frontend)
+_AGENT_ICONS = {
+    AgentRole.PLANNER: "Brain",
+    AgentRole.BUILDER: "Code",
+    AgentRole.TESTER: "TestTube",
+    AgentRole.REVIEWER: "Search",
+    AgentRole.ANALYST: "BarChart3",
+    AgentRole.VISUALIZER: "PieChart",
+    AgentRole.REPORTER: "FileOutput",
+    AgentRole.DATA_ANALYST: "Database",
+    AgentRole.DEVOPS: "Server",
+    AgentRole.SECURITY_AUDITOR: "Shield",
+    AgentRole.MIGRATOR: "ArrowRightLeft",
+    AgentRole.MODEL_BUILDER: "Boxes",
+}
+
+# Color mapping for agent roles (used by frontend)
+_AGENT_COLORS = {
+    AgentRole.PLANNER: "#8B5CF6",
+    AgentRole.BUILDER: "#3B82F6",
+    AgentRole.TESTER: "#10B981",
+    AgentRole.REVIEWER: "#F59E0B",
+    AgentRole.ANALYST: "#14B8A6",
+    AgentRole.VISUALIZER: "#F97316",
+    AgentRole.REPORTER: "#8B5CF6",
+    AgentRole.DATA_ANALYST: "#06B6D4",
+    AgentRole.DEVOPS: "#6366F1",
+    AgentRole.SECURITY_AUDITOR: "#EF4444",
+    AgentRole.MIGRATOR: "#EC4899",
+    AgentRole.MODEL_BUILDER: "#A855F7",
+}
+
+# Capabilities mapping for agent roles
+_AGENT_CAPABILITIES = {
+    AgentRole.PLANNER: ["Task decomposition", "Dependency analysis", "Resource estimation"],
+    AgentRole.BUILDER: ["Code generation", "Refactoring", "Implementation"],
+    AgentRole.TESTER: ["Unit tests", "Integration tests", "Edge case coverage"],
+    AgentRole.REVIEWER: ["Code review", "Security audit", "Best practices check"],
+    AgentRole.ANALYST: ["Data analysis", "Pattern recognition", "Insights extraction"],
+    AgentRole.VISUALIZER: ["Chart generation", "Dashboard design", "Data visualization"],
+    AgentRole.REPORTER: ["Summary generation", "Progress reports", "Stakeholder updates"],
+    AgentRole.DATA_ANALYST: ["SQL queries", "Pandas pipelines", "Statistical analysis"],
+    AgentRole.DEVOPS: ["CI/CD pipelines", "Infrastructure as code", "Container orchestration"],
+    AgentRole.SECURITY_AUDITOR: [
+        "Vulnerability scanning",
+        "OWASP compliance",
+        "Dependency audits",
+    ],
+    AgentRole.MIGRATOR: ["Framework upgrades", "Code refactoring", "API migrations"],
+    AgentRole.MODEL_BUILDER: ["3D modeling", "Scene creation", "Asset generation"],
+}
+
+
+class AgentDefinitionResponse(BaseModel):
+    """Response model for agent definition."""
+
+    id: str
+    name: str
+    description: str
+    capabilities: list[str]
+    icon: str
+    color: str
+
+
+@v1_router.get("/agents", responses=AUTH_RESPONSES)
+def list_agents(authorization: Optional[str] = Header(None)) -> list[AgentDefinitionResponse]:
+    """List all available agent role definitions.
+
+    Returns agent roles with their descriptions, capabilities, and display metadata.
+    """
+    verify_auth(authorization)
+
+    agents = []
+    for role, contract in _CONTRACT_REGISTRY.items():
+        agents.append(
+            AgentDefinitionResponse(
+                id=role.value,
+                name=role.value.replace("_", " ").title(),
+                description=contract.description,
+                capabilities=_AGENT_CAPABILITIES.get(role, []),
+                icon=_AGENT_ICONS.get(role, "Bot"),
+                color=_AGENT_COLORS.get(role, "#6B7280"),
+            )
+        )
+
+    return agents
+
+
+@v1_router.get("/agents/{agent_id}", responses=CRUD_RESPONSES)
+def get_agent(agent_id: str, authorization: Optional[str] = Header(None)):
+    """Get a specific agent role definition by ID."""
+    verify_auth(authorization)
+
+    # Find the matching role
+    try:
+        role = AgentRole(agent_id)
+    except ValueError:
+        raise not_found("Agent", agent_id)
+
+    if role not in _CONTRACT_REGISTRY:
+        raise not_found("Agent", agent_id)
+
+    contract = _CONTRACT_REGISTRY[role]
+    return AgentDefinitionResponse(
+        id=role.value,
+        name=role.value.replace("_", " ").title(),
+        description=contract.description,
+        capabilities=_AGENT_CAPABILITIES.get(role, []),
+        icon=_AGENT_ICONS.get(role, "Bot"),
+        color=_AGENT_COLORS.get(role, "#6B7280"),
+    )
 
 
 @app.get("/health")

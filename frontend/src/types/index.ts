@@ -7,7 +7,7 @@
 // Agent Types
 // -----------------------------------------------------------------------------
 
-export type AgentRole = 
+export type AgentRole =
   | 'planner'
   | 'builder'
   | 'tester'
@@ -16,9 +16,27 @@ export type AgentRole =
   | 'documenter'
   | 'analyst'
   | 'visualizer'
-  | 'reporter';
+  | 'reporter'
+  | 'data_analyst'
+  | 'devops'
+  | 'security_auditor'
+  | 'migrator'
+  | 'model_builder';
 
 export type AgentProvider = 'openai' | 'anthropic';
+
+/**
+ * Agent definition from the backend contracts.
+ * Includes metadata for display (icon, color, capabilities).
+ */
+export interface AgentDefinition {
+  id: string;
+  name: string;
+  description: string;
+  capabilities: string[];
+  icon: string;
+  color: string;
+}
 
 export interface Agent {
   id: string;

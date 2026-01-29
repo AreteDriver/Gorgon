@@ -187,6 +187,13 @@ export function useAgents() {
   });
 }
 
+export function useAgentDefinitions() {
+  return useQuery({
+    queryKey: ['agent-definitions'],
+    queryFn: () => api.getAgentDefinitions(),
+  });
+}
+
 // =============================================================================
 // Budget Hooks
 // =============================================================================

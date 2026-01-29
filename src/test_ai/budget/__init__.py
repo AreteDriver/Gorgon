@@ -18,9 +18,20 @@ from .preflight import (
     StepEstimate,
     validate_workflow_budget,
 )
+from .models import (
+    Budget,
+    BudgetCreate,
+    BudgetUpdate,
+    BudgetPeriod,
+    BudgetSummary,
+)
+from .persistence import PersistentBudgetManager
 
-# Singleton budget tracker instance
+# Singleton budget tracker instance (in-memory)
 _budget_tracker: BudgetManager | None = None
+
+# Singleton persistent budget manager (database-backed)
+_persistent_budget_manager: PersistentBudgetManager | None = None
 
 
 def get_budget_tracker() -> BudgetManager:
@@ -36,6 +47,7 @@ def get_budget_tracker() -> BudgetManager:
 
 
 __all__ = [
+    # In-memory budget tracking
     "BudgetManager",
     "BudgetConfig",
     "BudgetStatus",
@@ -51,4 +63,11 @@ __all__ = [
     "StepEstimate",
     "validate_workflow_budget",
     "get_budget_tracker",
+    # Persistent budget management
+    "Budget",
+    "BudgetCreate",
+    "BudgetUpdate",
+    "BudgetPeriod",
+    "BudgetSummary",
+    "PersistentBudgetManager",
 ]

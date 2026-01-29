@@ -1,105 +1,50 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Brain,
   Code,
   TestTube,
   Search,
-  Building2,
-  FileText,
   BarChart3,
   PieChart,
   FileOutput,
   Settings2,
   Power,
   Sparkles,
+  Database,
+  Server,
+  Shield,
+  ArrowRightLeft,
+  Boxes,
+  Bot,
+  Loader2,
+  AlertCircle,
+  type LucideIcon,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import type { AgentRole, AgentProvider } from '@/types';
+import type { AgentDefinition, AgentProvider } from '@/types';
+import { useAgentDefinitions } from '@/hooks/useApi';
 
-interface AgentDefinition {
-  role: AgentRole;
-  name: string;
-  description: string;
-  icon: typeof Brain;
-  color: string;
-  capabilities: string[];
+// Map icon names from backend to Lucide components
+const ICON_MAP: Record<string, LucideIcon> = {
+  Brain,
+  Code,
+  TestTube,
+  Search,
+  BarChart3,
+  PieChart,
+  FileOutput,
+  Database,
+  Server,
+  Shield,
+  ArrowRightLeft,
+  Boxes,
+  Bot,
+};
+
+function getIcon(iconName: string): LucideIcon {
+  return ICON_MAP[iconName] || Bot;
 }
-
-const agentDefinitions: AgentDefinition[] = [
-  {
-    role: 'planner',
-    name: 'Planner',
-    description: 'Breaks features into actionable steps and creates execution plans',
-    icon: Brain,
-    color: '#8B5CF6',
-    capabilities: ['Task decomposition', 'Dependency analysis', 'Resource estimation'],
-  },
-  {
-    role: 'builder',
-    name: 'Builder',
-    description: 'Writes production-ready code following best practices',
-    icon: Code,
-    color: '#3B82F6',
-    capabilities: ['Code generation', 'Refactoring', 'Implementation'],
-  },
-  {
-    role: 'tester',
-    name: 'Tester',
-    description: 'Creates comprehensive test suites and validates functionality',
-    icon: TestTube,
-    color: '#10B981',
-    capabilities: ['Unit tests', 'Integration tests', 'Edge case coverage'],
-  },
-  {
-    role: 'reviewer',
-    name: 'Reviewer',
-    description: 'Identifies bugs, security issues, and code quality problems',
-    icon: Search,
-    color: '#F59E0B',
-    capabilities: ['Code review', 'Security audit', 'Best practices check'],
-  },
-  {
-    role: 'architect',
-    name: 'Architect',
-    description: 'Makes architectural decisions and designs system structure',
-    icon: Building2,
-    color: '#EC4899',
-    capabilities: ['System design', 'Pattern selection', 'Scalability planning'],
-  },
-  {
-    role: 'documenter',
-    name: 'Documenter',
-    description: 'Creates API docs, guides, and technical documentation',
-    icon: FileText,
-    color: '#6366F1',
-    capabilities: ['API documentation', 'README files', 'User guides'],
-  },
-  {
-    role: 'analyst',
-    name: 'Analyst',
-    description: 'Performs statistical analysis and identifies patterns in data',
-    icon: BarChart3,
-    color: '#14B8A6',
-    capabilities: ['Data analysis', 'Pattern recognition', 'Insights extraction'],
-  },
-  {
-    role: 'visualizer',
-    name: 'Visualizer',
-    description: 'Creates charts, dashboards, and visual representations',
-    icon: PieChart,
-    color: '#F97316',
-    capabilities: ['Chart generation', 'Dashboard design', 'Data visualization'],
-  },
-  {
-    role: 'reporter',
-    name: 'Reporter',
-    description: 'Generates executive summaries and status reports',
-    icon: FileOutput,
-    color: '#8B5CF6',
-    capabilities: ['Summary generation', 'Progress reports', 'Stakeholder updates'],
-  },
-];
 
 interface AgentConfig {
   enabled: boolean;
@@ -117,38 +62,59 @@ const defaultConfig: AgentConfig = {
   maxTokens: 4096,
 };
 
-// Mock data for demo
-const mockAgentConfigs: Record<AgentRole, AgentConfig> = {
-  planner: { ...defaultConfig, model: 'gpt-4', temperature: 0.3 },
-  builder: { ...defaultConfig, model: 'gpt-4', temperature: 0.2 },
-  tester: { ...defaultConfig, model: 'gpt-4', temperature: 0.1 },
-  reviewer: { ...defaultConfig, model: 'gpt-4', temperature: 0.2 },
-  architect: { ...defaultConfig, provider: 'anthropic', model: 'claude-3-opus', temperature: 0.4 },
-  documenter: { ...defaultConfig, model: 'gpt-4', temperature: 0.5 },
-  analyst: { ...defaultConfig, model: 'gpt-4', temperature: 0.3 },
-  visualizer: { ...defaultConfig, enabled: false, model: 'gpt-4-vision', temperature: 0.5 },
-  reporter: { ...defaultConfig, model: 'gpt-4', temperature: 0.6 },
-};
-
 export function AgentsPage() {
-  const [configs, setConfigs] = useState(mockAgentConfigs);
-  const [editingAgent, setEditingAgent] = useState<AgentRole | null>(null);
+  const { data: agents = [], isLoading: loading, error } = useAgentDefinitions();
+  const [configs, setConfigs] = useState<Record<string, AgentConfig>>({});
+  const [editingAgent, setEditingAgent] = useState<string | null>(null);
+
+  // Initialize configs when agents are loaded
+  useEffect(() => {
+    if (agents.length > 0 && Object.keys(configs).length === 0) {
+      const initialConfigs: Record<string, AgentConfig> = {};
+      agents.forEach((agent) => {
+        initialConfigs[agent.id] = { ...defaultConfig };
+      });
+      setConfigs(initialConfigs);
+    }
+  }, [agents, configs]);
 
   const enabledCount = Object.values(configs).filter((c) => c.enabled).length;
 
-  const handleToggle = (role: AgentRole) => {
+  const handleToggle = (agentId: string) => {
     setConfigs((prev) => ({
       ...prev,
-      [role]: { ...prev[role], enabled: !prev[role].enabled },
+      [agentId]: { ...prev[agentId], enabled: !prev[agentId].enabled },
     }));
   };
 
-  const handleConfigChange = (role: AgentRole, updates: Partial<AgentConfig>) => {
+  const handleConfigChange = (agentId: string, updates: Partial<AgentConfig>) => {
     setConfigs((prev) => ({
       ...prev,
-      [role]: { ...prev[role], ...updates },
+      [agentId]: { ...prev[agentId], ...updates },
     }));
   };
+
+  if (loading) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-2 text-muted-foreground">
+          <Loader2 className="h-5 w-5 animate-spin" />
+          <span>Loading agents...</span>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="p-6 max-w-6xl mx-auto flex items-center justify-center min-h-[400px]">
+        <div className="flex items-center gap-2 text-destructive">
+          <AlertCircle className="h-5 w-5" />
+          <span>Failed to load agent definitions</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 max-w-6xl mx-auto">
@@ -156,7 +122,7 @@ export function AgentsPage() {
         <div>
           <h1 className="text-3xl font-bold">Agents</h1>
           <p className="text-muted-foreground mt-1">
-            {enabledCount} of {agentDefinitions.length} agents enabled
+            {enabledCount} of {agents.length} agents enabled
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -166,15 +132,15 @@ export function AgentsPage() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-        {agentDefinitions.map((agent) => (
+        {agents.map((agent) => (
           <AgentCard
-            key={agent.role}
+            key={agent.id}
             agent={agent}
-            config={configs[agent.role]}
-            isEditing={editingAgent === agent.role}
-            onToggle={() => handleToggle(agent.role)}
-            onEdit={() => setEditingAgent(editingAgent === agent.role ? null : agent.role)}
-            onConfigChange={(updates) => handleConfigChange(agent.role, updates)}
+            config={configs[agent.id] || defaultConfig}
+            isEditing={editingAgent === agent.id}
+            onToggle={() => handleToggle(agent.id)}
+            onEdit={() => setEditingAgent(editingAgent === agent.id ? null : agent.id)}
+            onConfigChange={(updates) => handleConfigChange(agent.id, updates)}
           />
         ))}
       </div>
@@ -192,7 +158,7 @@ interface AgentCardProps {
 }
 
 function AgentCard({ agent, config, isEditing, onToggle, onEdit, onConfigChange }: AgentCardProps) {
-  const Icon = agent.icon;
+  const Icon = getIcon(agent.icon);
 
   return (
     <Card className={`transition-all ${!config.enabled ? 'opacity-60' : ''}`}>
