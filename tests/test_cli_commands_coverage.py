@@ -25,7 +25,9 @@ runner = CliRunner()
 
 class TestValidateCliRequiredFields:
     def test_valid(self):
-        errors, warnings = _validate_cli_required_fields({"id": "x", "steps": [{"id": "s1"}]})
+        errors, warnings = _validate_cli_required_fields(
+            {"id": "x", "steps": [{"id": "s1"}]}
+        )
         assert not errors
         assert not warnings
 
@@ -109,6 +111,7 @@ class TestValidateCliNextStepRefs:
 class TestOutputValidationResults:
     def test_errors(self):
         import typer
+
         with pytest.raises(typer.Exit):
             _output_validation_results(["err1"], [], Path("test.json"))
 
@@ -140,6 +143,7 @@ class TestLoadWorkflowFromSource:
         wf_file.write_text("not json{")
         engine = MagicMock()
         import typer
+
         with pytest.raises(typer.Exit):
             _load_workflow_from_source(str(wf_file), engine)
 
@@ -156,6 +160,7 @@ class TestLoadWorkflowFromSource:
         engine = MagicMock()
         engine.load_workflow.return_value = None
         import typer
+
         with pytest.raises(typer.Exit):
             _load_workflow_from_source("missing", engine)
 
@@ -206,21 +211,29 @@ class TestOutputRunResults:
 class TestRunCommand:
     def test_dry_run(self, tmp_path):
         wf_file = tmp_path / "test.json"
-        wf_file.write_text(json.dumps({
-            "id": "test",
-            "name": "Test",
-            "steps": [{"id": "s1", "type": "shell", "action": "run"}],
-        }))
+        wf_file.write_text(
+            json.dumps(
+                {
+                    "id": "test",
+                    "name": "Test",
+                    "steps": [{"id": "s1", "type": "shell", "action": "run"}],
+                }
+            )
+        )
         result = runner.invoke(app, ["run", str(wf_file), "--dry-run"])
         assert result.exit_code == 0
 
     def test_run_json_file(self, tmp_path):
         wf_file = tmp_path / "test.json"
-        wf_file.write_text(json.dumps({
-            "id": "test",
-            "name": "Test",
-            "steps": [],
-        }))
+        wf_file.write_text(
+            json.dumps(
+                {
+                    "id": "test",
+                    "name": "Test",
+                    "steps": [],
+                }
+            )
+        )
         with patch("test_ai.cli.main.get_workflow_engine") as mock_engine:
             mock_result = MagicMock()
             mock_result.status = "completed"
@@ -233,10 +246,14 @@ class TestRunCommand:
 class TestValidateCommand:
     def test_valid_workflow(self, tmp_path):
         wf_file = tmp_path / "test.json"
-        wf_file.write_text(json.dumps({
-            "id": "test",
-            "steps": [{"id": "s1", "type": "claude_code", "action": "run"}],
-        }))
+        wf_file.write_text(
+            json.dumps(
+                {
+                    "id": "test",
+                    "steps": [{"id": "s1", "type": "claude_code", "action": "run"}],
+                }
+            )
+        )
         result = runner.invoke(app, ["validate", str(wf_file)])
         assert result.exit_code == 0
 
@@ -282,7 +299,9 @@ class TestStatusCommand:
     def test_status_json(self):
         with patch("test_ai.cli.main.get_tracker") as mock_tracker:
             mock_tracker.return_value.get_dashboard_data.return_value = {
-                "summary": {}, "active_workflows": [], "recent_executions": []
+                "summary": {},
+                "active_workflows": [],
+                "recent_executions": [],
             }
             result = runner.invoke(app, ["status", "--json"])
             assert result.exit_code == 0
@@ -326,7 +345,9 @@ class TestStatusCommand:
 class TestInitCommand:
     def test_init_basic(self, tmp_path, monkeypatch):
         monkeypatch.chdir(tmp_path)
-        result = runner.invoke(app, ["init", "my-workflow", "-o", str(tmp_path / "out.json")])
+        result = runner.invoke(
+            app, ["init", "my-workflow", "-o", str(tmp_path / "out.json")]
+        )
         assert result.exit_code == 0
         assert (tmp_path / "out.json").exists()
         data = json.loads((tmp_path / "out.json").read_text())

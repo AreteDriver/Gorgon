@@ -9,6 +9,7 @@ sys.path.insert(0, "src")
 class TestGetProviderConfigs:
     def test_with_settings(self):
         from test_ai.api_clients.resilience import _get_provider_configs
+
         configs = _get_provider_configs()
         assert "openai" in configs
         assert "anthropic" in configs
@@ -19,6 +20,7 @@ class TestGetProviderConfigs:
 
     def test_fallback_defaults(self):
         from test_ai.api_clients.resilience import _get_provider_configs
+
         # Test that configs have expected structure
         configs = _get_provider_configs()
         for provider in ["openai", "anthropic", "github", "notion", "gmail"]:
@@ -101,6 +103,7 @@ class TestAsyncResilientCall:
 class TestGetAllProviderStats:
     def test_stats(self):
         from test_ai.api_clients.resilience import get_all_provider_stats
+
         stats = get_all_provider_stats()
         assert isinstance(stats, dict)
 

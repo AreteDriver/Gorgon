@@ -48,9 +48,7 @@ class TestAdaptiveRateLimitState:
         assert state.consecutive_failures == 0
 
     def test_record_success_triggers_recovery(self):
-        config = AdaptiveRateLimitConfig(
-            recovery_threshold=2, cooldown_seconds=0
-        )
+        config = AdaptiveRateLimitConfig(recovery_threshold=2, cooldown_seconds=0)
         state = AdaptiveRateLimitState(
             base_limit=10,
             current_limit=3,
@@ -62,9 +60,7 @@ class TestAdaptiveRateLimitState:
         assert state.current_limit > 3
 
     def test_record_rate_limit_error_backoff(self):
-        config = AdaptiveRateLimitConfig(
-            backoff_factor=0.5, cooldown_seconds=0
-        )
+        config = AdaptiveRateLimitConfig(backoff_factor=0.5, cooldown_seconds=0)
         state = AdaptiveRateLimitState(
             base_limit=10,
             current_limit=10,
@@ -76,9 +72,7 @@ class TestAdaptiveRateLimitState:
         assert state.total_429s == 1
 
     def test_record_rate_limit_error_cooldown_blocks(self):
-        config = AdaptiveRateLimitConfig(
-            backoff_factor=0.5, cooldown_seconds=9999
-        )
+        config = AdaptiveRateLimitConfig(backoff_factor=0.5, cooldown_seconds=9999)
         state = AdaptiveRateLimitState(
             base_limit=10, current_limit=10, last_adjustment_time=time.time()
         )
@@ -157,7 +151,10 @@ class TestRateLimitedExecutorGetProvider:
     def test_explicit_provider_kwarg(self):
         executor = RateLimitedParallelExecutor()
         task = ParallelTask(
-            id="t1", step_id="s1", handler=lambda: None, kwargs={"provider": "Anthropic"}
+            id="t1",
+            step_id="s1",
+            handler=lambda: None,
+            kwargs={"provider": "Anthropic"},
         )
         assert executor._get_provider_for_task(task) == "anthropic"
 

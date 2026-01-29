@@ -11,10 +11,16 @@ sys.path.insert(0, "src")
 
 def _make_manager():
     """Create a ScheduleManager with mocked dependencies."""
-    with patch("test_ai.scheduler.schedule_manager.get_settings") as mock_settings, \
-         patch("test_ai.scheduler.schedule_manager.get_database") as mock_db, \
-         patch("test_ai.scheduler.schedule_manager.WorkflowEngineAdapter") as mock_engine, \
-         patch("test_ai.scheduler.schedule_manager.BackgroundScheduler") as mock_scheduler:
+    with (
+        patch("test_ai.scheduler.schedule_manager.get_settings") as mock_settings,
+        patch("test_ai.scheduler.schedule_manager.get_database") as mock_db,
+        patch(
+            "test_ai.scheduler.schedule_manager.WorkflowEngineAdapter"
+        ) as mock_engine,
+        patch(
+            "test_ai.scheduler.schedule_manager.BackgroundScheduler"
+        ) as mock_scheduler,
+    ):
         settings = MagicMock()
         mock_settings.return_value = settings
         backend = MagicMock()
@@ -22,14 +28,19 @@ def _make_manager():
         mock_db.return_value = backend
 
         from test_ai.scheduler.schedule_manager import ScheduleManager
+
         mgr = ScheduleManager(backend=backend)
         return mgr, backend, mock_engine.return_value, mock_scheduler.return_value
 
 
 def _make_schedule(**kwargs):
     from test_ai.scheduler.schedule_manager import (
-        WorkflowSchedule, ScheduleType, ScheduleStatus, CronConfig,
+        WorkflowSchedule,
+        ScheduleType,
+        ScheduleStatus,
+        CronConfig,
     )
+
     defaults = {
         "id": "sch-1",
         "workflow_id": "wf-1",
@@ -153,6 +164,7 @@ class TestLoadAllSchedules:
 class TestBuildTrigger:
     def test_build_cron_trigger(self):
         from test_ai.scheduler.schedule_manager import CronConfig
+
         mgr, _, _, _ = _make_manager()
         schedule = _make_schedule(
             cron_config=CronConfig(minute="30", hour="8", day_of_week="mon-fri")
@@ -162,8 +174,10 @@ class TestBuildTrigger:
 
     def test_build_interval_trigger(self):
         from test_ai.scheduler.schedule_manager import (
-            ScheduleType, IntervalConfig,
+            ScheduleType,
+            IntervalConfig,
         )
+
         mgr, _, _, _ = _make_manager()
         schedule = _make_schedule(
             schedule_type=ScheduleType.INTERVAL,
@@ -175,8 +189,10 @@ class TestBuildTrigger:
 
     def test_build_interval_trigger_zero_defaults(self):
         from test_ai.scheduler.schedule_manager import (
-            ScheduleType, IntervalConfig,
+            ScheduleType,
+            IntervalConfig,
         )
+
         mgr, _, _, _ = _make_manager()
         schedule = _make_schedule(
             schedule_type=ScheduleType.INTERVAL,
@@ -252,12 +268,14 @@ class TestScheduleOperations:
     def test_pause_schedule(self):
         mgr, backend, _, scheduler = self._setup()
         from test_ai.scheduler.schedule_manager import ScheduleStatus
+
         result = mgr.pause_schedule("sch-1")
         assert result is True
         assert mgr._schedules["sch-1"].status == ScheduleStatus.PAUSED
 
     def test_resume_schedule(self):
         from test_ai.scheduler.schedule_manager import ScheduleStatus
+
         mgr, backend, _, scheduler = self._setup()
         mgr._schedules["sch-1"].status = ScheduleStatus.PAUSED
         result = mgr.resume_schedule("sch-1")
@@ -328,14 +346,17 @@ class TestGetExecutionHistory:
 class TestParseDatetime:
     def test_none(self):
         from test_ai.scheduler.schedule_manager import _parse_datetime
+
         assert _parse_datetime(None) is None
 
     def test_datetime_object(self):
         from test_ai.scheduler.schedule_manager import _parse_datetime
+
         dt = datetime(2024, 1, 1)
         assert _parse_datetime(dt) is dt
 
     def test_string(self):
         from test_ai.scheduler.schedule_manager import _parse_datetime
+
         result = _parse_datetime("2024-01-01T00:00:00")
         assert isinstance(result, datetime)

@@ -10,9 +10,11 @@ sys.path.insert(0, "src")
 
 def _make_manager():
     """Create a WebhookManager with mocked dependencies."""
-    with patch("test_ai.webhooks.webhook_manager.get_settings") as mock_settings, \
-         patch("test_ai.webhooks.webhook_manager.get_database") as mock_db, \
-         patch("test_ai.webhooks.webhook_manager.WorkflowEngineAdapter") as mock_engine:
+    with (
+        patch("test_ai.webhooks.webhook_manager.get_settings") as mock_settings,
+        patch("test_ai.webhooks.webhook_manager.get_database") as mock_db,
+        patch("test_ai.webhooks.webhook_manager.WorkflowEngineAdapter") as mock_engine,
+    ):
         settings = MagicMock()
         mock_settings.return_value = settings
         backend = MagicMock()
@@ -20,12 +22,14 @@ def _make_manager():
         mock_db.return_value = backend
 
         from test_ai.webhooks.webhook_manager import WebhookManager
+
         mgr = WebhookManager(backend=backend)
         return mgr, backend, mock_engine.return_value
 
 
 def _make_webhook(**kwargs):
     from test_ai.webhooks.webhook_manager import Webhook, WebhookStatus
+
     defaults = {
         "id": "wh-1",
         "name": "Test Webhook",
@@ -151,11 +155,14 @@ class TestPayloadExtraction:
 
     def test_map_payload_to_variables(self):
         from test_ai.webhooks.webhook_manager import PayloadMapping
+
         mgr, _, _, _ = TestWebhookManagerOperations()._setup_with_webhook()
         wh = mgr._webhooks["wh-1"]
         wh.payload_mappings = [
             PayloadMapping(source_path="user.name", target_variable="username"),
-            PayloadMapping(source_path="missing", target_variable="fallback", default="default_val"),
+            PayloadMapping(
+                source_path="missing", target_variable="fallback", default="default_val"
+            ),
         ]
         wh.static_variables = {"env": "test"}
 
@@ -193,6 +200,7 @@ class TestWebhookTrigger:
 
     def test_trigger_disabled(self):
         from test_ai.webhooks.webhook_manager import WebhookStatus
+
         mgr, _, _ = _make_manager()
         wh = _make_webhook(status=WebhookStatus.DISABLED)
         mgr._webhooks["wh-1"] = wh
@@ -247,9 +255,9 @@ class TestRowToWebhook:
             "description": "",
             "workflow_id": "wf-1",
             "secret": "s",
-            "payload_mappings": json.dumps([
-                {"source_path": "a.b", "target_variable": "c"}
-            ]),
+            "payload_mappings": json.dumps(
+                [{"source_path": "a.b", "target_variable": "c"}]
+            ),
             "static_variables": json.dumps({"key": "val"}),
             "status": "active",
             "created_at": "2024-01-01T00:00:00",

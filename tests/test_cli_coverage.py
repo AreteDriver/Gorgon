@@ -28,6 +28,7 @@ runner = CliRunner()
 class TestVersionCallback:
     def test_version_shows(self):
         import typer
+
         with pytest.raises(typer.Exit):
             version_callback(True)
 
@@ -207,6 +208,7 @@ class TestParseCliVariables:
 
     def test_invalid_format(self):
         import typer
+
         with pytest.raises(typer.Exit):
             _parse_cli_variables(["invalid"])
 
@@ -221,6 +223,7 @@ class TestGetTracker:
 class TestGetWorkflowEngine:
     def test_success(self):
         from test_ai.cli.main import get_workflow_engine
+
         engine = get_workflow_engine()
         assert engine is not None
 
@@ -233,6 +236,7 @@ class TestGetWorkflowEngine:
 class TestGetWorkflowExecutor:
     def test_success(self):
         from test_ai.cli.main import get_workflow_executor
+
         executor = get_workflow_executor(dry_run=True)
         assert executor is not None
         assert executor.dry_run is True
