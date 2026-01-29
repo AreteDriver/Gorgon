@@ -227,7 +227,7 @@ class TestRunCommand:
             mock_result.step_results = {}
             mock_result.error = None
             mock_engine.return_value.execute_workflow.return_value = mock_result
-            result = runner.invoke(app, ["run", str(wf_file)])
+            runner.invoke(app, ["run", str(wf_file)])  # Called for side effects
 
 
 class TestValidateCommand:
@@ -335,8 +335,8 @@ class TestInitCommand:
     def test_init_overwrite_decline(self, tmp_path):
         out = tmp_path / "out.json"
         out.write_text("{}")
-        result = runner.invoke(app, ["init", "test", "-o", str(out)], input="n\n")
-        # Should abort
+        runner.invoke(app, ["init", "test", "-o", str(out)], input="n\n")
+        # Should abort - called for side effects only
 
 
 class TestVersionCommand:

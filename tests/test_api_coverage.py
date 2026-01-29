@@ -1,9 +1,8 @@
 """Coverage tests for FastAPI api.py endpoints."""
 
 import sys
-import json
 import pytest
-from unittest.mock import MagicMock, patch, AsyncMock
+from unittest.mock import MagicMock, patch
 from datetime import datetime
 
 sys.path.insert(0, "src")
