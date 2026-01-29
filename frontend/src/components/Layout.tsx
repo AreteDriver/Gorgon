@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router-dom';
 import { Sidebar } from '@/components/Sidebar';
+import { KeyboardShortcutsHelp } from '@/components/KeyboardShortcutsHelp';
 import { useUIStore } from '@/stores';
 import { cn } from '@/lib/utils';
 
@@ -19,6 +20,7 @@ export function Layout() {
           <Outlet />
         </div>
       </main>
+      <KeyboardShortcutsHelp />
     </div>
   );
 }
