@@ -283,9 +283,7 @@ class TestConnectionManager:
         conn = await manager.connect(mock_ws)
         mock_ws.send_json.reset_mock()
 
-        await manager.handle_client_message(
-            conn, json.dumps({"type": "unknown_type"})
-        )
+        await manager.handle_client_message(conn, json.dumps({"type": "unknown_type"}))
 
         # Should send error
         call_args = mock_ws.send_json.call_args[0][0]
