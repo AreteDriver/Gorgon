@@ -1,5 +1,5 @@
 import { useCallback, useMemo } from 'react';
-import { X, Trash2, Terminal, PauseCircle, Layers, Split, Merge, GitBranch, Variable } from 'lucide-react';
+import { X, Trash2, Terminal, PauseCircle, Layers, Split, Merge, GitBranch, GitFork, RefreshCw, Variable } from 'lucide-react';
 import { useWorkflowBuilderStore } from '@/stores';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -15,6 +15,8 @@ import {
   isFanOutNode,
   isFanInNode,
   isMapReduceNode,
+  isBranchNode,
+  isLoopNode,
   AGENT_ROLES,
   type AgentNodeData,
   type ShellNodeData,
@@ -23,6 +25,8 @@ import {
   type FanOutNodeData,
   type FanInNodeData,
   type MapReduceNodeData,
+  type BranchNodeData,
+  type LoopNodeData,
   type WorkflowNodeData,
   type NodeCondition,
   type ConditionOperator,
@@ -682,6 +686,301 @@ function MapReduceProperties({
   );
 }
 
+// Branch Node Properties
+function BranchProperties({
+  data,
+  onChange,
+}: {
+  data: BranchNodeData;
+  onChange: (field: keyof BranchNodeData, value: unknown) => void;
+}) {
+  const operators: { value: ConditionOperator; label: string }[] = [
+    { value: 'equals', label: 'equals' },
+    { value: 'not_equals', label: 'not equals' },
+    { value: 'contains', label: 'contains' },
+    { value: 'greater_than', label: 'greater than' },
+    { value: 'less_than', label: 'less than' },
+  ];
+
+  const handleConditionChange = (updates: Partial<NodeCondition>) => {
+    onChange('condition', { ...data.condition, ...updates });
+  };
+
+  return (
+    <>
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="node-name">Name</Label>
+        <Input
+          id="node-name"
+          value={data.name}
+          onChange={(e) => onChange('name', e.target.value)}
+          placeholder="Branch name"
+        />
+      </div>
+
+      {/* Condition Section */}
+      <div className="space-y-3 rounded-md border border-violet-200 dark:border-violet-800 bg-violet-50 dark:bg-violet-900/20 p-3">
+        <div className="flex items-center gap-2">
+          <GitFork className="h-4 w-4 text-violet-600 dark:text-violet-400" />
+          <Label className="text-violet-700 dark:text-violet-300">Branch Condition</Label>
+        </div>
+
+        {/* Field */}
+        <div className="space-y-1">
+          <Label htmlFor="condition-field" className="text-xs">Variable</Label>
+          <Input
+            id="condition-field"
+            value={data.condition?.field || ''}
+            onChange={(e) => handleConditionChange({ field: e.target.value })}
+            placeholder="variable_name"
+            className="font-mono text-sm"
+          />
+        </div>
+
+        {/* Operator */}
+        <div className="space-y-1">
+          <Label htmlFor="condition-operator" className="text-xs">Operator</Label>
+          <Select
+            id="condition-operator"
+            value={data.condition?.operator || 'equals'}
+            onChange={(e) => handleConditionChange({ operator: e.target.value as ConditionOperator })}
+          >
+            {operators.map((op) => (
+              <option key={op.value} value={op.value}>
+                {op.label}
+              </option>
+            ))}
+          </Select>
+        </div>
+
+        {/* Value */}
+        <div className="space-y-1">
+          <Label htmlFor="condition-value" className="text-xs">Value</Label>
+          <Input
+            id="condition-value"
+            value={String(data.condition?.value ?? '')}
+            onChange={(e) => {
+              let value: string | number | boolean = e.target.value;
+              if (e.target.value === 'true') value = true;
+              else if (e.target.value === 'false') value = false;
+              else if (!isNaN(Number(e.target.value)) && e.target.value.trim() !== '') {
+                value = Number(e.target.value);
+              }
+              handleConditionChange({ value });
+            }}
+            placeholder="expected_value"
+          />
+        </div>
+
+        <p className="text-xs text-violet-600 dark:text-violet-400">
+          If {data.condition?.field || '?'} {data.condition?.operator?.replace('_', ' ') || '='} {String(data.condition?.value ?? '?')}
+        </p>
+      </div>
+
+      {/* Branch Labels */}
+      <div className="grid grid-cols-2 gap-3">
+        <div className="space-y-2">
+          <Label htmlFor="node-truelabel" className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-green-500" />
+            True Label
+          </Label>
+          <Input
+            id="node-truelabel"
+            value={data.trueLabel || ''}
+            onChange={(e) => onChange('trueLabel', e.target.value)}
+            placeholder="Yes"
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="node-falselabel" className="flex items-center gap-1">
+            <span className="h-2 w-2 rounded-full bg-red-500" />
+            False Label
+          </Label>
+          <Input
+            id="node-falselabel"
+            value={data.falseLabel || ''}
+            onChange={(e) => onChange('falseLabel', e.target.value)}
+            placeholder="No"
+          />
+        </div>
+      </div>
+
+      <p className="text-xs text-muted-foreground">
+        Connect the green handle to the "true" path and the red handle to the "false" path.
+      </p>
+    </>
+  );
+}
+
+// Loop Node Properties
+function LoopProperties({
+  data,
+  onChange,
+}: {
+  data: LoopNodeData;
+  onChange: (field: keyof LoopNodeData, value: unknown) => void;
+}) {
+  const operators: { value: ConditionOperator; label: string }[] = [
+    { value: 'equals', label: 'equals' },
+    { value: 'not_equals', label: 'not equals' },
+    { value: 'contains', label: 'contains' },
+    { value: 'greater_than', label: 'greater than' },
+    { value: 'less_than', label: 'less than' },
+  ];
+
+  const handleConditionChange = (updates: Partial<NodeCondition>) => {
+    const current = data.condition || { field: '', operator: 'equals' as ConditionOperator, value: true };
+    onChange('condition', { ...current, ...updates });
+  };
+
+  return (
+    <>
+      {/* Name */}
+      <div className="space-y-2">
+        <Label htmlFor="node-name">Name</Label>
+        <Input
+          id="node-name"
+          value={data.name}
+          onChange={(e) => onChange('name', e.target.value)}
+          placeholder="Loop name"
+        />
+      </div>
+
+      {/* Loop Type */}
+      <div className="space-y-2">
+        <Label htmlFor="node-looptype">Loop Type</Label>
+        <Select
+          id="node-looptype"
+          value={data.loopType || 'while'}
+          onChange={(e) => onChange('loopType', e.target.value)}
+        >
+          <option value="while">While (condition is true)</option>
+          <option value="until">Until (condition becomes true)</option>
+          <option value="for">For (fixed iterations)</option>
+        </Select>
+        <p className="text-xs text-muted-foreground">
+          {data.loopType === 'while' && 'Continue looping while the condition is true'}
+          {data.loopType === 'until' && 'Continue looping until the condition becomes true'}
+          {data.loopType === 'for' && 'Loop a fixed number of times'}
+        </p>
+      </div>
+
+      {/* Max Iterations */}
+      <div className="space-y-2">
+        <Label htmlFor="node-maxiterations">Max Iterations</Label>
+        <Input
+          id="node-maxiterations"
+          type="number"
+          min={1}
+          max={1000}
+          value={data.maxIterations || 10}
+          onChange={(e) => onChange('maxIterations', parseInt(e.target.value, 10))}
+        />
+        <p className="text-xs text-muted-foreground">
+          Safety limit to prevent infinite loops (1-1000)
+        </p>
+      </div>
+
+      {/* Iteration Variable */}
+      <div className="space-y-2">
+        <Label htmlFor="node-itervar">Iteration Variable</Label>
+        <Input
+          id="node-itervar"
+          value={data.iterationVariable || ''}
+          onChange={(e) => onChange('iterationVariable', e.target.value)}
+          placeholder="i"
+          className="font-mono"
+        />
+        <p className="text-xs text-muted-foreground">
+          Variable to track current iteration (available as ${'{' + (data.iterationVariable || 'i') + '}'})
+        </p>
+      </div>
+
+      {/* Condition Section (for while/until loops) */}
+      {data.loopType !== 'for' && (
+        <div className="space-y-3 rounded-md border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 p-3">
+          <div className="flex items-center gap-2">
+            <RefreshCw className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+            <Label className="text-emerald-700 dark:text-emerald-300">
+              {data.loopType === 'until' ? 'Stop When' : 'Continue While'}
+            </Label>
+          </div>
+
+          {/* Field */}
+          <div className="space-y-1">
+            <Label htmlFor="loop-condition-field" className="text-xs">Variable</Label>
+            <Input
+              id="loop-condition-field"
+              value={data.condition?.field || ''}
+              onChange={(e) => handleConditionChange({ field: e.target.value })}
+              placeholder="continue"
+              className="font-mono text-sm"
+            />
+          </div>
+
+          {/* Operator */}
+          <div className="space-y-1">
+            <Label htmlFor="loop-condition-operator" className="text-xs">Operator</Label>
+            <Select
+              id="loop-condition-operator"
+              value={data.condition?.operator || 'equals'}
+              onChange={(e) => handleConditionChange({ operator: e.target.value as ConditionOperator })}
+            >
+              {operators.map((op) => (
+                <option key={op.value} value={op.value}>
+                  {op.label}
+                </option>
+              ))}
+            </Select>
+          </div>
+
+          {/* Value */}
+          <div className="space-y-1">
+            <Label htmlFor="loop-condition-value" className="text-xs">Value</Label>
+            <Input
+              id="loop-condition-value"
+              value={String(data.condition?.value ?? '')}
+              onChange={(e) => {
+                let value: string | number | boolean = e.target.value;
+                if (e.target.value === 'true') value = true;
+                else if (e.target.value === 'false') value = false;
+                else if (!isNaN(Number(e.target.value)) && e.target.value.trim() !== '') {
+                  value = Number(e.target.value);
+                }
+                handleConditionChange({ value });
+              }}
+              placeholder="true"
+            />
+          </div>
+
+          <p className="text-xs text-emerald-600 dark:text-emerald-400">
+            {data.loopType === 'until' ? 'Stop' : 'Loop'} while: {data.condition?.field || '?'} {data.condition?.operator?.replace('_', ' ') || '='} {String(data.condition?.value ?? '?')}
+          </p>
+        </div>
+      )}
+
+      <div className="rounded-md border border-muted p-3 space-y-2">
+        <p className="text-xs font-medium">Loop Handles:</p>
+        <ul className="text-xs text-muted-foreground space-y-1">
+          <li className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <strong>Bottom:</strong> Loop body (connect to steps inside the loop)
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-emerald-500" />
+            <strong>Left:</strong> Loop back (connect from end of loop body)
+          </li>
+          <li className="flex items-center gap-2">
+            <span className="h-2 w-2 rounded-full bg-muted-foreground" />
+            <strong>Right:</strong> Exit (connect to steps after the loop)
+          </li>
+        </ul>
+      </div>
+    </>
+  );
+}
+
 // Available Variables Component
 function AvailableVariables({
   nodeId,
@@ -850,6 +1149,14 @@ export function PropertyPanel() {
     headerBg = '#f97316'; // orange-500
     headerTitle = 'Map-Reduce';
     HeaderIcon = GitBranch;
+  } else if (isBranchNode(data)) {
+    headerBg = '#8b5cf6'; // violet-500
+    headerTitle = 'Branch';
+    HeaderIcon = GitFork;
+  } else if (isLoopNode(data)) {
+    headerBg = '#10b981'; // emerald-500
+    headerTitle = 'Loop';
+    HeaderIcon = RefreshCw;
   }
 
   return (
@@ -915,6 +1222,18 @@ export function PropertyPanel() {
         )}
         {isMapReduceNode(data) && (
           <MapReduceProperties
+            data={data}
+            onChange={(field, value) => handleChange(field as string, value)}
+          />
+        )}
+        {isBranchNode(data) && (
+          <BranchProperties
+            data={data}
+            onChange={(field, value) => handleChange(field as string, value)}
+          />
+        )}
+        {isLoopNode(data) && (
+          <LoopProperties
             data={data}
             onChange={(field, value) => handleChange(field as string, value)}
           />
