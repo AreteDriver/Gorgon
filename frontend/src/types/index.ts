@@ -216,6 +216,38 @@ export interface DashboardStats {
   totalCostToday: number;
 }
 
+export interface RecentExecution {
+  id: string;
+  name: string;
+  status: string;
+  time: string;
+}
+
+export interface DailyUsageData {
+  date: string;
+  tokens: number;
+  cost: number;
+}
+
+export interface AgentUsageData {
+  agent: string;
+  tokens: number;
+}
+
+export interface BudgetStatusItem {
+  agent: string;
+  used: number;
+  limit: number;
+}
+
+export interface DashboardBudget {
+  totalBudget: number;
+  totalUsed: number;
+  percentUsed: number;
+  byAgent: BudgetStatusItem[];
+  alert?: string;
+}
+
 export interface SystemHealth {
   status: 'healthy' | 'degraded' | 'unhealthy';
   apiLatency: number;

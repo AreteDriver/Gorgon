@@ -48,6 +48,12 @@ from test_ai.webhooks import (
     WebhookManager,
     Webhook,
 )
+from test_ai.mcp import MCPConnectorManager
+from test_ai.mcp.models import (
+    MCPServerCreateInput,
+    MCPServerUpdateInput,
+    CredentialCreateInput,
+)
 from test_ai.jobs import (
     JobManager,
     JobStatus,
@@ -97,6 +103,8 @@ webhook_manager: WebhookManager | None = None
 job_manager: JobManager | None = None
 version_manager: WorkflowVersionManager | None = None
 execution_manager = None  # type: ExecutionManager | None
+mcp_manager: MCPConnectorManager | None = None
+settings_manager = None  # type: "SettingsManager | None"
 
 # WebSocket components initialized in lifespan
 ws_manager = None  # type: "ConnectionManager | None"
@@ -139,6 +147,8 @@ async def lifespan(app: FastAPI):
         job_manager, \
         version_manager, \
         execution_manager, \
+        mcp_manager, \
+        settings_manager, \
         ws_manager, \
         ws_broadcaster
 
@@ -181,11 +191,17 @@ async def lifespan(app: FastAPI):
     webhook_manager = WebhookManager(backend=backend)
     job_manager = JobManager(backend=backend)
     version_manager = WorkflowVersionManager(backend=backend)
+    mcp_manager = MCPConnectorManager(backend=backend)
 
     # Import and initialize execution manager
     from test_ai.executions import ExecutionManager
 
     execution_manager = ExecutionManager(backend=backend)
+
+    # Initialize settings manager
+    from test_ai.settings import SettingsManager
+
+    settings_manager = SettingsManager(backend=backend)
 
     # Initialize WebSocket components
     from test_ai.websocket import ConnectionManager, Broadcaster
@@ -1016,6 +1032,146 @@ async def trigger_webhook(
         raise bad_request(str(e))
 
 
+# =============================================================================
+# MCP Connector Endpoints
+# =============================================================================
+
+
+@v1_router.get("/mcp/servers", responses=AUTH_RESPONSES)
+def list_mcp_servers(authorization: Optional[str] = Header(None)):
+    """List all registered MCP servers."""
+    verify_auth(authorization)
+    servers = mcp_manager.list_servers()
+    return [s.model_dump(mode="json") for s in servers]
+
+
+@v1_router.get("/mcp/servers/{server_id}", responses=CRUD_RESPONSES)
+def get_mcp_server(server_id: str, authorization: Optional[str] = Header(None)):
+    """Get a specific MCP server by ID."""
+    verify_auth(authorization)
+    server = mcp_manager.get_server(server_id)
+    if not server:
+        raise not_found("MCP Server", server_id)
+    return server.model_dump(mode="json")
+
+
+@v1_router.post("/mcp/servers", responses=CRUD_RESPONSES)
+def create_mcp_server(
+    data: MCPServerCreateInput, authorization: Optional[str] = Header(None)
+):
+    """Register a new MCP server."""
+    verify_auth(authorization)
+    try:
+        server = mcp_manager.create_server(data)
+        return server.model_dump(mode="json")
+    except ValueError as e:
+        raise bad_request(str(e))
+
+
+@v1_router.put("/mcp/servers/{server_id}", responses=CRUD_RESPONSES)
+def update_mcp_server(
+    server_id: str,
+    data: MCPServerUpdateInput,
+    authorization: Optional[str] = Header(None),
+):
+    """Update an MCP server registration."""
+    verify_auth(authorization)
+    server = mcp_manager.update_server(server_id, data)
+    if not server:
+        raise not_found("MCP Server", server_id)
+    return server.model_dump(mode="json")
+
+
+@v1_router.delete("/mcp/servers/{server_id}", responses=CRUD_RESPONSES)
+def delete_mcp_server(server_id: str, authorization: Optional[str] = Header(None)):
+    """Delete an MCP server registration."""
+    verify_auth(authorization)
+    if mcp_manager.delete_server(server_id):
+        return {"status": "success"}
+    raise not_found("MCP Server", server_id)
+
+
+@v1_router.post("/mcp/servers/{server_id}/test", responses=CRUD_RESPONSES)
+def test_mcp_connection(server_id: str, authorization: Optional[str] = Header(None)):
+    """Test connection to an MCP server.
+
+    Attempts to connect and discover available tools.
+    """
+    verify_auth(authorization)
+    server = mcp_manager.get_server(server_id)
+    if not server:
+        raise not_found("MCP Server", server_id)
+
+    result = mcp_manager.test_connection(server_id)
+    return {
+        "success": result.success,
+        "error": result.error,
+        "tools": [t.model_dump() for t in result.tools],
+        "resources": [r.model_dump() for r in result.resources],
+    }
+
+
+@v1_router.get("/mcp/servers/{server_id}/tools", responses=CRUD_RESPONSES)
+def get_mcp_server_tools(server_id: str, authorization: Optional[str] = Header(None)):
+    """Get tools available on an MCP server."""
+    verify_auth(authorization)
+    server = mcp_manager.get_server(server_id)
+    if not server:
+        raise not_found("MCP Server", server_id)
+    return [t.model_dump() for t in server.tools]
+
+
+# =============================================================================
+# Credentials Endpoints
+# =============================================================================
+
+
+@v1_router.get("/credentials", responses=AUTH_RESPONSES)
+def list_credentials(authorization: Optional[str] = Header(None)):
+    """List all credentials (values not exposed)."""
+    verify_auth(authorization)
+    credentials = mcp_manager.list_credentials()
+    return [c.model_dump(mode="json") for c in credentials]
+
+
+@v1_router.get("/credentials/{credential_id}", responses=CRUD_RESPONSES)
+def get_credential(credential_id: str, authorization: Optional[str] = Header(None)):
+    """Get a specific credential by ID (value not exposed)."""
+    verify_auth(authorization)
+    credential = mcp_manager.get_credential(credential_id)
+    if not credential:
+        raise not_found("Credential", credential_id)
+    return credential.model_dump(mode="json")
+
+
+@v1_router.post("/credentials", responses=CRUD_RESPONSES)
+def create_credential(
+    data: CredentialCreateInput, authorization: Optional[str] = Header(None)
+):
+    """Create a new credential.
+
+    The credential value is encrypted before storage and never exposed via API.
+    """
+    verify_auth(authorization)
+    try:
+        credential = mcp_manager.create_credential(data)
+        return credential.model_dump(mode="json")
+    except ValueError as e:
+        raise bad_request(str(e))
+
+
+@v1_router.delete("/credentials/{credential_id}", responses=CRUD_RESPONSES)
+def delete_credential(credential_id: str, authorization: Optional[str] = Header(None)):
+    """Delete a credential.
+
+    Any MCP servers using this credential will be set to 'not_configured' status.
+    """
+    verify_auth(authorization)
+    if mcp_manager.delete_credential(credential_id):
+        return {"status": "success"}
+    raise not_found("Credential", credential_id)
+
+
 # Job endpoints (async workflow execution)
 @v1_router.post("/jobs", responses=CRUD_RESPONSES)
 @limiter.limit("20/minute")
@@ -1558,6 +1714,133 @@ def list_versioned_workflows(authorization: Optional[str] = Header(None)):
     return version_manager.list_workflows()
 
 
+# =============================================================================
+# Settings Endpoints (User Preferences and API Keys)
+# =============================================================================
+
+
+class PreferencesUpdateRequest(BaseModel):
+    """Request to update user preferences."""
+
+    theme: Optional[str] = None
+    compact_view: Optional[bool] = None
+    show_costs: Optional[bool] = None
+    default_page_size: Optional[int] = None
+    notifications: Optional[Dict] = None
+
+
+class APIKeyCreateRequest(BaseModel):
+    """Request to create/update an API key."""
+
+    provider: str
+    key: str
+
+
+@v1_router.get("/settings/preferences", responses=AUTH_RESPONSES)
+def get_preferences(authorization: Optional[str] = Header(None)):
+    """Get user preferences."""
+    user_id = verify_auth(authorization)
+
+    prefs = settings_manager.get_preferences(user_id)
+    return prefs.model_dump(mode="json")
+
+
+@v1_router.post("/settings/preferences", responses=AUTH_RESPONSES)
+def update_preferences(
+    request: PreferencesUpdateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Update user preferences."""
+    user_id = verify_auth(authorization)
+
+    from test_ai.settings.models import NotificationSettings, UserPreferencesUpdate
+
+    # Build update object
+    update_data = {}
+    if request.theme is not None:
+        if request.theme not in ("light", "dark", "system"):
+            raise bad_request(
+                "Invalid theme", {"valid_values": ["light", "dark", "system"]}
+            )
+        update_data["theme"] = request.theme
+    if request.compact_view is not None:
+        update_data["compact_view"] = request.compact_view
+    if request.show_costs is not None:
+        update_data["show_costs"] = request.show_costs
+    if request.default_page_size is not None:
+        if request.default_page_size < 10 or request.default_page_size > 100:
+            raise bad_request("Invalid page size", {"valid_range": "10-100"})
+        update_data["default_page_size"] = request.default_page_size
+    if request.notifications is not None:
+        update_data["notifications"] = NotificationSettings(**request.notifications)
+
+    update = UserPreferencesUpdate(**update_data)
+    prefs = settings_manager.update_preferences(user_id, update)
+    return prefs.model_dump(mode="json")
+
+
+@v1_router.get("/settings/api-keys", responses=AUTH_RESPONSES)
+def get_api_keys(authorization: Optional[str] = Header(None)):
+    """Get API key metadata (keys are masked, not returned in full)."""
+    user_id = verify_auth(authorization)
+
+    keys = settings_manager.get_api_keys(user_id)
+    return [k.model_dump(mode="json") for k in keys]
+
+
+@v1_router.get("/settings/api-keys/status", responses=AUTH_RESPONSES)
+def get_api_key_status(authorization: Optional[str] = Header(None)):
+    """Get status of which API keys are configured."""
+    user_id = verify_auth(authorization)
+
+    status = settings_manager.get_api_key_status(user_id)
+    return status.model_dump()
+
+
+@v1_router.post("/settings/api-keys", responses=AUTH_RESPONSES)
+def set_api_key(
+    request: APIKeyCreateRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Set or update an API key."""
+    user_id = verify_auth(authorization)
+
+    if request.provider not in ("openai", "anthropic", "github"):
+        raise bad_request(
+            "Invalid provider",
+            {"valid_providers": ["openai", "anthropic", "github"]},
+        )
+
+    if not request.key or len(request.key) < 10:
+        raise bad_request("API key is too short")
+
+    from test_ai.settings.models import APIKeyCreate
+
+    key_create = APIKeyCreate(provider=request.provider, key=request.key)
+    key_info = settings_manager.set_api_key(user_id, key_create)
+    return {
+        "status": "success",
+        "key": key_info.model_dump(mode="json"),
+    }
+
+
+@v1_router.delete("/settings/api-keys/{provider}", responses=CRUD_RESPONSES)
+def delete_api_key(provider: str, authorization: Optional[str] = Header(None)):
+    """Delete an API key."""
+    user_id = verify_auth(authorization)
+
+    if provider not in ("openai", "anthropic", "github"):
+        raise bad_request(
+            "Invalid provider",
+            {"valid_providers": ["openai", "anthropic", "github"]},
+        )
+
+    if settings_manager.delete_api_key(user_id, provider):
+        return {"status": "success"}
+
+    raise not_found("API Key", provider)
+
+
 @app.get("/health")
 def health_check():
     """Basic health check (liveness probe).
@@ -1766,6 +2049,375 @@ def metrics_endpoint():
     from starlette.responses import PlainTextResponse
 
     return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain")
+
+
+# =============================================================================
+# Dashboard Endpoints
+# =============================================================================
+
+
+class DashboardStats(BaseModel):
+    """Dashboard statistics response."""
+
+    totalWorkflows: int
+    activeExecutions: int
+    completedToday: int
+    failedToday: int
+    totalTokensToday: int
+    totalCostToday: float
+
+
+class RecentExecution(BaseModel):
+    """Recent execution summary for dashboard."""
+
+    id: str
+    name: str
+    status: str
+    time: str
+
+
+class DailyUsage(BaseModel):
+    """Daily usage data point."""
+
+    date: str
+    tokens: int
+    cost: float
+
+
+class AgentUsage(BaseModel):
+    """Per-agent usage data point."""
+
+    agent: str
+    tokens: int
+
+
+class BudgetStatus(BaseModel):
+    """Budget status for an agent."""
+
+    agent: str
+    used: float
+    limit: float
+
+
+class DashboardBudget(BaseModel):
+    """Dashboard budget summary."""
+
+    totalBudget: float
+    totalUsed: float
+    percentUsed: float
+    byAgent: list[BudgetStatus]
+    alert: Optional[str] = None
+
+
+@v1_router.get("/dashboard/stats", responses=AUTH_RESPONSES)
+def get_dashboard_stats(authorization: Optional[str] = Header(None)):
+    """Get dashboard statistics."""
+    verify_auth(authorization)
+
+    from datetime import date
+
+    from test_ai.executions import ExecutionStatus
+
+    today_start = datetime.combine(date.today(), datetime.min.time())
+
+    # Get workflow count
+    workflows = workflow_engine.list_workflows()
+    total_workflows = len(workflows) if workflows else 0
+
+    # Get execution stats from database
+    backend = get_database()
+
+    # Active executions (running or paused)
+    active_row = backend.fetchone(
+        """
+        SELECT COUNT(*) as count FROM executions
+        WHERE status IN (?, ?)
+        """,
+        (ExecutionStatus.RUNNING.value, ExecutionStatus.PAUSED.value),
+    )
+    active_executions = active_row["count"] if active_row else 0
+
+    # Completed today
+    completed_row = backend.fetchone(
+        """
+        SELECT COUNT(*) as count FROM executions
+        WHERE status = ?
+        AND datetime(completed_at) >= datetime(?)
+        """,
+        (ExecutionStatus.COMPLETED.value, today_start.isoformat()),
+    )
+    completed_today = completed_row["count"] if completed_row else 0
+
+    # Failed today
+    failed_row = backend.fetchone(
+        """
+        SELECT COUNT(*) as count FROM executions
+        WHERE status = ?
+        AND datetime(completed_at) >= datetime(?)
+        """,
+        (ExecutionStatus.FAILED.value, today_start.isoformat()),
+    )
+    failed_today = failed_row["count"] if failed_row else 0
+
+    # Token usage today - aggregate from metrics for executions started today
+    tokens_row = backend.fetchone(
+        """
+        SELECT COALESCE(SUM(m.total_tokens), 0) as tokens,
+               COALESCE(SUM(m.total_cost_cents), 0) as cost_cents
+        FROM execution_metrics m
+        JOIN executions e ON e.id = m.execution_id
+        WHERE datetime(e.created_at) >= datetime(?)
+        """,
+        (today_start.isoformat(),),
+    )
+    total_tokens_today = tokens_row["tokens"] if tokens_row else 0
+    total_cost_today = (tokens_row["cost_cents"] / 100.0) if tokens_row else 0.0
+
+    return DashboardStats(
+        totalWorkflows=total_workflows,
+        activeExecutions=active_executions,
+        completedToday=completed_today,
+        failedToday=failed_today,
+        totalTokensToday=total_tokens_today,
+        totalCostToday=total_cost_today,
+    )
+
+
+@v1_router.get("/dashboard/recent-executions", responses=AUTH_RESPONSES)
+def get_recent_executions(
+    limit: int = 5,
+    authorization: Optional[str] = Header(None),
+):
+    """Get recent executions for dashboard display."""
+    verify_auth(authorization)
+
+    result = execution_manager.list_executions(page=1, page_size=limit)
+    executions = []
+
+    for exec in result.data:
+        # Calculate relative time
+        if exec.started_at:
+            delta = datetime.now() - exec.started_at
+            if delta.total_seconds() < 60:
+                time_str = "just now"
+            elif delta.total_seconds() < 3600:
+                mins = int(delta.total_seconds() / 60)
+                time_str = f"{mins} min ago"
+            elif delta.total_seconds() < 86400:
+                hours = int(delta.total_seconds() / 3600)
+                time_str = f"{hours} hour{'s' if hours > 1 else ''} ago"
+            else:
+                days = int(delta.total_seconds() / 86400)
+                time_str = f"{days} day{'s' if days > 1 else ''} ago"
+        else:
+            time_str = "pending"
+
+        executions.append(
+            RecentExecution(
+                id=exec.id,
+                name=exec.workflow_name,
+                status=exec.status.value,
+                time=time_str,
+            )
+        )
+
+    return executions
+
+
+@v1_router.get("/dashboard/usage/daily", responses=AUTH_RESPONSES)
+def get_daily_usage(
+    days: int = 7,
+    authorization: Optional[str] = Header(None),
+):
+    """Get daily token and cost usage for the past N days."""
+    verify_auth(authorization)
+
+    from datetime import date, timedelta
+
+    backend = get_database()
+    usage_data = []
+
+    # Generate data for each day
+    for i in range(days - 1, -1, -1):
+        target_date = date.today() - timedelta(days=i)
+        day_start = datetime.combine(target_date, datetime.min.time())
+        day_end = datetime.combine(target_date + timedelta(days=1), datetime.min.time())
+
+        row = backend.fetchone(
+            """
+            SELECT COALESCE(SUM(m.total_tokens), 0) as tokens,
+                   COALESCE(SUM(m.total_cost_cents), 0) as cost_cents
+            FROM execution_metrics m
+            JOIN executions e ON e.id = m.execution_id
+            WHERE datetime(e.created_at) >= datetime(?)
+            AND datetime(e.created_at) < datetime(?)
+            """,
+            (day_start.isoformat(), day_end.isoformat()),
+        )
+
+        # Format day name (Mon, Tue, etc.)
+        day_name = target_date.strftime("%a")
+
+        usage_data.append(
+            DailyUsage(
+                date=day_name,
+                tokens=row["tokens"] if row else 0,
+                cost=round((row["cost_cents"] / 100.0) if row else 0.0, 2),
+            )
+        )
+
+    return usage_data
+
+
+@v1_router.get("/dashboard/usage/by-agent", responses=AUTH_RESPONSES)
+def get_agent_usage(authorization: Optional[str] = Header(None)):
+    """Get token usage breakdown by agent role.
+
+    Note: This requires workflow step tracking to be implemented.
+    For now, returns mock data based on workflow names/patterns.
+    """
+    verify_auth(authorization)
+
+    backend = get_database()
+
+    # Get total tokens from recent executions grouped by workflow name patterns
+    # In a full implementation, this would track per-step agent usage
+    rows = backend.fetchall(
+        """
+        SELECT e.workflow_name, COALESCE(SUM(m.total_tokens), 0) as tokens
+        FROM executions e
+        JOIN execution_metrics m ON e.id = m.execution_id
+        WHERE datetime(e.created_at) >= datetime('now', '-30 days')
+        GROUP BY e.workflow_name
+        ORDER BY tokens DESC
+        LIMIT 10
+        """
+    )
+
+    # Map workflow names to agent-like categories
+    # In production, this would come from step-level tracking
+    agent_map = {
+        "planner": 0,
+        "builder": 0,
+        "tester": 0,
+        "reviewer": 0,
+        "documenter": 0,
+    }
+
+    for row in rows:
+        name_lower = (row["workflow_name"] or "").lower()
+        tokens = row["tokens"] or 0
+
+        # Distribute tokens based on workflow name patterns
+        if "plan" in name_lower or "analysis" in name_lower:
+            agent_map["planner"] += tokens
+        elif "build" in name_lower or "implement" in name_lower or "code" in name_lower:
+            agent_map["builder"] += tokens
+        elif "test" in name_lower:
+            agent_map["tester"] += tokens
+        elif "review" in name_lower:
+            agent_map["reviewer"] += tokens
+        elif "doc" in name_lower:
+            agent_map["documenter"] += tokens
+        else:
+            # Distribute to builder as default
+            agent_map["builder"] += tokens
+
+    # Convert to list format for frontend
+    usage = [
+        AgentUsage(agent=agent.title(), tokens=tokens)
+        for agent, tokens in agent_map.items()
+        if tokens > 0
+    ]
+
+    # If no data, return reasonable defaults
+    if not usage:
+        usage = [
+            AgentUsage(agent="Planner", tokens=0),
+            AgentUsage(agent="Builder", tokens=0),
+            AgentUsage(agent="Tester", tokens=0),
+            AgentUsage(agent="Reviewer", tokens=0),
+            AgentUsage(agent="Documenter", tokens=0),
+        ]
+
+    return usage
+
+
+@v1_router.get("/dashboard/budget", responses=AUTH_RESPONSES)
+def get_dashboard_budget(authorization: Optional[str] = Header(None)):
+    """Get budget status for dashboard display."""
+    verify_auth(authorization)
+
+    # Default budget limits (in production these would come from settings/database)
+    budget_limits = {
+        "Builder": 40.0,
+        "Planner": 20.0,
+        "Reviewer": 25.0,
+        "Tester": 15.0,
+    }
+    total_budget = 100.0
+
+    backend = get_database()
+
+    # Get this month's usage
+    from datetime import date
+
+    month_start = date.today().replace(day=1)
+
+    # Get usage by workflow pattern (proxy for agent)
+    rows = backend.fetchall(
+        """
+        SELECT e.workflow_name, COALESCE(SUM(m.total_cost_cents), 0) as cost_cents
+        FROM executions e
+        JOIN execution_metrics m ON e.id = m.execution_id
+        WHERE datetime(e.created_at) >= datetime(?)
+        GROUP BY e.workflow_name
+        """,
+        (datetime.combine(month_start, datetime.min.time()).isoformat(),),
+    )
+
+    # Map to agents (simplified)
+    agent_costs = {agent: 0.0 for agent in budget_limits}
+
+    for row in rows:
+        name_lower = (row["workflow_name"] or "").lower()
+        cost = (row["cost_cents"] or 0) / 100.0
+
+        if "plan" in name_lower or "analysis" in name_lower:
+            agent_costs["Planner"] += cost
+        elif "review" in name_lower:
+            agent_costs["Reviewer"] += cost
+        elif "test" in name_lower:
+            agent_costs["Tester"] += cost
+        else:
+            agent_costs["Builder"] += cost
+
+    total_used = sum(agent_costs.values())
+
+    # Build response
+    by_agent = [
+        BudgetStatus(agent=agent, used=round(cost, 2), limit=budget_limits[agent])
+        for agent, cost in agent_costs.items()
+    ]
+
+    # Generate alert if any agent is over 80% of limit
+    alert = None
+    for status in by_agent:
+        if status.limit > 0:
+            percent = (status.used / status.limit) * 100
+            if percent >= 80:
+                alert = f"{status.agent} agent at {int(percent)}% of monthly limit"
+                break
+
+    return DashboardBudget(
+        totalBudget=total_budget,
+        totalUsed=round(total_used, 2),
+        percentUsed=round((total_used / total_budget) * 100, 1)
+        if total_budget > 0
+        else 0,
+        byAgent=by_agent,
+        alert=alert,
+    )
 
 
 # Include versioned API router

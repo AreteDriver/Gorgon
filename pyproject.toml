@@ -31,6 +31,7 @@ rich = "^14.0.0"
 pyyaml = "^6.0.0"
 jsonschema = "^4.23.0"
 slowapi = "^0.1.9"
+cryptography = "^45.0.0"
 psycopg2-binary = {version = "^2.9.0", optional = true}
 
 [tool.poetry.extras]

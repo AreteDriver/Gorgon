@@ -17,7 +17,14 @@ export const queryKeys = {
   budgetSummary: ['budgets', 'summary'] as const,
   checkpoints: (executionId: string) => ['checkpoints', executionId] as const,
   dashboardStats: ['dashboard', 'stats'] as const,
+  dashboardRecentExecutions: ['dashboard', 'recent-executions'] as const,
+  dashboardDailyUsage: ['dashboard', 'daily-usage'] as const,
+  dashboardAgentUsage: ['dashboard', 'agent-usage'] as const,
+  dashboardBudget: ['dashboard', 'budget'] as const,
   systemHealth: ['system', 'health'] as const,
+  preferences: ['settings', 'preferences'] as const,
+  apiKeys: ['settings', 'api-keys'] as const,
+  apiKeyStatus: ['settings', 'api-keys', 'status'] as const,
 };
 
 // =============================================================================
@@ -248,10 +255,104 @@ export function useDashboardStats() {
   });
 }
 
+export function useRecentExecutions(limit = 5) {
+  return useQuery({
+    queryKey: [...queryKeys.dashboardRecentExecutions, limit],
+    queryFn: () => api.getRecentExecutions(limit),
+    refetchInterval: 10000, // Refresh every 10 seconds
+  });
+}
+
+export function useDailyUsage(days = 7) {
+  return useQuery({
+    queryKey: [...queryKeys.dashboardDailyUsage, days],
+    queryFn: () => api.getDailyUsage(days),
+    refetchInterval: 60000, // Refresh every minute
+  });
+}
+
+export function useAgentUsage() {
+  return useQuery({
+    queryKey: queryKeys.dashboardAgentUsage,
+    queryFn: () => api.getAgentUsage(),
+    refetchInterval: 60000, // Refresh every minute
+  });
+}
+
+export function useDashboardBudget() {
+  return useQuery({
+    queryKey: queryKeys.dashboardBudget,
+    queryFn: () => api.getDashboardBudget(),
+    refetchInterval: 30000, // Refresh every 30 seconds
+  });
+}
+
 export function useSystemHealth() {
   return useQuery({
     queryKey: queryKeys.systemHealth,
     queryFn: () => api.getSystemHealth(),
     refetchInterval: 30000, // Refresh every 30 seconds
+  });
+}
+
+// =============================================================================
+// Settings Hooks (Preferences & API Keys)
+// =============================================================================
+
+export function usePreferences() {
+  return useQuery({
+    queryKey: queryKeys.preferences,
+    queryFn: () => api.getPreferences(),
+  });
+}
+
+export function useUpdatePreferences() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (preferences: Parameters<typeof api.updatePreferences>[0]) =>
+      api.updatePreferences(preferences),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.preferences });
+    },
+  });
+}
+
+export function useApiKeys() {
+  return useQuery({
+    queryKey: queryKeys.apiKeys,
+    queryFn: () => api.getApiKeys(),
+  });
+}
+
+export function useApiKeyStatus() {
+  return useQuery({
+    queryKey: queryKeys.apiKeyStatus,
+    queryFn: () => api.getApiKeyStatus(),
+  });
+}
+
+export function useSetApiKey() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ provider, key }: { provider: 'openai' | 'anthropic' | 'github'; key: string }) =>
+      api.setApiKey(provider, key),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeyStatus });
+    },
+  });
+}
+
+export function useDeleteApiKey() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: (provider: string) => api.deleteApiKey(provider),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeys });
+      queryClient.invalidateQueries({ queryKey: queryKeys.apiKeyStatus });
+    },
   });
 }

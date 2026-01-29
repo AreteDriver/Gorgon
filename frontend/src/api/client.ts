@@ -9,6 +9,10 @@ import type {
   Checkpoint,
   DashboardStats,
   SystemHealth,
+  RecentExecution,
+  DailyUsageData,
+  AgentUsageData,
+  DashboardBudget,
 } from '@/types';
 import type {
   MCPServer,
@@ -193,7 +197,31 @@ class GorgonApiClient {
   // ---------------------------------------------------------------------------
 
   async getDashboardStats(): Promise<DashboardStats> {
-    const { data } = await this.client.get('/dashboard/stats');
+    const { data } = await this.client.get('/v1/dashboard/stats');
+    return data;
+  }
+
+  async getRecentExecutions(limit = 5): Promise<RecentExecution[]> {
+    const { data } = await this.client.get('/v1/dashboard/recent-executions', {
+      params: { limit },
+    });
+    return data;
+  }
+
+  async getDailyUsage(days = 7): Promise<DailyUsageData[]> {
+    const { data } = await this.client.get('/v1/dashboard/usage/daily', {
+      params: { days },
+    });
+    return data;
+  }
+
+  async getAgentUsage(): Promise<AgentUsageData[]> {
+    const { data } = await this.client.get('/v1/dashboard/usage/by-agent');
+    return data;
+  }
+
+  async getDashboardBudget(): Promise<DashboardBudget> {
+    const { data } = await this.client.get('/v1/dashboard/budget');
     return data;
   }
 
@@ -225,41 +253,41 @@ class GorgonApiClient {
   // ---------------------------------------------------------------------------
 
   async getMCPServers(): Promise<MCPServer[]> {
-    const { data } = await this.client.get('/mcp/servers');
+    const { data } = await this.client.get('/v1/mcp/servers');
     return data;
   }
 
   async getMCPServer(id: string): Promise<MCPServer> {
-    const { data } = await this.client.get(`/mcp/servers/${id}`);
+    const { data } = await this.client.get(`/v1/mcp/servers/${id}`);
     return data;
   }
 
   async createMCPServer(server: MCPServerCreateInput): Promise<MCPServer> {
-    const { data } = await this.client.post('/mcp/servers', server);
+    const { data } = await this.client.post('/v1/mcp/servers', server);
     return data;
   }
 
   async updateMCPServer(id: string, server: Partial<MCPServerCreateInput>): Promise<MCPServer> {
-    const { data } = await this.client.put(`/mcp/servers/${id}`, server);
+    const { data } = await this.client.put(`/v1/mcp/servers/${id}`, server);
     return data;
   }
 
   async deleteMCPServer(id: string): Promise<void> {
-    await this.client.delete(`/mcp/servers/${id}`);
+    await this.client.delete(`/v1/mcp/servers/${id}`);
   }
 
   async testMCPConnection(id: string): Promise<{ success: boolean; error?: string; tools?: MCPTool[] }> {
-    const { data } = await this.client.post(`/mcp/servers/${id}/test`);
+    const { data } = await this.client.post(`/v1/mcp/servers/${id}/test`);
     return data;
   }
 
   async getMCPTools(serverId: string): Promise<MCPTool[]> {
-    const { data } = await this.client.get(`/mcp/servers/${serverId}/tools`);
+    const { data } = await this.client.get(`/v1/mcp/servers/${serverId}/tools`);
     return data;
   }
 
   async invokeMCPTool(serverId: string, toolName: string, input: Record<string, unknown>): Promise<unknown> {
-    const { data } = await this.client.post(`/mcp/servers/${serverId}/tools/${toolName}/invoke`, input);
+    const { data } = await this.client.post(`/v1/mcp/servers/${serverId}/tools/${toolName}/invoke`, input);
     return data;
   }
 
@@ -293,18 +321,93 @@ class GorgonApiClient {
   // ---------------------------------------------------------------------------
 
   async getCredentials(): Promise<Credential[]> {
-    const { data } = await this.client.get('/credentials');
+    const { data } = await this.client.get('/v1/credentials');
     return data;
   }
 
   async createCredential(credential: { name: string; type: string; service: string; value: string }): Promise<Credential> {
-    const { data } = await this.client.post('/credentials', credential);
+    const { data } = await this.client.post('/v1/credentials', credential);
     return data;
   }
 
   async deleteCredential(id: string): Promise<void> {
-    await this.client.delete(`/credentials/${id}`);
+    await this.client.delete(`/v1/credentials/${id}`);
   }
+
+  // ---------------------------------------------------------------------------
+  // Settings (User Preferences & API Keys)
+  // ---------------------------------------------------------------------------
+
+  async getPreferences(): Promise<UserPreferences> {
+    const { data } = await this.client.get('/v1/settings/preferences');
+    return data;
+  }
+
+  async updatePreferences(preferences: Partial<UserPreferencesUpdate>): Promise<UserPreferences> {
+    const { data } = await this.client.post('/v1/settings/preferences', preferences);
+    return data;
+  }
+
+  async getApiKeys(): Promise<ApiKeyInfo[]> {
+    const { data } = await this.client.get('/v1/settings/api-keys');
+    return data;
+  }
+
+  async getApiKeyStatus(): Promise<ApiKeyStatus> {
+    const { data } = await this.client.get('/v1/settings/api-keys/status');
+    return data;
+  }
+
+  async setApiKey(provider: 'openai' | 'anthropic' | 'github', key: string): Promise<{ status: string; key: ApiKeyInfo }> {
+    const { data } = await this.client.post('/v1/settings/api-keys', { provider, key });
+    return data;
+  }
+
+  async deleteApiKey(provider: string): Promise<void> {
+    await this.client.delete(`/v1/settings/api-keys/${provider}`);
+  }
+}
+
+// Settings types
+export interface UserPreferences {
+  user_id: string;
+  theme: 'light' | 'dark' | 'system';
+  compact_view: boolean;
+  show_costs: boolean;
+  default_page_size: number;
+  notifications: {
+    execution_complete: boolean;
+    execution_failed: boolean;
+    budget_alert: boolean;
+  };
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface UserPreferencesUpdate {
+  theme?: 'light' | 'dark' | 'system';
+  compact_view?: boolean;
+  show_costs?: boolean;
+  default_page_size?: number;
+  notifications?: {
+    execution_complete?: boolean;
+    execution_failed?: boolean;
+    budget_alert?: boolean;
+  };
+}
+
+export interface ApiKeyInfo {
+  id: number;
+  provider: string;
+  key_prefix: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ApiKeyStatus {
+  openai: boolean;
+  anthropic: boolean;
+  github: boolean;
 }
 
 // Export singleton instance

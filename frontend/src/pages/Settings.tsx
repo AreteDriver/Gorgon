@@ -1,8 +1,15 @@
 import { useState } from 'react';
-import { Moon, Sun, Monitor, Bell, Eye, Database, Key, Save, Trash2 } from 'lucide-react';
+import { Moon, Sun, Monitor, Bell, Eye, Database, Key, Save, Trash2, Check, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { usePreferencesStore } from '@/stores';
+import {
+  useUpdatePreferences,
+  useApiKeyStatus,
+  useSetApiKey,
+  useDeleteApiKey,
+} from '@/hooks/useApi';
+import type { ApiKeyStatus } from '@/api/client';
 
 export function SettingsPage() {
   return (
@@ -25,12 +32,19 @@ export function SettingsPage() {
 
 function AppearanceSection() {
   const { theme, setTheme } = usePreferencesStore();
+  const updatePreferences = useUpdatePreferences();
 
   const themes: Array<{ value: 'light' | 'dark' | 'system'; label: string; icon: typeof Sun }> = [
     { value: 'light', label: 'Light', icon: Sun },
     { value: 'dark', label: 'Dark', icon: Moon },
     { value: 'system', label: 'System', icon: Monitor },
   ];
+
+  const handleThemeChange = (newTheme: 'light' | 'dark' | 'system') => {
+    setTheme(newTheme);
+    // Persist to backend
+    updatePreferences.mutate({ theme: newTheme });
+  };
 
   return (
     <Card>
@@ -50,7 +64,8 @@ function AppearanceSection() {
                 key={value}
                 variant={theme === value ? 'default' : 'outline'}
                 className="flex-1"
-                onClick={() => setTheme(value)}
+                onClick={() => handleThemeChange(value)}
+                disabled={updatePreferences.isPending}
               >
                 <Icon className="h-4 w-4 mr-2" />
                 {label}
@@ -65,24 +80,40 @@ function AppearanceSection() {
 
 function NotificationsSection() {
   const { notifications, setNotification } = usePreferencesStore();
+  const updatePreferences = useUpdatePreferences();
 
   const notificationOptions = [
     {
       key: 'executionComplete' as const,
+      apiKey: 'execution_complete' as const,
       label: 'Execution Complete',
       description: 'Notify when a workflow execution finishes successfully',
     },
     {
       key: 'executionFailed' as const,
+      apiKey: 'execution_failed' as const,
       label: 'Execution Failed',
       description: 'Notify when a workflow execution fails',
     },
     {
       key: 'budgetAlert' as const,
+      apiKey: 'budget_alert' as const,
       label: 'Budget Alerts',
       description: 'Notify when spending approaches budget limits',
     },
   ];
+
+  const handleNotificationChange = (
+    key: keyof typeof notifications,
+    apiKey: 'execution_complete' | 'execution_failed' | 'budget_alert',
+    value: boolean
+  ) => {
+    setNotification(key, value);
+    // Persist to backend
+    updatePreferences.mutate({
+      notifications: { [apiKey]: value },
+    });
+  };
 
   return (
     <Card>
@@ -94,7 +125,7 @@ function NotificationsSection() {
         <CardDescription>Choose what notifications you receive</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {notificationOptions.map(({ key, label, description }) => (
+        {notificationOptions.map(({ key, apiKey, label, description }) => (
           <div key={key} className="flex items-center justify-between">
             <div>
               <p className="font-medium text-sm">{label}</p>
@@ -104,7 +135,7 @@ function NotificationsSection() {
               <input
                 type="checkbox"
                 checked={notifications[key]}
-                onChange={(e) => setNotification(key, e.target.checked)}
+                onChange={(e) => handleNotificationChange(key, apiKey, e.target.checked)}
                 className="sr-only peer"
               />
               <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
@@ -119,6 +150,22 @@ function NotificationsSection() {
 function DisplaySection() {
   const { compactView, setCompactView, showCosts, setShowCosts, defaultPageSize, setDefaultPageSize } =
     usePreferencesStore();
+  const updatePreferences = useUpdatePreferences();
+
+  const handleCompactViewChange = (value: boolean) => {
+    setCompactView(value);
+    updatePreferences.mutate({ compact_view: value });
+  };
+
+  const handleShowCostsChange = (value: boolean) => {
+    setShowCosts(value);
+    updatePreferences.mutate({ show_costs: value });
+  };
+
+  const handlePageSizeChange = (value: number) => {
+    setDefaultPageSize(value);
+    updatePreferences.mutate({ default_page_size: value });
+  };
 
   return (
     <Card>
@@ -139,7 +186,7 @@ function DisplaySection() {
             <input
               type="checkbox"
               checked={compactView}
-              onChange={(e) => setCompactView(e.target.checked)}
+              onChange={(e) => handleCompactViewChange(e.target.checked)}
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
@@ -155,7 +202,7 @@ function DisplaySection() {
             <input
               type="checkbox"
               checked={showCosts}
-              onChange={(e) => setShowCosts(e.target.checked)}
+              onChange={(e) => handleShowCostsChange(e.target.checked)}
               className="sr-only peer"
             />
             <div className="w-11 h-6 bg-muted peer-focus:outline-none peer-focus:ring-2 peer-focus:ring-ring rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-background after:border-border after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-primary"></div>
@@ -169,7 +216,7 @@ function DisplaySection() {
           </div>
           <select
             value={defaultPageSize}
-            onChange={(e) => setDefaultPageSize(Number(e.target.value))}
+            onChange={(e) => handlePageSizeChange(Number(e.target.value))}
             className="border rounded px-3 py-1.5 text-sm bg-background"
           >
             <option value={10}>10</option>
@@ -184,6 +231,10 @@ function DisplaySection() {
 }
 
 function APIKeysSection() {
+  const { data: keyStatus, isLoading: isLoadingStatus } = useApiKeyStatus();
+  const setApiKey = useSetApiKey();
+  const deleteApiKey = useDeleteApiKey();
+
   const [keys, setKeys] = useState({
     openai: '',
     anthropic: '',
@@ -194,20 +245,43 @@ function APIKeysSection() {
     anthropic: false,
     github: false,
   });
-  const [saved, setSaved] = useState(false);
-
-  const handleSave = () => {
-    // In production, this would save to backend
-    console.log('Saving API keys:', keys);
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
+  const [savingKey, setSavingKey] = useState<string | null>(null);
 
   const apiKeyFields = [
     { key: 'openai' as const, label: 'OpenAI API Key', placeholder: 'sk-...' },
     { key: 'anthropic' as const, label: 'Anthropic API Key', placeholder: 'sk-ant-...' },
     { key: 'github' as const, label: 'GitHub Token', placeholder: 'ghp_...' },
   ];
+
+  const handleSaveKey = async (provider: 'openai' | 'anthropic' | 'github') => {
+    const key = keys[provider];
+    if (!key || key.length < 10) return;
+
+    setSavingKey(provider);
+    try {
+      await setApiKey.mutateAsync({ provider, key });
+      // Clear the input after successful save
+      setKeys((prev) => ({ ...prev, [provider]: '' }));
+    } catch (error) {
+      console.error('Failed to save API key:', error);
+    } finally {
+      setSavingKey(null);
+    }
+  };
+
+  const handleDeleteKey = async (provider: string) => {
+    if (!confirm(`Are you sure you want to delete the ${provider} API key?`)) return;
+
+    try {
+      await deleteApiKey.mutateAsync(provider);
+    } catch (error) {
+      console.error('Failed to delete API key:', error);
+    }
+  };
+
+  const getKeyConfigured = (provider: keyof ApiKeyStatus): boolean => {
+    return keyStatus?.[provider] ?? false;
+  };
 
   return (
     <Card>
@@ -219,34 +293,64 @@ function APIKeysSection() {
         <CardDescription>Configure API keys for AI providers and integrations</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {apiKeyFields.map(({ key, label, placeholder }) => (
-          <div key={key}>
-            <label className="text-sm font-medium mb-1.5 block">{label}</label>
-            <div className="relative">
-              <input
-                type={showKeys[key] ? 'text' : 'password'}
-                value={keys[key]}
-                onChange={(e) => setKeys({ ...keys, [key]: e.target.value })}
-                placeholder={placeholder}
-                className="w-full border rounded px-3 py-2 text-sm font-mono pr-20 bg-background"
-              />
-              <button
-                type="button"
-                onClick={() => setShowKeys({ ...showKeys, [key]: !showKeys[key] })}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
-              >
-                {showKeys[key] ? 'Hide' : 'Show'}
-              </button>
-            </div>
+        {isLoadingStatus ? (
+          <div className="flex items-center justify-center py-4">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
-        ))}
-
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave}>
-            <Save className="h-4 w-4 mr-2" />
-            {saved ? 'Saved!' : 'Save Keys'}
-          </Button>
-        </div>
+        ) : (
+          apiKeyFields.map(({ key, label, placeholder }) => (
+            <div key={key}>
+              <div className="flex items-center justify-between mb-1.5">
+                <label className="text-sm font-medium">{label}</label>
+                {getKeyConfigured(key) && (
+                  <span className="flex items-center gap-1 text-xs text-green-600">
+                    <Check className="h-3 w-3" />
+                    Configured
+                  </span>
+                )}
+              </div>
+              <div className="flex gap-2">
+                <div className="relative flex-1">
+                  <input
+                    type={showKeys[key] ? 'text' : 'password'}
+                    value={keys[key]}
+                    onChange={(e) => setKeys({ ...keys, [key]: e.target.value })}
+                    placeholder={getKeyConfigured(key) ? '(configured - enter new key to update)' : placeholder}
+                    className="w-full border rounded px-3 py-2 text-sm font-mono pr-16 bg-background"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowKeys({ ...showKeys, [key]: !showKeys[key] })}
+                    className="absolute right-2 top-1/2 -translate-y-1/2 text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    {showKeys[key] ? 'Hide' : 'Show'}
+                  </button>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => handleSaveKey(key)}
+                  disabled={!keys[key] || keys[key].length < 10 || savingKey === key}
+                >
+                  {savingKey === key ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Save className="h-4 w-4" />
+                  )}
+                </Button>
+                {getKeyConfigured(key) && (
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    onClick={() => handleDeleteKey(key)}
+                    disabled={deleteApiKey.isPending}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))
+        )}
 
         <p className="text-xs text-muted-foreground">
           API keys are encrypted and stored securely. They are only used for communicating with the
@@ -262,7 +366,7 @@ function DataSection() {
 
   const handleClearCache = () => {
     setClearing(true);
-    // Simulate cache clearing
+    // Clear local storage cache
     setTimeout(() => {
       localStorage.removeItem('gorgon-preferences');
       setClearing(false);

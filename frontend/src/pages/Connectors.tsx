@@ -8,59 +8,6 @@ import { ToolsDrawer } from '@/components/mcp/ToolsDrawer';
 import { useMCPServers, useDeleteMCPServer, useTestMCPConnection } from '@/hooks/useMCP';
 import type { MCPServer } from '@/types/mcp';
 
-// Mock data for demo
-const mockServers: MCPServer[] = [
-  {
-    id: '1',
-    name: 'GitHub',
-    url: 'https://mcp.github.com/sse',
-    type: 'sse',
-    status: 'connected',
-    description: 'Access repositories, PRs, issues, and code',
-    authType: 'bearer',
-    tools: [
-      { name: 'list_repos', description: 'List repositories', inputSchema: {} },
-      { name: 'create_pr', description: 'Create pull request', inputSchema: {} },
-      { name: 'list_issues', description: 'List issues', inputSchema: {} },
-    ],
-    resources: [],
-    lastConnected: '2026-01-18T04:00:00Z',
-    createdAt: '2026-01-15T10:00:00Z',
-    updatedAt: '2026-01-18T04:00:00Z',
-  },
-  {
-    id: '2',
-    name: 'Notion',
-    url: 'https://mcp.notion.com/mcp',
-    type: 'sse',
-    status: 'not_configured',
-    description: 'Access pages, databases, and workspace content',
-    authType: 'bearer',
-    tools: [],
-    resources: [],
-    createdAt: '2026-01-16T08:00:00Z',
-    updatedAt: '2026-01-16T08:00:00Z',
-  },
-  {
-    id: '3',
-    name: 'Filesystem',
-    url: 'stdio://mcp-filesystem',
-    type: 'stdio',
-    status: 'connected',
-    description: 'Local file system access (sandboxed)',
-    authType: 'none',
-    tools: [
-      { name: 'read_file', description: 'Read file contents', inputSchema: {} },
-      { name: 'write_file', description: 'Write file contents', inputSchema: {} },
-      { name: 'list_directory', description: 'List directory contents', inputSchema: {} },
-    ],
-    resources: [],
-    lastConnected: '2026-01-18T04:30:00Z',
-    createdAt: '2026-01-14T12:00:00Z',
-    updatedAt: '2026-01-18T04:30:00Z',
-  },
-];
-
 export function ConnectorsPage() {
   const { data: serversData, isLoading, refetch } = useMCPServers();
   const deleteServer = useDeleteMCPServer();
@@ -71,8 +18,8 @@ export function ConnectorsPage() {
   const [viewToolsServer, setViewToolsServer] = useState<MCPServer | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
 
-  // Use mock data for demo
-  const servers = serversData || mockServers;
+  // Use real API data
+  const servers = serversData || [];
 
   const handleTest = async (server: MCPServer) => {
     setTestingId(server.id);
