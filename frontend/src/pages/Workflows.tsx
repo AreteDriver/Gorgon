@@ -15,57 +15,12 @@ import { PageLoading } from '@/components/PageLoading';
 import { toast } from '@/hooks/useToast';
 import type { Workflow, AgentRole } from '@/types';
 
-// Mock workflows for demo
-const mockWorkflows: Workflow[] = [
-  {
-    id: '1',
-    name: 'Feature Development Pipeline',
-    description: 'End-to-end feature development with planning, coding, testing, and review',
-    status: 'draft',
-    createdAt: '2026-01-15T10:00:00Z',
-    updatedAt: '2026-01-17T14:30:00Z',
-    steps: [
-      { id: 's1', name: 'Plan Feature', agentRole: 'planner', inputs: {}, status: 'pending' },
-      { id: 's2', name: 'Implement', agentRole: 'builder', inputs: {}, status: 'pending' },
-      { id: 's3', name: 'Write Tests', agentRole: 'tester', inputs: {}, status: 'pending' },
-      { id: 's4', name: 'Code Review', agentRole: 'reviewer', inputs: {}, status: 'pending' },
-    ],
-  },
-  {
-    id: '2',
-    name: 'Documentation Generator',
-    description: 'Generate comprehensive documentation from code and comments',
-    status: 'draft',
-    createdAt: '2026-01-10T08:00:00Z',
-    updatedAt: '2026-01-16T09:15:00Z',
-    steps: [
-      { id: 's1', name: 'Analyze Code', agentRole: 'analyst', inputs: {}, status: 'pending' },
-      { id: 's2', name: 'Generate Docs', agentRole: 'documenter', inputs: {}, status: 'pending' },
-      { id: 's3', name: 'Review', agentRole: 'reviewer', inputs: {}, status: 'pending' },
-    ],
-  },
-  {
-    id: '3',
-    name: 'Architecture Review',
-    description: 'Comprehensive architecture analysis and recommendations',
-    status: 'draft',
-    createdAt: '2026-01-08T12:00:00Z',
-    updatedAt: '2026-01-14T16:45:00Z',
-    steps: [
-      { id: 's1', name: 'Analyze Structure', agentRole: 'architect', inputs: {}, status: 'pending' },
-      { id: 's2', name: 'Generate Report', agentRole: 'reporter', inputs: {}, status: 'pending' },
-      { id: 's3', name: 'Visualize', agentRole: 'visualizer', inputs: {}, status: 'pending' },
-    ],
-  },
-];
-
 export function WorkflowsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const { data: workflowsData, isLoading } = useWorkflows();
   const startExecution = useStartExecution();
 
-  // Use mock data for demo when API unavailable
-  const workflows = workflowsData?.data || mockWorkflows;
+  const workflows = workflowsData?.data || [];
   const filteredWorkflows = workflows.filter((w) =>
     w.name.toLowerCase().includes(searchQuery.toLowerCase())
   );
@@ -127,6 +82,38 @@ export function WorkflowsPage() {
 
       {/* Workflows Grid */}
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+        {filteredWorkflows.length === 0 && !searchQuery && (
+          <Card className="col-span-full">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                <GitBranch className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">No workflows yet</h3>
+              <p className="text-muted-foreground text-center max-w-md mb-4">
+                Create your first workflow to orchestrate multi-agent tasks.
+              </p>
+              <Button asChild>
+                <Link to="/workflows/new">
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Workflow
+                </Link>
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+        {filteredWorkflows.length === 0 && searchQuery && (
+          <Card className="col-span-full">
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Search className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">No matching workflows</h3>
+              <p className="text-muted-foreground text-center max-w-md">
+                No workflows found matching "{searchQuery}". Try a different search.
+              </p>
+            </CardContent>
+          </Card>
+        )}
         {filteredWorkflows.map((workflow) => (
           <Card key={workflow.id} className="group relative">
             <CardHeader className="pb-3">

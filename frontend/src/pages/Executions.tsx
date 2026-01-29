@@ -25,57 +25,7 @@ import {
 } from '@/lib/utils';
 import { PageLoading } from '@/components/PageLoading';
 import { toast } from '@/hooks/useToast';
-import type { Execution, WorkflowStatus } from '@/types';
-
-// Mock executions for demo
-const mockExecutions: Execution[] = [
-  {
-    id: 'exec-1',
-    workflowId: '1',
-    workflowName: 'Feature Development Pipeline',
-    status: 'running',
-    startedAt: '2026-01-18T10:30:00Z',
-    currentStep: 'Implement',
-    progress: 45,
-    logs: [],
-    metrics: { totalTokens: 23500, totalCost: 0.67, duration: 125000, stepMetrics: [] },
-  },
-  {
-    id: 'exec-2',
-    workflowId: '2',
-    workflowName: 'Documentation Generator',
-    status: 'completed',
-    startedAt: '2026-01-18T09:15:00Z',
-    completedAt: '2026-01-18T09:28:00Z',
-    progress: 100,
-    logs: [],
-    metrics: { totalTokens: 45200, totalCost: 1.23, duration: 780000, stepMetrics: [] },
-  },
-  {
-    id: 'exec-3',
-    workflowId: '3',
-    workflowName: 'Architecture Review',
-    status: 'paused',
-    startedAt: '2026-01-18T08:00:00Z',
-    currentStep: 'Generate Report',
-    progress: 60,
-    logs: [],
-    metrics: { totalTokens: 31000, totalCost: 0.89, duration: 420000, stepMetrics: [] },
-    checkpointId: 'cp-123',
-  },
-  {
-    id: 'exec-4',
-    workflowId: '1',
-    workflowName: 'Feature Development Pipeline',
-    status: 'failed',
-    startedAt: '2026-01-17T16:00:00Z',
-    completedAt: '2026-01-17T16:15:00Z',
-    currentStep: 'Code Review',
-    progress: 75,
-    logs: [],
-    metrics: { totalTokens: 28000, totalCost: 0.78, duration: 900000, stepMetrics: [] },
-  },
-];
+import type { WorkflowStatus } from '@/types';
 
 const statusFilters: { label: string; value: WorkflowStatus | 'all' }[] = [
   { label: 'All', value: 'all' },
@@ -94,7 +44,7 @@ export function ExecutionsPage() {
   const resumeExecution = useResumeExecution();
   const cancelExecution = useCancelExecution();
 
-  const executions = executionsData?.data || mockExecutions;
+  const executions = executionsData?.data || [];
   const filteredExecutions = executions.filter(
     (e) => statusFilter === 'all' || e.status === statusFilter
   );
@@ -174,6 +124,21 @@ export function ExecutionsPage() {
       </div>
 
       <div className="space-y-4">
+        {filteredExecutions.length === 0 && (
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12">
+              <div className="h-12 w-12 rounded-full bg-muted flex items-center justify-center mb-4">
+                <Play className="h-6 w-6 text-muted-foreground" />
+              </div>
+              <h3 className="text-lg font-medium mb-2">No executions yet</h3>
+              <p className="text-muted-foreground text-center max-w-md">
+                {statusFilter === 'all'
+                  ? 'Run a workflow from the Workflows page to see executions here.'
+                  : `No ${statusFilter} executions found. Try a different filter.`}
+              </p>
+            </CardContent>
+          </Card>
+        )}
         {filteredExecutions.map((execution) => (
           <Card
             key={execution.id}
@@ -214,12 +179,12 @@ export function ExecutionsPage() {
                 <div className="flex items-center gap-6">
                   <div className="flex items-center gap-4 text-sm">
                     <span className="flex items-center gap-1 text-muted-foreground">
-                      <Zap className="h-4 w-4" />{formatTokens(execution.metrics.totalTokens)}
+                      <Zap className="h-4 w-4" />{formatTokens(execution.metrics?.totalTokens ?? 0)}
                     </span>
                     <span className="flex items-center gap-1 text-muted-foreground">
-                      <Coins className="h-4 w-4" />{formatCurrency(execution.metrics.totalCost)}
+                      <Coins className="h-4 w-4" />{formatCurrency(execution.metrics?.totalCost ?? 0)}
                     </span>
-                    <span className="text-muted-foreground">{formatDuration(execution.metrics.duration)}</span>
+                    <span className="text-muted-foreground">{formatDuration(execution.metrics?.duration ?? 0)}</span>
                   </div>
                   <div className="w-32">
                     <div className="mb-1 flex items-center justify-between text-xs">
