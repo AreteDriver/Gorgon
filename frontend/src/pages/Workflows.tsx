@@ -11,6 +11,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useWorkflows, useStartExecution } from '@/hooks/useApi';
 import { formatRelativeTime, getAgentColor } from '@/lib/utils';
+import { PageLoading } from '@/components/PageLoading';
+import { toast } from '@/hooks/useToast';
 import type { Workflow, AgentRole } from '@/types';
 
 // Mock workflows for demo
@@ -59,10 +61,10 @@ const mockWorkflows: Workflow[] = [
 
 export function WorkflowsPage() {
   const [searchQuery, setSearchQuery] = useState('');
-  const { data: workflowsData } = useWorkflows();
+  const { data: workflowsData, isLoading } = useWorkflows();
   const startExecution = useStartExecution();
 
-  // Use mock data for demo
+  // Use mock data for demo when API unavailable
   const workflows = workflowsData?.data || mockWorkflows;
   const filteredWorkflows = workflows.filter((w) =>
     w.name.toLowerCase().includes(searchQuery.toLowerCase())
@@ -71,10 +73,23 @@ export function WorkflowsPage() {
   const handleRun = async (workflowId: string) => {
     try {
       await startExecution.mutateAsync({ workflowId });
+      toast({
+        title: 'Workflow started',
+        description: 'Execution has been queued successfully.',
+        variant: 'success',
+      });
     } catch (error) {
-      console.error('Failed to start execution:', error);
+      toast({
+        title: 'Failed to start workflow',
+        description: error instanceof Error ? error.message : 'Unknown error occurred',
+        variant: 'destructive',
+      });
     }
   };
+
+  if (isLoading) {
+    return <PageLoading message="Loading workflows..." />;
+  }
 
   const getAgentsInWorkflow = (workflow: Workflow): AgentRole[] => {
     return [...new Set(workflow.steps.map((s) => s.agentRole))];

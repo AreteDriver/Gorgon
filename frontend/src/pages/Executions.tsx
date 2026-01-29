@@ -23,6 +23,8 @@ import {
   getStatusColor,
   getAgentColor,
 } from '@/lib/utils';
+import { PageLoading } from '@/components/PageLoading';
+import { toast } from '@/hooks/useToast';
 import type { Execution, WorkflowStatus } from '@/types';
 
 // Mock executions for demo
@@ -86,8 +88,8 @@ const statusFilters: { label: string; value: WorkflowStatus | 'all' }[] = [
 export function ExecutionsPage() {
   const [statusFilter, setStatusFilter] = useState<WorkflowStatus | 'all'>('all');
   const [selectedExecution, setSelectedExecution] = useState<string | null>(null);
-  
-  const { data: executionsData } = useExecutions();
+
+  const { data: executionsData, isLoading } = useExecutions();
   const pauseExecution = usePauseExecution();
   const resumeExecution = useResumeExecution();
   const cancelExecution = useCancelExecution();
@@ -97,16 +99,47 @@ export function ExecutionsPage() {
     (e) => statusFilter === 'all' || e.status === statusFilter
   );
 
+  if (isLoading) {
+    return <PageLoading message="Loading executions..." />;
+  }
+
   const handlePause = async (id: string) => {
-    await pauseExecution.mutateAsync(id);
+    try {
+      await pauseExecution.mutateAsync(id);
+      toast({ title: 'Execution paused', variant: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Failed to pause',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleResume = async (id: string, checkpointId?: string) => {
-    await resumeExecution.mutateAsync({ id, checkpointId });
+    try {
+      await resumeExecution.mutateAsync({ id, checkpointId });
+      toast({ title: 'Execution resumed', variant: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Failed to resume',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
   };
 
   const handleCancel = async (id: string) => {
-    await cancelExecution.mutateAsync(id);
+    try {
+      await cancelExecution.mutateAsync(id);
+      toast({ title: 'Execution cancelled', variant: 'success' });
+    } catch (error) {
+      toast({
+        title: 'Failed to cancel',
+        description: error instanceof Error ? error.message : 'Unknown error',
+        variant: 'destructive',
+      });
+    }
   };
 
   const getStatusBadgeVariant = (status: WorkflowStatus) => {
