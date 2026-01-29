@@ -18,6 +18,8 @@ import type {
   FanOutNodeData,
   FanInNodeData,
   MapReduceNodeData,
+  BranchNodeData,
+  LoopNodeData,
 } from '@/types/workflow-builder';
 import type { AgentRole } from '@/types';
 
@@ -33,7 +35,7 @@ export interface YamlCondition {
 
 export interface YamlStep {
   id: string;
-  type: 'claude_code' | 'openai' | 'shell' | 'parallel' | 'checkpoint' | 'fan_out' | 'fan_in' | 'map_reduce';
+  type: 'claude_code' | 'openai' | 'shell' | 'parallel' | 'checkpoint' | 'fan_out' | 'fan_in' | 'map_reduce' | 'branch' | 'loop';
   params?: Record<string, unknown>;
   condition?: YamlCondition;
   on_failure?: 'abort' | 'skip' | 'retry';
@@ -192,6 +194,43 @@ function nodeToStep(node: Node<WorkflowNodeData>, edges: Edge[]): YamlStep {
           fail_fast: mapReduceData.failFast,
           map_prompt: mapReduceData.mapPrompt,
           reduce_prompt: mapReduceData.reducePrompt,
+        },
+      };
+    }
+
+    case 'branch': {
+      const branchData = data as BranchNodeData;
+      return {
+        ...baseStep,
+        id: node.id,
+        type: 'branch',
+        condition: branchData.condition ? {
+          field: branchData.condition.field,
+          operator: branchData.condition.operator,
+          value: branchData.condition.value,
+        } : undefined,
+        params: {
+          true_label: branchData.trueLabel,
+          false_label: branchData.falseLabel,
+        },
+      };
+    }
+
+    case 'loop': {
+      const loopData = data as LoopNodeData;
+      return {
+        ...baseStep,
+        id: node.id,
+        type: 'loop',
+        condition: loopData.condition ? {
+          field: loopData.condition.field,
+          operator: loopData.condition.operator,
+          value: loopData.condition.value,
+        } : undefined,
+        params: {
+          loop_type: loopData.loopType,
+          max_iterations: loopData.maxIterations,
+          iteration_variable: loopData.iterationVariable,
         },
       };
     }
@@ -501,6 +540,39 @@ function stepToNodeData(step: YamlStep): WorkflowNodeData {
       } satisfies MapReduceNodeData;
     }
 
+    case 'branch': {
+      return {
+        type: 'branch',
+        name: step.id,
+        condition: step.condition ? {
+          field: step.condition.field,
+          operator: step.condition.operator,
+          value: step.condition.value as string | number | boolean,
+        } : {
+          field: 'result',
+          operator: 'equals',
+          value: true,
+        },
+        trueLabel: step.params?.true_label as string,
+        falseLabel: step.params?.false_label as string,
+      } satisfies BranchNodeData;
+    }
+
+    case 'loop': {
+      return {
+        type: 'loop',
+        name: step.id,
+        condition: step.condition ? {
+          field: step.condition.field,
+          operator: step.condition.operator,
+          value: step.condition.value as string | number | boolean,
+        } : undefined,
+        loopType: step.params?.loop_type as 'while' | 'for' | 'until',
+        maxIterations: step.params?.max_iterations as number,
+        iterationVariable: step.params?.iteration_variable as string,
+      } satisfies LoopNodeData;
+    }
+
     // For truly unsupported types, create a shell node as placeholder
     case 'openai':
     default:
@@ -548,6 +620,10 @@ function getReactFlowNodeType(stepType: YamlStep['type']): string {
       return 'fan_in';
     case 'map_reduce':
       return 'map_reduce';
+    case 'branch':
+      return 'branch';
+    case 'loop':
+      return 'loop';
     default:
       return 'shell'; // Fallback for unsupported types
   }

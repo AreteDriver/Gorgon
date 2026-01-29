@@ -1,5 +1,5 @@
-import { useState, useRef } from 'react';
-import { Save, AlertTriangle, AlertCircle, CheckCircle, ChevronDown, Download, Upload } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
+import { Save, AlertTriangle, AlertCircle, CheckCircle, ChevronDown, Download, Upload, Undo2, Redo2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useWorkflowBuilderStore } from '@/stores';
 import { useWorkflowValidation } from './hooks/useWorkflowValidation';
@@ -13,11 +13,30 @@ interface WorkflowToolbarProps {
 }
 
 export function WorkflowToolbar({ onSave, onExportYaml, onImportYaml, isSaving }: WorkflowToolbarProps) {
-  const { isDirty, workflowName, setWorkflowName, validationErrors, selectNode } =
+  const { isDirty, workflowName, setWorkflowName, validationErrors, selectNode, undo, redo, canUndo, canRedo } =
     useWorkflowBuilderStore();
   const { validate } = useWorkflowValidation();
   const [showErrors, setShowErrors] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Keyboard shortcuts for undo/redo
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Check for Ctrl/Cmd + Z (undo) and Ctrl/Cmd + Shift + Z or Ctrl/Cmd + Y (redo)
+      if ((e.ctrlKey || e.metaKey) && !e.altKey) {
+        if (e.key === 'z' && !e.shiftKey) {
+          e.preventDefault();
+          if (canUndo()) undo();
+        } else if ((e.key === 'z' && e.shiftKey) || e.key === 'y') {
+          e.preventDefault();
+          if (canRedo()) redo();
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [undo, redo, canUndo, canRedo]);
 
   const handleImportClick = () => {
     fileInputRef.current?.click();
@@ -80,6 +99,30 @@ export function WorkflowToolbar({ onSave, onExportYaml, onImportYaml, isSaving }
 
         {/* Right section - Validation & Actions */}
         <div className="flex items-center gap-2">
+          {/* Undo/Redo buttons */}
+          <div className="flex items-center border-r pr-2 mr-2">
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={undo}
+              disabled={!canUndo()}
+              title="Undo (Ctrl+Z)"
+              className="h-8 w-8"
+            >
+              <Undo2 className="h-4 w-4" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={redo}
+              disabled={!canRedo()}
+              title="Redo (Ctrl+Shift+Z)"
+              className="h-8 w-8"
+            >
+              <Redo2 className="h-4 w-4" />
+            </Button>
+          </div>
+
           {/* Validation status */}
           {validationErrors.length > 0 && (
             <Button

@@ -16,8 +16,21 @@ import {
   createFanOutNodeData,
   createFanInNodeData,
   createMapReduceNodeData,
-  type AgentNodeData,
+  createBranchNodeData,
+  createLoopNodeData,
+  isAgentNode,
+  isShellNode,
+  isCheckpointNode,
+  isParallelNode,
+  isFanOutNode,
+  isFanInNode,
+  isMapReduceNode,
+  isBranchNode,
+  isLoopNode,
+  type WorkflowNodeData,
+  type NodeCondition,
 } from '@/types/workflow-builder';
+import type { Node } from '@xyflow/react';
 import {
   exportToYaml,
   toYamlString,
@@ -50,19 +63,145 @@ function WorkflowBuilderContent() {
   // Load existing workflow if editing
   useEffect(() => {
     if (id && existingWorkflow) {
-      // Convert workflow steps to nodes
-      const workflowNodes = existingWorkflow.steps.map((step: WorkflowStep, index: number) => ({
-        id: step.id,
-        type: 'agent',
-        position: { x: 250, y: 100 + index * 150 },
-        data: {
-          type: 'agent' as const,
-          role: step.agentRole,
-          name: step.name,
-          prompt: step.inputs?.prompt as string | undefined,
-          onFailure: 'stop' as const,
-        },
-      }));
+      // Convert workflow steps to nodes, restoring correct node types
+      const workflowNodes = existingWorkflow.steps.map((step: WorkflowStep, index: number) => {
+        const stepType = (step.inputs?.stepType as string) || 'agent';
+        const position = { x: 250, y: 100 + index * 150 };
+
+        switch (stepType) {
+          case 'shell':
+            return {
+              id: step.id,
+              type: 'shell',
+              position,
+              data: {
+                type: 'shell' as const,
+                name: step.name,
+                command: (step.inputs?.command as string) || '',
+                allowFailure: step.inputs?.allowFailure as boolean | undefined,
+                timeout: step.inputs?.timeout as number | undefined,
+                condition: step.inputs?.condition as NodeCondition | undefined,
+              },
+            };
+
+          case 'checkpoint':
+            return {
+              id: step.id,
+              type: 'checkpoint',
+              position,
+              data: {
+                type: 'checkpoint' as const,
+                name: step.name,
+                message: step.inputs?.message as string,
+              },
+            };
+
+          case 'parallel':
+            return {
+              id: step.id,
+              type: 'parallel',
+              position,
+              data: {
+                type: 'parallel' as const,
+                name: step.name,
+                strategy: step.inputs?.strategy as 'threading' | 'asyncio' | 'process',
+                maxWorkers: step.inputs?.maxWorkers as number,
+                failFast: step.inputs?.failFast as boolean,
+              },
+            };
+
+          case 'fan_out':
+            return {
+              id: step.id,
+              type: 'fan_out',
+              position,
+              data: {
+                type: 'fan_out' as const,
+                name: step.name,
+                itemsVariable: step.inputs?.itemsVariable as string,
+                maxConcurrent: step.inputs?.maxConcurrent as number,
+                failFast: step.inputs?.failFast as boolean,
+              },
+            };
+
+          case 'fan_in':
+            return {
+              id: step.id,
+              type: 'fan_in',
+              position,
+              data: {
+                type: 'fan_in' as const,
+                name: step.name,
+                inputVariable: step.inputs?.inputVariable as string,
+                aggregation: step.inputs?.aggregation as 'concat' | 'claude_code',
+                aggregatePrompt: step.inputs?.aggregatePrompt as string,
+              },
+            };
+
+          case 'map_reduce':
+            return {
+              id: step.id,
+              type: 'map_reduce',
+              position,
+              data: {
+                type: 'map_reduce' as const,
+                name: step.name,
+                itemsVariable: step.inputs?.itemsVariable as string,
+                maxConcurrent: step.inputs?.maxConcurrent as number,
+                failFast: step.inputs?.failFast as boolean,
+                mapPrompt: step.inputs?.mapPrompt as string,
+                reducePrompt: step.inputs?.reducePrompt as string,
+              },
+            };
+
+          case 'branch':
+            return {
+              id: step.id,
+              type: 'branch',
+              position,
+              data: {
+                type: 'branch' as const,
+                name: step.name,
+                condition: step.inputs?.condition as NodeCondition,
+                trueLabel: step.inputs?.trueLabel as string,
+                falseLabel: step.inputs?.falseLabel as string,
+              },
+            };
+
+          case 'loop':
+            return {
+              id: step.id,
+              type: 'loop',
+              position,
+              data: {
+                type: 'loop' as const,
+                name: step.name,
+                condition: step.inputs?.condition as NodeCondition | undefined,
+                maxIterations: step.inputs?.maxIterations as number | undefined,
+                iterationVariable: step.inputs?.iterationVariable as string | undefined,
+                loopType: step.inputs?.loopType as 'while' | 'for' | 'until' | undefined,
+              },
+            };
+
+          case 'agent':
+          default:
+            return {
+              id: step.id,
+              type: 'agent',
+              position,
+              data: {
+                type: 'agent' as const,
+                role: step.agentRole,
+                name: step.name,
+                prompt: step.inputs?.prompt as string | undefined,
+                outputs: step.inputs?.outputs as string[] | undefined,
+                onFailure: (step.inputs?.onFailure as 'stop' | 'continue' | 'retry') || 'stop',
+                maxRetries: step.inputs?.maxRetries as number | undefined,
+                condition: step.inputs?.condition as NodeCondition | undefined,
+              },
+            };
+        }
+      });
 
       // Create edges between consecutive nodes
       const workflowEdges = workflowNodes.slice(0, -1).map((node, index) => ({
@@ -72,7 +211,7 @@ function WorkflowBuilderContent() {
         type: 'default',
       }));
 
-      loadWorkflow(id, existingWorkflow.name, workflowNodes, workflowEdges);
+      loadWorkflow(id, existingWorkflow.name, workflowNodes as Node<WorkflowNodeData>[], workflowEdges);
     }
   }, [id, existingWorkflow, loadWorkflow]);
 
@@ -128,6 +267,12 @@ function WorkflowBuilderContent() {
       } else if (type === 'map_reduce') {
         const data = createMapReduceNodeData();
         addNode('map_reduce', position, data);
+      } else if (type === 'branch') {
+        const data = createBranchNodeData();
+        addNode('branch', position, data);
+      } else if (type === 'loop') {
+        const data = createLoopNodeData();
+        addNode('loop', position, data);
       }
     },
     [screenToFlowPosition, addNode]
@@ -172,17 +317,152 @@ function WorkflowBuilderContent() {
   }, [loadWorkflow]);
 
   const handleSave = useCallback(async () => {
-    // Convert nodes/edges to workflow format
+    // Convert nodes/edges to workflow format, handling all node types
     const steps: Partial<WorkflowStep>[] = nodes.map((node) => {
-      const data = node.data as AgentNodeData;
-      return {
+      const data = node.data as WorkflowNodeData;
+
+      // Base step with common fields
+      const baseStep = {
         id: node.id,
-        name: data.name,
-        agentRole: data.role,
-        inputs: {
-          prompt: data.prompt,
-        },
         status: 'pending' as const,
+      };
+
+      if (isAgentNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: data.role,
+          inputs: {
+            stepType: 'agent',
+            prompt: data.prompt,
+            outputs: data.outputs,
+            onFailure: data.onFailure,
+            maxRetries: data.maxRetries,
+            condition: data.condition,
+          },
+        };
+      }
+
+      if (isShellNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'builder' as const, // Shell commands use builder as default
+          inputs: {
+            stepType: 'shell',
+            command: data.command,
+            allowFailure: data.allowFailure,
+            timeout: data.timeout,
+            condition: data.condition,
+          },
+        };
+      }
+
+      if (isCheckpointNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'planner' as const, // Checkpoints use planner as placeholder
+          inputs: {
+            stepType: 'checkpoint',
+            message: data.message,
+          },
+        };
+      }
+
+      if (isParallelNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'architect' as const, // Parallel coordination uses architect
+          inputs: {
+            stepType: 'parallel',
+            strategy: data.strategy,
+            maxWorkers: data.maxWorkers,
+            failFast: data.failFast,
+          },
+        };
+      }
+
+      if (isFanOutNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'architect' as const,
+          inputs: {
+            stepType: 'fan_out',
+            itemsVariable: data.itemsVariable,
+            maxConcurrent: data.maxConcurrent,
+            failFast: data.failFast,
+          },
+        };
+      }
+
+      if (isFanInNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'architect' as const,
+          inputs: {
+            stepType: 'fan_in',
+            inputVariable: data.inputVariable,
+            aggregation: data.aggregation,
+            aggregatePrompt: data.aggregatePrompt,
+          },
+        };
+      }
+
+      if (isMapReduceNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'architect' as const,
+          inputs: {
+            stepType: 'map_reduce',
+            itemsVariable: data.itemsVariable,
+            maxConcurrent: data.maxConcurrent,
+            failFast: data.failFast,
+            mapPrompt: data.mapPrompt,
+            reducePrompt: data.reducePrompt,
+          },
+        };
+      }
+
+      if (isBranchNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'architect' as const,
+          inputs: {
+            stepType: 'branch',
+            condition: data.condition,
+            trueLabel: data.trueLabel,
+            falseLabel: data.falseLabel,
+          },
+        };
+      }
+
+      if (isLoopNode(data)) {
+        return {
+          ...baseStep,
+          name: data.name,
+          agentRole: 'architect' as const,
+          inputs: {
+            stepType: 'loop',
+            condition: data.condition,
+            maxIterations: data.maxIterations,
+            iterationVariable: data.iterationVariable,
+            loopType: data.loopType,
+          },
+        };
+      }
+
+      // Fallback for unknown node types - should never reach here
+      return {
+        ...baseStep,
+        name: (data as { name?: string }).name || 'Unknown Step',
+        agentRole: 'planner' as const,
+        inputs: { stepType: 'unknown', rawData: JSON.stringify(data) },
       };
     });
 

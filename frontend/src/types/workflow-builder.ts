@@ -82,6 +82,23 @@ export interface MapReduceNodeData extends Record<string, unknown> {
   reducePrompt?: string;
 }
 
+export interface BranchNodeData extends Record<string, unknown> {
+  type: 'branch';
+  name: string;
+  condition: NodeCondition;
+  trueLabel?: string;   // Label for true branch
+  falseLabel?: string;  // Label for false branch
+}
+
+export interface LoopNodeData extends Record<string, unknown> {
+  type: 'loop';
+  name: string;
+  condition?: NodeCondition;  // Continue looping while this is true
+  maxIterations?: number;     // Safety limit to prevent infinite loops
+  iterationVariable?: string; // Variable to track current iteration (e.g., "i")
+  loopType?: 'while' | 'for' | 'until'; // Type of loop behavior
+}
+
 export type WorkflowNodeData =
   | AgentNodeData
   | ShellNodeData
@@ -89,7 +106,9 @@ export type WorkflowNodeData =
   | ParallelNodeData
   | FanOutNodeData
   | FanInNodeData
-  | MapReduceNodeData;
+  | MapReduceNodeData
+  | BranchNodeData
+  | LoopNodeData;
 
 // -----------------------------------------------------------------------------
 // Node Type Guards
@@ -121,6 +140,14 @@ export function isFanInNode(data: WorkflowNodeData): data is FanInNodeData {
 
 export function isMapReduceNode(data: WorkflowNodeData): data is MapReduceNodeData {
   return data.type === 'map_reduce';
+}
+
+export function isBranchNode(data: WorkflowNodeData): data is BranchNodeData {
+  return data.type === 'branch';
+}
+
+export function isLoopNode(data: WorkflowNodeData): data is LoopNodeData {
+  return data.type === 'loop';
 }
 
 // -----------------------------------------------------------------------------
@@ -230,4 +257,29 @@ export const createMapReduceNodeData = (): MapReduceNodeData => ({
   itemsVariable: 'items',
   maxConcurrent: 3,
   failFast: false,
+});
+
+export const createBranchNodeData = (): BranchNodeData => ({
+  type: 'branch',
+  name: 'Branch',
+  condition: {
+    field: 'result',
+    operator: 'equals',
+    value: true,
+  },
+  trueLabel: 'Yes',
+  falseLabel: 'No',
+});
+
+export const createLoopNodeData = (): LoopNodeData => ({
+  type: 'loop',
+  name: 'Loop',
+  loopType: 'while',
+  maxIterations: 10,
+  iterationVariable: 'i',
+  condition: {
+    field: 'continue',
+    operator: 'equals',
+    value: true,
+  },
 });

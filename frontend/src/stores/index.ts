@@ -100,6 +100,14 @@ export const usePreferencesStore = create<PreferencesState>()(
 // Workflow Builder Store - State for visual workflow editor (ReactFlow)
 // =============================================================================
 
+// History entry for undo/redo
+interface HistoryEntry {
+  nodes: Node<WorkflowNodeData>[];
+  edges: Edge[];
+}
+
+const MAX_HISTORY_SIZE = 50;
+
 interface WorkflowBuilderState {
   // ReactFlow state
   nodes: Node<WorkflowNodeData>[];
@@ -116,6 +124,10 @@ interface WorkflowBuilderState {
 
   // Validation state
   validationErrors: ValidationError[];
+
+  // Undo/Redo history
+  history: HistoryEntry[];
+  future: HistoryEntry[];
 
   // ReactFlow handlers
   onNodesChange: (changes: NodeChange[]) => void;
@@ -139,9 +151,25 @@ interface WorkflowBuilderState {
 
   // Viewport
   setViewport: (viewport: { x: number; y: number; zoom: number }) => void;
+
+  // Undo/Redo actions
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
 }
 
-export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
+// Helper to push current state to history
+const pushToHistory = (state: WorkflowBuilderState): Partial<WorkflowBuilderState> => {
+  const entry: HistoryEntry = {
+    nodes: JSON.parse(JSON.stringify(state.nodes)),
+    edges: JSON.parse(JSON.stringify(state.edges)),
+  };
+  const newHistory = [...state.history, entry].slice(-MAX_HISTORY_SIZE);
+  return { history: newHistory, future: [] };
+};
+
+export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set, get) => ({
   nodes: [],
   edges: [],
   viewport: { x: 0, y: 0, zoom: 1 },
@@ -150,21 +178,39 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
   workflowId: null,
   workflowName: 'Untitled Workflow',
   validationErrors: [],
+  history: [],
+  future: [],
 
   onNodesChange: (changes) =>
-    set((state) => ({
-      nodes: applyNodeChanges(changes, state.nodes) as Node<WorkflowNodeData>[],
-      isDirty: true,
-    })),
+    set((state) => {
+      // Only track position changes on drag end, not during drag
+      const hasStructuralChange = changes.some(
+        (c) => c.type === 'remove' || c.type === 'add'
+      );
+      const historyUpdate = hasStructuralChange ? pushToHistory(state) : {};
+      return {
+        ...historyUpdate,
+        nodes: applyNodeChanges(changes, state.nodes) as Node<WorkflowNodeData>[],
+        isDirty: true,
+      };
+    }),
 
   onEdgesChange: (changes) =>
-    set((state) => ({
-      edges: applyEdgeChanges(changes, state.edges),
-      isDirty: true,
-    })),
+    set((state) => {
+      const hasStructuralChange = changes.some(
+        (c) => c.type === 'remove' || c.type === 'add'
+      );
+      const historyUpdate = hasStructuralChange ? pushToHistory(state) : {};
+      return {
+        ...historyUpdate,
+        edges: applyEdgeChanges(changes, state.edges),
+        isDirty: true,
+      };
+    }),
 
   onConnect: (connection) =>
     set((state) => ({
+      ...pushToHistory(state),
       edges: addEdge({ ...connection, type: 'variable' }, state.edges),
       isDirty: true,
     })),
@@ -172,6 +218,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
   addNode: (type, position, data) => {
     const id = crypto.randomUUID();
     set((state) => ({
+      ...pushToHistory(state),
       nodes: [
         ...state.nodes,
         {
@@ -188,6 +235,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
 
   updateNodeData: (id, data) =>
     set((state) => ({
+      ...pushToHistory(state),
       nodes: state.nodes.map((node) =>
         node.id === id ? { ...node, data: { ...node.data, ...data } as WorkflowNodeData } : node
       ),
@@ -196,6 +244,7 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
 
   deleteNode: (id) =>
     set((state) => ({
+      ...pushToHistory(state),
       nodes: state.nodes.filter((node) => node.id !== id),
       edges: state.edges.filter((edge) => edge.source !== id && edge.target !== id),
       selectedNodeId: state.selectedNodeId === id ? null : state.selectedNodeId,
@@ -215,6 +264,8 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
       selectedNodeId: null,
       isDirty: false,
       validationErrors: [],
+      history: [],
+      future: [],
     }),
 
   clearWorkflow: () =>
@@ -227,6 +278,8 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
       workflowId: null,
       workflowName: 'Untitled Workflow',
       validationErrors: [],
+      history: [],
+      future: [],
     }),
 
   markClean: () => set({ isDirty: false }),
@@ -234,6 +287,55 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set) => ({
   setValidationErrors: (errors) => set({ validationErrors: errors }),
 
   setViewport: (viewport) => set({ viewport }),
+
+  // Undo: restore previous state from history
+  undo: () =>
+    set((state) => {
+      if (state.history.length === 0) return state;
+
+      const previous = state.history[state.history.length - 1];
+      const newHistory = state.history.slice(0, -1);
+
+      // Save current state to future for redo
+      const current: HistoryEntry = {
+        nodes: JSON.parse(JSON.stringify(state.nodes)),
+        edges: JSON.parse(JSON.stringify(state.edges)),
+      };
+
+      return {
+        nodes: previous.nodes,
+        edges: previous.edges,
+        history: newHistory,
+        future: [...state.future, current],
+        isDirty: true,
+      };
+    }),
+
+  // Redo: restore next state from future
+  redo: () =>
+    set((state) => {
+      if (state.future.length === 0) return state;
+
+      const next = state.future[state.future.length - 1];
+      const newFuture = state.future.slice(0, -1);
+
+      // Save current state to history for undo
+      const current: HistoryEntry = {
+        nodes: JSON.parse(JSON.stringify(state.nodes)),
+        edges: JSON.parse(JSON.stringify(state.edges)),
+      };
+
+      return {
+        nodes: next.nodes,
+        edges: next.edges,
+        history: [...state.history, current],
+        future: newFuture,
+        isDirty: true,
+      };
+    }),
+
+  canUndo: () => get().history.length > 0,
+  canRedo: () => get().future.length > 0,
 }));
 
 // =============================================================================

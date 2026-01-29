@@ -15,6 +15,8 @@ import {
   Split,
   Merge,
   GitBranch,
+  GitFork,
+  RefreshCw,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { AGENT_ROLES, type AgentRoleInfo } from '@/types/workflow-builder';
@@ -69,7 +71,7 @@ function AgentPaletteItem({ roleInfo }: AgentPaletteItemProps) {
 }
 
 interface UtilityNodeInfo {
-  type: 'shell' | 'checkpoint';
+  type: 'shell' | 'checkpoint' | 'branch' | 'loop';
   label: string;
   description: string;
   color: string;
@@ -98,6 +100,20 @@ const UTILITY_NODES: UtilityNodeInfo[] = [
     description: 'Pause for review/resume',
     color: '#f59e0b', // amber-500
     Icon: PauseCircle,
+  },
+  {
+    type: 'branch',
+    label: 'Branch',
+    description: 'Conditional branching',
+    color: '#8b5cf6', // violet-500
+    Icon: GitFork,
+  },
+  {
+    type: 'loop',
+    label: 'Loop',
+    description: 'Repeat steps with condition',
+    color: '#10b981', // emerald-500
+    Icon: RefreshCw,
   },
 ];
 
