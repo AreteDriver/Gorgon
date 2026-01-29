@@ -104,6 +104,8 @@ class StepConfig:
         "fan_out",
         "fan_in",
         "map_reduce",
+        "branch",
+        "loop",
     ]
     params: dict = field(default_factory=dict)
     condition: ConditionConfig | None = None
@@ -243,6 +245,8 @@ WORKFLOW_SCHEMA = {
                             "fan_out",
                             "fan_in",
                             "map_reduce",
+                            "branch",
+                            "loop",
                         ],
                     },
                     "params": {"type": "object"},
@@ -436,6 +440,8 @@ VALID_STEP_TYPES = frozenset(
         "fan_out",
         "fan_in",
         "map_reduce",
+        "branch",
+        "loop",
     }
 )
 VALID_OPERATORS = frozenset(

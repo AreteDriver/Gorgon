@@ -87,6 +87,7 @@ schedule_manager: ScheduleManager | None = None
 webhook_manager: WebhookManager | None = None
 job_manager: JobManager | None = None
 version_manager: WorkflowVersionManager | None = None
+execution_manager = None  # type: ExecutionManager | None
 
 # Application state for health checks and graceful shutdown
 _app_state = {
@@ -119,7 +120,12 @@ def _handle_shutdown_signal(signum, frame):
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Manage component lifecycles with graceful shutdown."""
-    global schedule_manager, webhook_manager, job_manager, version_manager
+    global \
+        schedule_manager, \
+        webhook_manager, \
+        job_manager, \
+        version_manager, \
+        execution_manager
 
     # Reset application state at startup
     _app_state["ready"] = False
@@ -160,6 +166,11 @@ async def lifespan(app: FastAPI):
     webhook_manager = WebhookManager(backend=backend)
     job_manager = JobManager(backend=backend)
     version_manager = WorkflowVersionManager(backend=backend)
+
+    # Import and initialize execution manager
+    from test_ai.executions import ExecutionManager
+
+    execution_manager = ExecutionManager(backend=backend)
 
     # Migrate existing workflows (one-time)
     try:
@@ -1079,6 +1090,263 @@ def cleanup_jobs(max_age_hours: int = 24, authorization: Optional[str] = Header(
     """Remove old completed/failed/cancelled jobs."""
     verify_auth(authorization)
     deleted = job_manager.cleanup_old_jobs(max_age_hours)
+    return {"status": "success", "deleted": deleted}
+
+
+# =============================================================================
+# Execution Endpoints (ReactFlow Workflow Execution)
+# =============================================================================
+
+
+class ExecutionStartRequest(BaseModel):
+    """Request to start a workflow execution."""
+
+    variables: Optional[Dict] = None
+
+
+@v1_router.get("/executions", responses=AUTH_RESPONSES)
+def list_executions(
+    page: int = 1,
+    page_size: int = 20,
+    status: Optional[str] = None,
+    workflow_id: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """List workflow executions with pagination."""
+    verify_auth(authorization)
+
+    from test_ai.executions import ExecutionStatus
+
+    status_filter = None
+    if status:
+        try:
+            status_filter = ExecutionStatus(status)
+        except ValueError:
+            raise bad_request(
+                f"Invalid status: {status}",
+                {"valid_statuses": [s.value for s in ExecutionStatus]},
+            )
+
+    result = execution_manager.list_executions(
+        page=page,
+        page_size=page_size,
+        status=status_filter,
+        workflow_id=workflow_id,
+    )
+    return {
+        "data": [e.model_dump(mode="json") for e in result.data],
+        "total": result.total,
+        "page": result.page,
+        "page_size": result.page_size,
+        "total_pages": result.total_pages,
+    }
+
+
+@v1_router.get("/executions/{execution_id}", responses=CRUD_RESPONSES)
+def get_execution(execution_id: str, authorization: Optional[str] = Header(None)):
+    """Get a specific execution by ID."""
+    verify_auth(authorization)
+
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    # Include logs and metrics
+    execution.logs = execution_manager.get_logs(execution_id, limit=50)
+    execution.metrics = execution_manager.get_metrics(execution_id)
+
+    return execution.model_dump(mode="json")
+
+
+@v1_router.get("/executions/{execution_id}/logs", responses=CRUD_RESPONSES)
+def get_execution_logs(
+    execution_id: str,
+    limit: int = 100,
+    level: Optional[str] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """Get logs for an execution."""
+    verify_auth(authorization)
+
+    from test_ai.executions import LogLevel
+
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    level_filter = None
+    if level:
+        try:
+            level_filter = LogLevel(level)
+        except ValueError:
+            raise bad_request(
+                f"Invalid level: {level}",
+                {"valid_levels": [lvl.value for lvl in LogLevel]},
+            )
+
+    logs = execution_manager.get_logs(execution_id, limit=limit, level=level_filter)
+    return [log.model_dump(mode="json") for log in logs]
+
+
+@v1_router.post("/workflows/{workflow_id}/execute", responses=WORKFLOW_RESPONSES)
+@limiter.limit("10/minute")
+def start_workflow_execution(
+    request: Request,
+    workflow_id: str,
+    body: ExecutionStartRequest,
+    authorization: Optional[str] = Header(None),
+):
+    """Start a new workflow execution.
+
+    Rate limited to 10 executions/minute per IP.
+    """
+    verify_auth(authorization)
+
+    # Try to find the workflow (JSON or YAML)
+    workflow = workflow_engine.load_workflow(workflow_id)
+    workflow_name = workflow_id
+
+    if workflow:
+        workflow_name = getattr(workflow, "name", workflow_id)
+    else:
+        # Try YAML workflows
+        yaml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yaml"
+        yml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yml"
+        workflow_path = (
+            yaml_file if yaml_file.exists() else yml_file if yml_file.exists() else None
+        )
+        if workflow_path:
+            try:
+                yaml_workflow = load_yaml_workflow(
+                    str(workflow_path), str(YAML_WORKFLOWS_DIR)
+                )
+                workflow_name = yaml_workflow.name
+            except Exception:
+                pass
+        else:
+            raise not_found("Workflow", workflow_id)
+
+    # Create execution record
+    execution = execution_manager.create_execution(
+        workflow_id=workflow_id,
+        workflow_name=workflow_name,
+        variables=body.variables,
+    )
+
+    # Start execution (mark as running)
+    execution_manager.start_execution(execution.id)
+
+    return {
+        "execution_id": execution.id,
+        "workflow_id": workflow_id,
+        "workflow_name": workflow_name,
+        "status": "running",
+        "poll_url": f"/v1/executions/{execution.id}",
+    }
+
+
+@v1_router.post("/executions/{execution_id}/pause", responses=CRUD_RESPONSES)
+def pause_execution(execution_id: str, authorization: Optional[str] = Header(None)):
+    """Pause a running execution."""
+    verify_auth(authorization)
+
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    from test_ai.executions import ExecutionStatus
+
+    if execution.status != ExecutionStatus.RUNNING:
+        raise bad_request(
+            f"Cannot pause execution in {execution.status.value} status",
+            {"execution_id": execution_id, "current_status": execution.status.value},
+        )
+
+    updated = execution_manager.pause_execution(execution_id)
+    return {
+        "status": "success",
+        "execution_id": execution_id,
+        "execution_status": updated.status.value if updated else "unknown",
+    }
+
+
+@v1_router.post("/executions/{execution_id}/resume", responses=CRUD_RESPONSES)
+def resume_execution(execution_id: str, authorization: Optional[str] = Header(None)):
+    """Resume a paused execution."""
+    verify_auth(authorization)
+
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    from test_ai.executions import ExecutionStatus
+
+    if execution.status != ExecutionStatus.PAUSED:
+        raise bad_request(
+            f"Cannot resume execution in {execution.status.value} status",
+            {"execution_id": execution_id, "current_status": execution.status.value},
+        )
+
+    updated = execution_manager.resume_execution(execution_id)
+    return {
+        "status": "success",
+        "execution_id": execution_id,
+        "execution_status": updated.status.value if updated else "unknown",
+    }
+
+
+@v1_router.post("/executions/{execution_id}/cancel", responses=CRUD_RESPONSES)
+def cancel_execution(execution_id: str, authorization: Optional[str] = Header(None)):
+    """Cancel a running or paused execution."""
+    verify_auth(authorization)
+
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    if execution_manager.cancel_execution(execution_id):
+        return {"status": "success", "message": "Execution cancelled"}
+
+    raise bad_request(
+        f"Cannot cancel execution in {execution.status.value} status",
+        {"execution_id": execution_id, "current_status": execution.status.value},
+    )
+
+
+@v1_router.delete("/executions/{execution_id}", responses=CRUD_RESPONSES)
+def delete_execution(execution_id: str, authorization: Optional[str] = Header(None)):
+    """Delete an execution (must be completed/failed/cancelled)."""
+    verify_auth(authorization)
+
+    execution = execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    from test_ai.executions import ExecutionStatus
+
+    if execution.status in (
+        ExecutionStatus.PENDING,
+        ExecutionStatus.RUNNING,
+        ExecutionStatus.PAUSED,
+    ):
+        raise bad_request(
+            f"Cannot delete execution in {execution.status.value} status",
+            {"execution_id": execution_id, "current_status": execution.status.value},
+        )
+
+    if execution_manager.delete_execution(execution_id):
+        return {"status": "success"}
+
+    raise internal_error("Failed to delete execution")
+
+
+@v1_router.post("/executions/cleanup")
+def cleanup_executions(
+    max_age_hours: int = 168, authorization: Optional[str] = Header(None)
+):
+    """Remove old completed/failed/cancelled executions (default 7 days)."""
+    verify_auth(authorization)
+    deleted = execution_manager.cleanup_old_executions(max_age_hours)
     return {"status": "success", "deleted": deleted}
 
 
