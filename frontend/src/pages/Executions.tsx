@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Play,
   Pause,
@@ -9,12 +9,16 @@ import {
   Zap,
   Coins,
   Filter,
+  Wifi,
+  WifiOff,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useExecutions, usePauseExecution, useResumeExecution, useCancelExecution } from '@/hooks/useApi';
+import { useWebSocket } from '@/hooks/useWebSocket';
+import { useLiveExecutionStore } from '@/stores';
 import {
   formatRelativeTime,
   formatDuration,
@@ -44,7 +48,37 @@ export function ExecutionsPage() {
   const resumeExecution = useResumeExecution();
   const cancelExecution = useCancelExecution();
 
+  // WebSocket connection for real-time updates
+  const { isConnected, connectionState, subscribe, unsubscribe } = useWebSocket();
+  const { setWebSocketConnected, setExecution } = useLiveExecutionStore();
+
+  // Update store with WebSocket connection state
+  useEffect(() => {
+    setWebSocketConnected(isConnected);
+  }, [isConnected, setWebSocketConnected]);
+
   const executions = executionsData?.data || [];
+
+  // Subscribe to running executions for real-time updates
+  useEffect(() => {
+    const runningIds = executions
+      .filter((e) => e.status === 'running' || e.status === 'paused')
+      .map((e) => e.id);
+
+    if (runningIds.length > 0 && isConnected) {
+      // Add executions to store for WebSocket updates
+      for (const execution of executions.filter((e) => runningIds.includes(e.id))) {
+        setExecution(execution);
+      }
+      subscribe(runningIds);
+    }
+
+    return () => {
+      if (runningIds.length > 0) {
+        unsubscribe(runningIds);
+      }
+    };
+  }, [executions, isConnected, subscribe, unsubscribe, setExecution]);
   const filteredExecutions = executions.filter(
     (e) => statusFilter === 'all' || e.status === statusFilter
   );
@@ -102,11 +136,46 @@ export function ExecutionsPage() {
     }
   };
 
+  const getConnectionStatusColor = () => {
+    switch (connectionState) {
+      case 'connected':
+        return 'text-green-500';
+      case 'connecting':
+      case 'reconnecting':
+        return 'text-yellow-500';
+      default:
+        return 'text-muted-foreground';
+    }
+  };
+
+  const getConnectionStatusText = () => {
+    switch (connectionState) {
+      case 'connected':
+        return 'Live updates active';
+      case 'connecting':
+        return 'Connecting...';
+      case 'reconnecting':
+        return 'Reconnecting...';
+      default:
+        return 'Live updates disconnected';
+    }
+  };
+
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold">Executions</h1>
-        <p className="text-muted-foreground">Monitor and manage workflow executions</p>
+      <div className="flex items-start justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Executions</h1>
+          <p className="text-muted-foreground">Monitor and manage workflow executions</p>
+        </div>
+        <div className={`flex items-center gap-2 text-sm ${getConnectionStatusColor()}`}>
+          {isConnected ? (
+            <Wifi className="h-4 w-4" />
+          ) : (
+            <WifiOff className="h-4 w-4" />
+          )}
+          <span>{getConnectionStatusText()}</span>
+        </div>
       </div>
 
       <div className="flex items-center gap-2">

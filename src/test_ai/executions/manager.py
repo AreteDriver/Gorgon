@@ -6,7 +6,7 @@ import json
 import logging
 import uuid
 from datetime import datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Callable
 
 from .models import (
     Execution,
@@ -22,6 +22,9 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# Type alias for execution event callbacks
+ExecutionCallback = Callable[[str, str], None]
+
 
 class ExecutionManager:
     """Manages workflow execution lifecycle and persistence."""
@@ -33,6 +36,46 @@ class ExecutionManager:
             backend: Database backend for persistence
         """
         self.backend = backend
+        self._callbacks: list[Callable[..., None]] = []
+
+    def register_callback(self, callback: Callable[..., None]) -> None:
+        """Register a callback for execution events.
+
+        Callbacks are called with:
+            callback(event_type, execution_id, **kwargs)
+
+        Event types and kwargs:
+        - "status": status, progress, current_step, started_at, completed_at, error
+        - "log": level, message, step_id, timestamp, metadata
+        - "metrics": total_tokens, total_cost_cents, duration_ms, steps_completed, steps_failed
+
+        Args:
+            callback: Function to call on execution events.
+        """
+        self._callbacks.append(callback)
+
+    def unregister_callback(self, callback: Callable[..., None]) -> None:
+        """Unregister a previously registered callback.
+
+        Args:
+            callback: The callback to remove.
+        """
+        if callback in self._callbacks:
+            self._callbacks.remove(callback)
+
+    def _notify(self, event_type: str, execution_id: str, **kwargs: Any) -> None:
+        """Notify all registered callbacks of an event.
+
+        Args:
+            event_type: Type of event (status, log, metrics).
+            execution_id: The execution ID.
+            **kwargs: Event-specific data.
+        """
+        for callback in self._callbacks:
+            try:
+                callback(event_type, execution_id, **kwargs)
+            except Exception as e:
+                logger.error(f"Callback error for {event_type}: {e}")
 
     def create_execution(
         self,
@@ -198,6 +241,16 @@ class ExecutionManager:
             )
 
         self.add_log(execution_id, LogLevel.INFO, "Execution started")
+
+        # Notify callbacks
+        self._notify(
+            "status",
+            execution_id,
+            status=ExecutionStatus.RUNNING.value,
+            progress=0,
+            started_at=now.isoformat(),
+        )
+
         return self.get_execution(execution_id)
 
     def pause_execution(self, execution_id: str) -> Execution | None:
@@ -224,7 +277,19 @@ class ExecutionManager:
             )
 
         self.add_log(execution_id, LogLevel.INFO, "Execution paused")
-        return self.get_execution(execution_id)
+
+        # Get current state for callback
+        execution = self.get_execution(execution_id)
+        if execution:
+            self._notify(
+                "status",
+                execution_id,
+                status=ExecutionStatus.PAUSED.value,
+                progress=execution.progress,
+                current_step=execution.current_step,
+            )
+
+        return execution
 
     def resume_execution(self, execution_id: str) -> Execution | None:
         """Resume a paused execution.
@@ -250,7 +315,19 @@ class ExecutionManager:
             )
 
         self.add_log(execution_id, LogLevel.INFO, "Execution resumed")
-        return self.get_execution(execution_id)
+
+        # Get current state for callback
+        execution = self.get_execution(execution_id)
+        if execution:
+            self._notify(
+                "status",
+                execution_id,
+                status=ExecutionStatus.RUNNING.value,
+                progress=execution.progress,
+                current_step=execution.current_step,
+            )
+
+        return execution
 
     def cancel_execution(self, execution_id: str) -> bool:
         """Cancel an execution.
@@ -282,6 +359,15 @@ class ExecutionManager:
 
         if cursor.rowcount > 0:
             self.add_log(execution_id, LogLevel.INFO, "Execution cancelled")
+
+            # Notify callbacks
+            self._notify(
+                "status",
+                execution_id,
+                status=ExecutionStatus.CANCELLED.value,
+                completed_at=now.isoformat(),
+            )
+
             return True
         return False
 
@@ -322,6 +408,16 @@ class ExecutionManager:
         else:
             self.add_log(execution_id, LogLevel.INFO, "Execution completed")
 
+        # Notify callbacks
+        self._notify(
+            "status",
+            execution_id,
+            status=status.value,
+            progress=100,
+            completed_at=now.isoformat(),
+            error=error,
+        )
+
         return self.get_execution(execution_id)
 
     def update_progress(
@@ -356,6 +452,15 @@ class ExecutionManager:
                     """,
                     (progress, execution_id),
                 )
+
+        # Notify callbacks
+        self._notify(
+            "status",
+            execution_id,
+            status=ExecutionStatus.RUNNING.value,
+            progress=progress,
+            current_step=current_step,
+        )
 
     def update_variables(self, execution_id: str, variables: dict) -> None:
         """Update execution variables (runtime state).
@@ -432,6 +537,17 @@ class ExecutionManager:
                     json.dumps(metadata) if metadata else None,
                 ),
             )
+
+        # Notify callbacks
+        self._notify(
+            "log",
+            execution_id,
+            level=level.value,
+            message=message,
+            step_id=step_id,
+            timestamp=now.isoformat(),
+            metadata=metadata,
+        )
 
     def get_logs(
         self,
@@ -510,6 +626,19 @@ class ExecutionManager:
                     steps_failed,
                     execution_id,
                 ),
+            )
+
+        # Fetch updated metrics for callback
+        metrics = self.get_metrics(execution_id)
+        if metrics:
+            self._notify(
+                "metrics",
+                execution_id,
+                total_tokens=metrics.total_tokens,
+                total_cost_cents=metrics.total_cost_cents,
+                duration_ms=metrics.duration_ms,
+                steps_completed=metrics.steps_completed,
+                steps_failed=metrics.steps_failed,
             )
 
     def get_metrics(self, execution_id: str) -> ExecutionMetrics | None:

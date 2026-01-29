@@ -1,5 +1,6 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { api } from '@/api/client';
+import { useLiveExecutionStore } from '@/stores';
 import type { Workflow, Budget } from '@/types';
 
 // =============================================================================
@@ -85,12 +86,18 @@ export function useExecutions(page = 1, pageSize = 20, workflowId?: string) {
 }
 
 export function useExecution(id: string) {
+  const isWebSocketConnected = useLiveExecutionStore((state) => state.isWebSocketConnected);
+
   return useQuery({
     queryKey: queryKeys.execution(id),
     queryFn: () => api.getExecution(id),
     enabled: !!id,
     refetchInterval: (query) => {
-      // Poll while running
+      // Skip polling if WebSocket is connected
+      if (isWebSocketConnected) {
+        return false;
+      }
+      // Fallback: poll while running when WebSocket is disconnected
       const status = query.state.data?.status;
       return status === 'running' ? 2000 : false;
     },

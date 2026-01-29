@@ -344,15 +344,22 @@ export const useWorkflowBuilderStore = create<WorkflowBuilderState>((set, get) =
 
 interface LiveExecutionState {
   executions: Map<string, Execution>;
-  
+  subscriptions: Set<string>;
+  isWebSocketConnected: boolean;
+
   // Actions
   setExecution: (execution: Execution) => void;
   removeExecution: (id: string) => void;
   clearExecutions: () => void;
+  addSubscription: (executionId: string) => void;
+  removeSubscription: (executionId: string) => void;
+  setWebSocketConnected: (connected: boolean) => void;
 }
 
 export const useLiveExecutionStore = create<LiveExecutionState>((set) => ({
   executions: new Map(),
+  subscriptions: new Set(),
+  isWebSocketConnected: false,
 
   setExecution: (execution) =>
     set((state) => {
@@ -369,4 +376,20 @@ export const useLiveExecutionStore = create<LiveExecutionState>((set) => ({
     }),
 
   clearExecutions: () => set({ executions: new Map() }),
+
+  addSubscription: (executionId) =>
+    set((state) => {
+      const newSubscriptions = new Set(state.subscriptions);
+      newSubscriptions.add(executionId);
+      return { subscriptions: newSubscriptions };
+    }),
+
+  removeSubscription: (executionId) =>
+    set((state) => {
+      const newSubscriptions = new Set(state.subscriptions);
+      newSubscriptions.delete(executionId);
+      return { subscriptions: newSubscriptions };
+    }),
+
+  setWebSocketConnected: (connected) => set({ isWebSocketConnected: connected }),
 }));

@@ -382,9 +382,11 @@ class TestConcurrency:
         db_path = str(tmp_path / "rate_limits.db")
         limiter = SQLiteRateLimiter(db_path=db_path)
 
-        tasks = [limiter.acquire("test", limit=1000) for _ in range(50)]
+        # Use a long window (1 hour) to avoid crossing window boundaries during test
+        window_seconds = 3600
+        tasks = [limiter.acquire("test", limit=1000, window_seconds=window_seconds) for _ in range(50)]
         results = await asyncio.gather(*tasks)
 
         assert all(r.allowed for r in results)
-        count = await limiter.get_current("test")
+        count = await limiter.get_current("test", window_seconds=window_seconds)
         assert count == 50

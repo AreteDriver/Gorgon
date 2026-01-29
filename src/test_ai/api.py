@@ -10,7 +10,16 @@ from contextlib import asynccontextmanager
 from datetime import datetime
 from typing import Dict, Optional
 
-from fastapi import APIRouter, FastAPI, HTTPException, Header, Request, Response
+from fastapi import (
+    APIRouter,
+    FastAPI,
+    HTTPException,
+    Header,
+    Query,
+    Request,
+    Response,
+    WebSocket,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -89,6 +98,10 @@ job_manager: JobManager | None = None
 version_manager: WorkflowVersionManager | None = None
 execution_manager = None  # type: ExecutionManager | None
 
+# WebSocket components initialized in lifespan
+ws_manager = None  # type: "ConnectionManager | None"
+ws_broadcaster = None  # type: "Broadcaster | None"
+
 # Application state for health checks and graceful shutdown
 _app_state = {
     "ready": False,
@@ -125,7 +138,9 @@ async def lifespan(app: FastAPI):
         webhook_manager, \
         job_manager, \
         version_manager, \
-        execution_manager
+        execution_manager, \
+        ws_manager, \
+        ws_broadcaster
 
     # Reset application state at startup
     _app_state["ready"] = False
@@ -172,6 +187,21 @@ async def lifespan(app: FastAPI):
 
     execution_manager = ExecutionManager(backend=backend)
 
+    # Initialize WebSocket components
+    from test_ai.websocket import ConnectionManager, Broadcaster
+
+    ws_manager = ConnectionManager()
+    ws_broadcaster = Broadcaster(ws_manager)
+
+    # Start broadcaster with current event loop
+    loop = asyncio.get_running_loop()
+    ws_broadcaster.start(loop)
+
+    # Register broadcaster callback with execution manager
+    execution_manager.register_callback(ws_broadcaster.create_execution_callback())
+
+    logger.info("WebSocket components initialized")
+
     # Migrate existing workflows (one-time)
     try:
         workflows_dir = settings.workflows_dir
@@ -211,6 +241,10 @@ async def lifespan(app: FastAPI):
     # Shutdown managers
     schedule_manager.shutdown()
     job_manager.shutdown()
+
+    # Shutdown WebSocket broadcaster
+    if ws_broadcaster:
+        await ws_broadcaster.stop()
 
     # Reset circuit breakers
     reset_all_circuits()
@@ -1736,6 +1770,54 @@ def metrics_endpoint():
 
 # Include versioned API router
 app.include_router(v1_router)
+
+
+# =============================================================================
+# WebSocket Endpoint
+# =============================================================================
+
+
+@app.websocket("/ws/executions")
+async def websocket_executions(
+    websocket: WebSocket,
+    token: str | None = Query(None),
+):
+    """WebSocket endpoint for real-time execution updates.
+
+    Authentication via query parameter: ws://host/ws/executions?token=<jwt>
+
+    Protocol:
+    - Client sends: subscribe, unsubscribe, ping
+    - Server sends: connected, execution_status, execution_log, execution_metrics, pong, error
+
+    Example:
+        ws = new WebSocket("ws://localhost:8000/ws/executions?token=eyJ...")
+        ws.send(JSON.stringify({type: "subscribe", execution_ids: ["abc"]}))
+    """
+    # Verify authentication
+    if not token:
+        await websocket.close(code=4001, reason="Missing token parameter")
+        return
+
+    user_id = verify_token(token)
+    if not user_id:
+        await websocket.close(code=4001, reason="Invalid or expired token")
+        return
+
+    # Handle connection
+    if ws_manager is None:
+        await websocket.close(code=4500, reason="WebSocket not available")
+        return
+
+    await ws_manager.handle_connection(websocket)
+
+
+@app.get("/ws/stats", include_in_schema=False)
+def websocket_stats():
+    """Get WebSocket connection statistics (internal use)."""
+    if ws_manager is None:
+        return {"error": "WebSocket not initialized"}
+    return ws_manager.get_stats()
 
 
 if __name__ == "__main__":
