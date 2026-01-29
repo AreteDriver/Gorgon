@@ -2,20 +2,20 @@
 
 Welcome to the Gorgon documentation! This directory contains comprehensive guides and references for using and developing Gorgon.
 
-> **Note**: This documentation is under active development. Some guides listed below are planned for future releases. Links marked with 📝 are coming soon.
+> **Note**: This documentation is under active development. Links marked with 📝 are planned for future releases.
 
 ## 📚 Documentation Index
 
 ### Getting Started
 - **[Quick Start Guide](../QUICKSTART.md)** - Get up and running in minutes
-- 📝 **Installation Guide** _(coming soon)_ - Detailed installation instructions
-- 📝 **Configuration Guide** _(coming soon)_ - How to configure Gorgon
+- **[Installation Guide](installation.md)** - Detailed installation instructions
+- **[Configuration Guide](configuration.md)** - How to configure Gorgon
 
 ### User Guides
-- 📝 **Creating Workflows** _(coming soon)_ - Build your first workflow
+- **[Creating Workflows](creating-workflows.md)** - Build your first workflow
 - 📝 **Prompt Templates** _(coming soon)_ - Working with prompts
 - 📝 **Using the Dashboard** _(coming soon)_ - Navigate the web interface
-- 📝 **Using the API** _(coming soon)_ - Programmatic access
+- **[Using the API](api-reference.md)** - Programmatic access
 
 ### Integration Guides
 - 📝 **OpenAI Integration** _(coming soon)_ - AI-powered automation
@@ -25,7 +25,7 @@ Welcome to the Gorgon documentation! This directory contains comprehensive guide
 
 ### Developer Guides
 - **[Architecture Overview](../ARCHITECTURE.md)** - System architecture
-- 📝 **API Reference** _(coming soon)_ - Complete API documentation
+- **[API Reference](api-reference.md)** - Complete API documentation
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
 - 📝 **Development Setup** _(coming soon)_ - Setting up dev environment
 
