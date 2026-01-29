@@ -1,130 +1,343 @@
 # Case Study: Gorgon
 
-## Executive Summary
-
-Gorgon is a production-grade multi-agent orchestration framework that coordinates specialized AI agents across enterprise workflows. It provides a unified interface for chaining OpenAI, Claude, GitHub, Notion, Gmail, and Slack into declarative automation pipelines.
-
-**By the numbers:**
-- 85,000+ lines of Python
-- 3,600+ tests across 92 test files
-- 10 specialized agent roles
-- 21 workflow definitions
-- 6 external integrations
-- Version 1.0.0 — production-ready
+*Multi-Agent Orchestration for Enterprise AI Workflows*
 
 ---
 
-## Problem
+## Executive Summary
 
-Organizations adopting AI face a coordination problem. Individual LLM calls are straightforward — but real workflows require multiple specialized agents working in sequence or parallel, across different providers, with cost controls, rate limits, and audit trails.
+Gorgon is a production-grade framework for orchestrating specialized AI agents across enterprise workflows. It coordinates OpenAI, Claude, GitHub, Notion, Gmail, and Slack through declarative YAML pipelines with cost tracking, rate limiting, and full observability.
 
-Without orchestration, teams end up with:
-- Brittle scripts gluing API calls together
-- No visibility into cost or token usage per team
-- Rate limit errors from uncoordinated concurrent requests
-- No audit trail for compliance
-- Provider lock-in with no abstraction layer
+**By the numbers:**
 
-## Solution
+| Metric | Value |
+|--------|-------|
+| Lines of code | 85,000+ |
+| Tests | 3,600+ across 92 files |
+| Agent roles | 10 specialized |
+| Workflow definitions | 21 |
+| Integrations | 6 (OpenAI, Claude, GitHub, Notion, Gmail, Slack) |
+| Interfaces | 3 (REST API, Dashboard, CLI) |
 
-Gorgon provides declarative JSON workflows that define multi-step agent pipelines. A supervisor app can build, monitor, and analyze workflows through a Streamlit dashboard, while automation systems use the FastAPI REST API.
+---
 
-Key capabilities:
-- **Declarative workflows** — JSON-defined pipelines with variable interpolation, no code required
-- **Parallel execution** — Fan-out/fan-in, map-reduce, and auto-parallel patterns with dependency graph analysis
-- **Adaptive rate limiting** — Per-provider semaphores with automatic backoff on 429 errors, distributed across processes via Redis or SQLite
-- **Cost tracking** — Per-call token counting, team budgets, cost allocation reporting
-- **Multi-provider** — OpenAI, Claude, GitHub, Notion, Gmail, Slack behind a unified interface
+## The Problem
+
+Organizations adopting AI face a **coordination problem**. Individual LLM calls are straightforward — but real workflows require multiple specialized agents working in sequence or parallel, across different providers, with cost controls and audit trails.
+
+| Gap | Impact |
+|-----|--------|
+| **Brittle glue code** | Scripts break when APIs change |
+| **No cost visibility** | Token usage untraceable per team/project |
+| **Rate limit errors** | Uncoordinated requests hit provider limits |
+| **No audit trail** | Compliance impossible without logging |
+| **Provider lock-in** | No abstraction layer for multi-provider |
+| **Serial execution** | Performance left on the table |
+
+---
+
+## The Solution
+
+Gorgon provides declarative workflows that define multi-step agent pipelines. A supervisor can build, monitor, and analyze workflows through the Streamlit dashboard, while automation systems use the FastAPI REST API.
+
+```
+┌─────────────────────────────────────────────────────────────┐
+│                    Client Layer                             │
+│     Streamlit Dashboard  ·  REST API  ·  CLI  ·  Webhooks  │
+├─────────────────────────────────────────────────────────────┤
+│                   FastAPI Application                       │
+│     Routes  ·  Auth  ·  Job Queue  ·  Scheduler            │
+├─────────────────────────────────────────────────────────────┤
+│               Orchestration Engine                          │
+│  ┌─────────────────────────────────────────────────────┐   │
+│  │  Workflow Parser  ·  Parallel Executor  ·  Context  │   │
+│  │  Variable Interpolation  ·  Checkpoints  ·  Retry   │   │
+│  └─────────────────────────────────────────────────────┘   │
+├─────────────────────────────────────────────────────────────┤
+│                 Integration Layer                           │
+│    OpenAI  ·  Claude  ·  GitHub  ·  Notion  ·  Gmail       │
+│              Slack  ·  Rate Limiter  ·  Circuit Breaker    │
+├─────────────────────────────────────────────────────────────┤
+│                    Persistence                              │
+│           SQLite (dev)  ·  PostgreSQL (prod)               │
+└─────────────────────────────────────────────────────────────┘
+```
+
+**Key capabilities:**
+
+- **Declarative workflows** — YAML-defined pipelines with variable interpolation
+- **10 specialized agents** — Planner, Builder, Tester, Reviewer, Architect, etc.
+- **Parallel execution** — Fan-out/fan-in, map-reduce with dependency analysis
+- **Adaptive rate limiting** — Per-provider semaphores with 429 backoff
+- **Cost tracking** — Per-call token counting, team budgets, allocation reports
+- **Full observability** — Execution logs, Prometheus metrics, webhooks
 
 ---
 
 ## Architecture Decisions
 
-### Dual Interface (API + Dashboard)
+### 1. Declarative YAML Workflows
 
-**Decision:** Expose both a REST API and a Streamlit dashboard.
+**Decision:** Define workflows in YAML, not code.
 
-**Why:** Non-developers need to create and monitor workflows (dashboard), while CI/CD pipelines and automation need programmatic access (API). A code-based DSL was rejected as too technical for operations teams. A visual-only tool was rejected because it couldn't integrate with CI/CD.
+**Rationale:** Operations teams need to create workflows without writing Python. YAML is human-readable, version-controllable, and validates with JSON schema. Code-based DSLs were rejected as too technical.
 
-### Parallel Execution Engine
+```yaml
+name: Feature Build
+steps:
+  - id: plan
+    role: planner
+    prompt: "Analyze feature requirements"
+  - id: build
+    role: builder
+    depends_on: [plan]
+    condition:
+      field: plan.approved
+      operator: equals
+      value: true
+```
 
-**Decision:** Build a custom parallel execution engine with four patterns: fan-out (scatter), fan-in (gather), map-reduce, and auto-parallel.
+### 2. Specialized Agent Roles
 
-**Why:** Real workflows have complex dependency graphs. A linear executor would leave performance on the table. The engine analyzes step dependencies and maximizes concurrency within rate limit constraints.
+**Decision:** 10 distinct agent roles with specific system prompts.
 
-### Distributed Rate Limiting
+**Rationale:** A generic "assistant" agent produces generic results. Specialized roles produce expert-level output:
 
-**Decision:** Implement rate limiting at three levels — per-provider semaphores, adaptive throttling on errors, and cross-process distributed limiting via Redis (production) or SQLite (development).
+| Role | Expertise |
+|------|-----------|
+| Planner | Task decomposition, dependency mapping |
+| Builder | Production code with error handling |
+| Tester | Test suites, edge cases, mocking |
+| Reviewer | Security, performance, maintainability |
+| Architect | Trade-offs, system design, patterns |
+| Documenter | API docs, guides, README |
+| Data Analyst | Statistical analysis, patterns |
+| DevOps | Infrastructure, CI/CD, deployment |
+| Security | Vulnerability scanning, compliance |
+| Migrator | Schema changes, refactoring |
 
-**Why:** Naive rate limiting either wastes capacity or causes failures. Adaptive limiting adjusts automatically when providers return 429s, and distributed limiting prevents multiple workers from independently exceeding limits.
+### 3. Parallel Execution Engine
 
-### Multi-Tenant Isolation
+**Decision:** Custom engine with four patterns: fan-out, fan-in, map-reduce, auto-parallel.
 
-**Decision:** Namespace-based tenant isolation with per-team token budgets, audit logging, and SSO integration points.
+**Rationale:** Real workflows have complex dependency graphs. Linear execution wastes capacity. The engine analyzes dependencies and maximizes concurrency within rate limits.
 
-**Why:** Enterprise deployment requires teams to operate independently with their own cost controls and compliance trails, without interfering with each other.
+```
+Step A ──┬──► Step B ──┬──► Step E
+         │             │
+         └──► Step C ──┤
+                       │
+Step D ────────────────┘
+```
+
+### 4. Distributed Rate Limiting
+
+**Decision:** Three-tier limiting — per-provider semaphores, adaptive throttling, cross-process coordination.
+
+**Rationale:** Naive limiting either wastes capacity or causes failures:
+- **Semaphores**: Max concurrent requests per provider
+- **Adaptive**: Backs off on 429 errors, recovers gradually
+- **Distributed**: Redis (prod) or SQLite (dev) prevents multi-worker conflicts
+
+### 5. Dual Interface
+
+**Decision:** Both REST API and Streamlit dashboard.
+
+**Rationale:** Different users, different needs:
+- **Dashboard**: Non-developers creating and monitoring workflows
+- **API**: CI/CD pipelines, automation systems, programmatic access
 
 ---
 
-## Technical Highlights
+## Technical Implementation
 
-### Agent System
+### Workflow Engine
 
-Ten specialized agent roles, each with defined capabilities and tool access:
+Parses YAML definitions and executes steps with full context management:
 
-| Role | Purpose |
-|------|---------|
-| Planner | Break complex tasks into executable steps |
-| Builder | Generate and modify code |
-| Tester | Write and run test suites |
-| Reviewer | Code review and quality gates |
-| Architect | System design and trade-off analysis |
-| Documenter | Technical writing and API docs |
-| Data Analyst | Data processing and visualization |
-| DevOps | Infrastructure and deployment |
-| Security Auditor | Vulnerability scanning and compliance |
-| Migrator | Schema and code migrations |
+```python
+# Variable interpolation across steps
+prompt: "Review the code from {{build.output}}"
 
-### Observability
+# Conditional execution
+condition:
+  field: tests.passed
+  operator: equals
+  value: true
 
-- Execution logs with full step-by-step traces
-- Prometheus metrics export for monitoring dashboards
-- Cost reports with per-team and per-workflow breakdowns
-- Webhook triggers for event-driven automation
+# Retry with backoff
+max_retries: 3
+on_failure: retry
+```
 
-### Deployment Tiers
+### Cost Tracking
 
-Three deployment patterns documented for different scales:
-- **Tier 1:** Single-node Docker Compose (small teams)
-- **Tier 2:** Multi-container with PostgreSQL and Redis (departments)
-- **Tier 3:** Kubernetes with HA/failover (enterprise)
+Per-call token counting with aggregation:
 
-### Engineering Practices
+```python
+# Track by provider, model, agent role
+cost_tracker.record(
+    provider="openai",
+    model="gpt-4",
+    role="builder",
+    input_tokens=1500,
+    output_tokens=2000,
+    cost_usd=0.12
+)
 
-- Architecture Decision Records (ADRs) for all major choices
-- 92 test files with 3,600+ test functions
-- Ruff for linting and formatting
-- Poetry for dependency management
+# Query by team, workflow, time period
+report = cost_tracker.get_report(
+    team="platform",
+    start_date="2026-01-01"
+)
+```
+
+### Parallel Executor
+
+Rate-limited concurrent execution:
+
+```python
+executor = RateLimitedParallelExecutor(
+    max_concurrent={"openai": 3, "anthropic": 2},
+    adaptive_backoff=True
+)
+
+results = await executor.execute_parallel(
+    tasks=[step_a, step_b, step_c],
+    dependencies={"step_c": ["step_a"]}
+)
+```
+
+---
+
+## Competitive Position
+
+| Aspect | LangChain | AutoGPT | Custom Scripts | Gorgon |
+|--------|-----------|---------|----------------|--------|
+| Workflow syntax | Python code | Autonomous | Ad-hoc | Declarative YAML |
+| Agent specialization | Generic | Single agent | Manual | 10 specialized roles |
+| Parallel execution | Manual | None | Manual | Auto-parallel engine |
+| Rate limiting | Basic | None | Manual | Adaptive + distributed |
+| Cost tracking | None | None | Manual | Per-call, per-team |
+| UI for non-devs | None | None | None | Streamlit dashboard |
+| Enterprise features | Limited | None | None | SSO, audit, budgets |
+
+**Unique position:** Production-grade orchestration with specialized agents, declarative syntax, and enterprise observability.
+
+---
+
+## Results & Metrics
+
+| Category | Metric |
+|----------|--------|
+| **Code** | 85,000+ lines of Python |
+| **Tests** | 3,600+ test functions |
+| **Coverage** | 80%+ on core modules |
+| **Agent roles** | 10 specialized |
+| **Workflows** | 21 definitions |
+| **Integrations** | 6 external services |
+
+**Engineering practices:**
+- Full type hints (mypy validated)
+- Async/await throughout (no blocking)
+- Pydantic validation on all inputs
 - Versioned API endpoints (`/v1`)
+- Architecture Decision Records (ADRs)
+- Docker + docker-compose + Kubernetes configs
 
 ---
 
-## Results
+## Workflow Examples
 
-| Metric | Value |
-|--------|-------|
-| Lines of code | 85,349 |
-| Test count | 3,654 |
-| Test files | 92 |
-| Source files | 122 |
-| Agent roles | 10 |
-| Workflows | 21 |
-| Integrations | 6 (OpenAI, Claude, GitHub, Notion, Gmail, Slack) |
-| Version | 1.0.0 |
-| Deployment options | Docker, Docker Compose, Kubernetes |
+### Development Pipeline
+```
+Feature Request
+    ↓ Planner
+Implementation Plan
+    ↓ Builder
+Production Code
+    ↓ Tester
+Test Suite
+    ↓ Reviewer
+Approval
+    ↓ Shell
+pytest + deploy
+```
+
+### Analytics Pipeline
+```
+Raw Data
+    ↓ Data Engineer
+Cleaned Dataset
+    ↓ Analyst
+Statistical Findings
+    ↓ Visualizer
+Charts
+    ↓ Reporter
+Executive Summary
+```
 
 ---
 
 ## Tech Stack
 
-Python 3.12+ · FastAPI · Streamlit · OpenAI · Anthropic Claude · PyGithub · Notion API · Google APIs · Slack · SQLite / PostgreSQL · Redis · Poetry · pytest · Ruff
+```
+Python 3.12+  ·  FastAPI  ·  Streamlit  ·  OpenAI  ·  Claude
+PyGithub  ·  Notion API  ·  Gmail API  ·  Slack SDK
+SQLite / PostgreSQL  ·  Redis  ·  APScheduler
+Poetry  ·  pytest  ·  Ruff  ·  Docker
+```
+
+---
+
+## Demo Points
+
+For interviews and walkthroughs:
+
+1. **Workflow execution** — Show YAML definition → dashboard monitoring → results
+2. **Parallel execution** — Demonstrate fan-out/fan-in with timing comparison
+3. **Cost tracking** — Real-time token counting, budget enforcement
+4. **Rate limiting** — Adaptive backoff under load, recovery behavior
+5. **Agent specialization** — Compare Planner vs Builder vs Reviewer outputs
+
+---
+
+## Why This Matters
+
+**For AI Engineering roles:**
+- Multi-provider coordination (OpenAI + Claude) with unified interface
+- Production patterns: rate limiting, circuit breakers, retry strategies
+- Cost tracking and budget enforcement at scale
+- Async Python throughout with proper concurrency
+
+**For Solutions Engineering roles:**
+- Enterprise features: SSO integration points, audit logging, multi-tenant
+- Deployment tiers: Docker → Compose → Kubernetes
+- Customer-facing dashboard for non-technical users
+- API design with versioning and OpenAPI docs
+
+**For Platform Engineering roles:**
+- Distributed rate limiting across processes
+- Job scheduling with cron and webhooks
+- Observability: Prometheus metrics, structured logging
+- Database migrations and schema management
+
+---
+
+## Deployment Options
+
+| Tier | Setup | Use Case |
+|------|-------|----------|
+| **Tier 1** | Docker Compose, SQLite | Small teams, POC |
+| **Tier 2** | Multi-container, PostgreSQL, Redis | Department-level |
+| **Tier 3** | Kubernetes, HA/failover | Enterprise |
+
+---
+
+## Links
+
+- **Repository:** [github.com/AreteDriver/Gorgon](https://github.com/AreteDriver/Gorgon)
+- **Architecture:** [docs/architecture.md](architecture.md)
+- **Deployment:** [docs/DEPLOYMENT_GUIDE.md](DEPLOYMENT_GUIDE.md)
+- **Examples:** [docs/EXAMPLES.md](EXAMPLES.md)
+- **Enterprise Patterns:** [docs/ENTERPRISE_PATTERNS.md](ENTERPRISE_PATTERNS.md)
