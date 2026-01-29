@@ -1,6 +1,13 @@
 import { useCallback } from 'react';
 import { useWorkflowBuilderStore } from '@/stores';
-import type { ValidationError, ValidationResult } from '@/types/workflow-builder';
+import type {
+  ValidationError,
+  ValidationResult,
+  WorkflowNodeData,
+  BranchNodeData,
+  LoopNodeData,
+} from '@/types/workflow-builder';
+import { isBranchNode, isLoopNode } from '@/types/workflow-builder';
 import type { Node, Edge } from '@xyflow/react';
 
 export function useWorkflowValidation() {
@@ -55,6 +62,62 @@ export function useWorkflowValidation() {
             message: `"${data.name || 'Shell node'}" has no command defined`,
             severity: 'error',
           });
+        }
+      }
+
+      // Branch node validations
+      const nodeData = data as WorkflowNodeData;
+      if (isBranchNode(nodeData)) {
+        const branchData = nodeData as BranchNodeData;
+        // Warning if condition.field is empty
+        if (!branchData.condition?.field || branchData.condition.field.trim() === '') {
+          errors.push({
+            nodeId: node.id,
+            field: 'condition.field',
+            message: `"${branchData.name || 'Branch node'}" has no condition field defined`,
+            severity: 'warning',
+          });
+        }
+
+        // Error if branch node has no outgoing edges
+        const hasOutgoingEdges = edges.some((edge) => edge.source === node.id);
+        if (!hasOutgoingEdges) {
+          errors.push({
+            nodeId: node.id,
+            message: `"${branchData.name || 'Branch node'}" has no outgoing connections. Branch nodes need at least one connection.`,
+            severity: 'error',
+          });
+        }
+      }
+
+      // Loop node validations
+      if (isLoopNode(nodeData)) {
+        const loopData = nodeData as LoopNodeData;
+        // Warning if maxIterations > 100 (potential performance issue)
+        if (loopData.maxIterations !== undefined && loopData.maxIterations > 100) {
+          errors.push({
+            nodeId: node.id,
+            field: 'maxIterations',
+            message: `"${loopData.name || 'Loop node'}" has maxIterations set to ${loopData.maxIterations}. Values over 100 may cause performance issues.`,
+            severity: 'warning',
+          });
+        }
+
+        // Error if loopType is 'while' or 'until' but condition is missing/empty
+        if (loopData.loopType === 'while' || loopData.loopType === 'until') {
+          const hasValidCondition =
+            loopData.condition &&
+            loopData.condition.field &&
+            loopData.condition.field.trim() !== '';
+
+          if (!hasValidCondition) {
+            errors.push({
+              nodeId: node.id,
+              field: 'condition',
+              message: `"${loopData.name || 'Loop node'}" uses '${loopData.loopType}' loop type but has no condition defined`,
+              severity: 'error',
+            });
+          }
         }
       }
     });
