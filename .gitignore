@@ -84,3 +84,4 @@ tmp/
 # Node.js / Frontend
 node_modules/
 frontend/dist/
+*.tsbuildinfo
