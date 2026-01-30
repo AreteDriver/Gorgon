@@ -76,6 +76,7 @@ def client(backend, mcp_manager, monkeypatch):
 
     # Clear settings cache
     from test_ai.config.settings import get_settings
+
     get_settings.cache_clear()
 
     # Patch the mcp_manager global variable
@@ -138,7 +139,9 @@ class TestMCPEndpoints:
             "authType": "none",
             "description": "Test description",
         }
-        response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         assert response.status_code == 200
 
         data = response.json()
@@ -155,7 +158,9 @@ class TestMCPEndpoints:
             "type": "sse",
             "authType": "bearer",
         }
-        response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         assert response.status_code == 200
 
         data = response.json()
@@ -164,8 +169,15 @@ class TestMCPEndpoints:
     def test_get_server(self, client, auth_headers):
         """Test getting a specific server."""
         # Create server first
-        server_data = {"name": "Get Test", "url": "https://test.com", "type": "sse", "authType": "none"}
-        create_response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        server_data = {
+            "name": "Get Test",
+            "url": "https://test.com",
+            "type": "sse",
+            "authType": "none",
+        }
+        create_response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         server_id = create_response.json()["id"]
 
         # Get server
@@ -181,13 +193,22 @@ class TestMCPEndpoints:
     def test_update_server(self, client, auth_headers):
         """Test updating a server."""
         # Create server
-        server_data = {"name": "Original", "url": "https://test.com", "type": "sse", "authType": "none"}
-        create_response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        server_data = {
+            "name": "Original",
+            "url": "https://test.com",
+            "type": "sse",
+            "authType": "none",
+        }
+        create_response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         server_id = create_response.json()["id"]
 
         # Update server
         update_data = {"name": "Updated", "description": "New description"}
-        response = client.put(f"/v1/mcp/servers/{server_id}", json=update_data, headers=auth_headers)
+        response = client.put(
+            f"/v1/mcp/servers/{server_id}", json=update_data, headers=auth_headers
+        )
         assert response.status_code == 200
         assert response.json()["name"] == "Updated"
         assert response.json()["description"] == "New description"
@@ -195,8 +216,15 @@ class TestMCPEndpoints:
     def test_delete_server(self, client, auth_headers):
         """Test deleting a server."""
         # Create server
-        server_data = {"name": "To Delete", "url": "https://test.com", "type": "sse", "authType": "none"}
-        create_response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        server_data = {
+            "name": "To Delete",
+            "url": "https://test.com",
+            "type": "sse",
+            "authType": "none",
+        }
+        create_response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         server_id = create_response.json()["id"]
 
         # Delete server
@@ -216,11 +244,15 @@ class TestMCPEndpoints:
             "type": "stdio",
             "authType": "none",
         }
-        create_response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        create_response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         server_id = create_response.json()["id"]
 
         # Test connection
-        response = client.post(f"/v1/mcp/servers/{server_id}/test", headers=auth_headers)
+        response = client.post(
+            f"/v1/mcp/servers/{server_id}/test", headers=auth_headers
+        )
         assert response.status_code == 200
         data = response.json()
         assert data["success"] is True
@@ -235,14 +267,18 @@ class TestMCPEndpoints:
             "type": "stdio",
             "authType": "none",
         }
-        create_response = client.post("/v1/mcp/servers", json=server_data, headers=auth_headers)
+        create_response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
         server_id = create_response.json()["id"]
 
         # Test connection to populate tools
         client.post(f"/v1/mcp/servers/{server_id}/test", headers=auth_headers)
 
         # Get tools
-        response = client.get(f"/v1/mcp/servers/{server_id}/tools", headers=auth_headers)
+        response = client.get(
+            f"/v1/mcp/servers/{server_id}/tools", headers=auth_headers
+        )
         assert response.status_code == 200
         tools = response.json()
         assert isinstance(tools, list)
@@ -286,7 +322,9 @@ class TestCredentialsEndpoints:
             "service": "test",
             "value": "secret",
         }
-        create_response = client.post("/v1/credentials", json=cred_data, headers=auth_headers)
+        create_response = client.post(
+            "/v1/credentials", json=cred_data, headers=auth_headers
+        )
         cred_id = create_response.json()["id"]
 
         # Delete

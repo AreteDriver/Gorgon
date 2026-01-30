@@ -281,9 +281,7 @@ class PersistentBudgetManager:
         total_used = sum(b.used_amount for b in budgets)
         exceeded_count = sum(1 for b in budgets if b.is_exceeded)
         warning_count = sum(
-            1
-            for b in budgets
-            if not b.is_exceeded and b.percent_used >= 80
+            1 for b in budgets if not b.is_exceeded and b.percent_used >= 80
         )
 
         return BudgetSummary(

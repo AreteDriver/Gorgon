@@ -217,15 +217,22 @@ class TestCredentials:
         assert credential.type == "bearer"
         assert credential.service == "github"
         # Value should not be exposed
-        assert not hasattr(credential, "value") or credential.model_dump().get("value") is None
+        assert (
+            not hasattr(credential, "value")
+            or credential.model_dump().get("value") is None
+        )
 
     def test_list_credentials(self, manager):
         """Test listing credentials."""
         manager.create_credential(
-            CredentialCreateInput(name="Cred1", type="bearer", service="s1", value="xxx")
+            CredentialCreateInput(
+                name="Cred1", type="bearer", service="s1", value="xxx"
+            )
         )
         manager.create_credential(
-            CredentialCreateInput(name="Cred2", type="api_key", service="s2", value="yyy")
+            CredentialCreateInput(
+                name="Cred2", type="api_key", service="s2", value="yyy"
+            )
         )
 
         credentials = manager.list_credentials()
@@ -246,7 +253,9 @@ class TestCredentials:
     def test_delete_credential(self, manager):
         """Test deleting a credential."""
         created = manager.create_credential(
-            CredentialCreateInput(name="ToDelete", type="bearer", service="x", value="y")
+            CredentialCreateInput(
+                name="ToDelete", type="bearer", service="x", value="y"
+            )
         )
 
         result = manager.delete_credential(created.id)

@@ -1877,7 +1877,9 @@ class BudgetUpdateRequest(BaseModel):
 @v1_router.get("/budgets", responses=AUTH_RESPONSES)
 def list_budgets(
     agent_id: Optional[str] = Query(None, description="Filter by agent ID"),
-    period: Optional[str] = Query(None, description="Filter by period (daily/weekly/monthly)"),
+    period: Optional[str] = Query(
+        None, description="Filter by period (daily/weekly/monthly)"
+    ),
     authorization: Optional[str] = Header(None),
 ):
     """List all budgets with optional filtering."""
@@ -2076,15 +2078,31 @@ _AGENT_COLORS = {
 
 # Capabilities mapping for agent roles
 _AGENT_CAPABILITIES = {
-    AgentRole.PLANNER: ["Task decomposition", "Dependency analysis", "Resource estimation"],
+    AgentRole.PLANNER: [
+        "Task decomposition",
+        "Dependency analysis",
+        "Resource estimation",
+    ],
     AgentRole.BUILDER: ["Code generation", "Refactoring", "Implementation"],
     AgentRole.TESTER: ["Unit tests", "Integration tests", "Edge case coverage"],
     AgentRole.REVIEWER: ["Code review", "Security audit", "Best practices check"],
     AgentRole.ANALYST: ["Data analysis", "Pattern recognition", "Insights extraction"],
-    AgentRole.VISUALIZER: ["Chart generation", "Dashboard design", "Data visualization"],
-    AgentRole.REPORTER: ["Summary generation", "Progress reports", "Stakeholder updates"],
+    AgentRole.VISUALIZER: [
+        "Chart generation",
+        "Dashboard design",
+        "Data visualization",
+    ],
+    AgentRole.REPORTER: [
+        "Summary generation",
+        "Progress reports",
+        "Stakeholder updates",
+    ],
     AgentRole.DATA_ANALYST: ["SQL queries", "Pandas pipelines", "Statistical analysis"],
-    AgentRole.DEVOPS: ["CI/CD pipelines", "Infrastructure as code", "Container orchestration"],
+    AgentRole.DEVOPS: [
+        "CI/CD pipelines",
+        "Infrastructure as code",
+        "Container orchestration",
+    ],
     AgentRole.SECURITY_AUDITOR: [
         "Vulnerability scanning",
         "OWASP compliance",
@@ -2107,7 +2125,9 @@ class AgentDefinitionResponse(BaseModel):
 
 
 @v1_router.get("/agents", responses=AUTH_RESPONSES)
-def list_agents(authorization: Optional[str] = Header(None)) -> list[AgentDefinitionResponse]:
+def list_agents(
+    authorization: Optional[str] = Header(None),
+) -> list[AgentDefinitionResponse]:
     """List all available agent role definitions.
 
     Returns agent roles with their descriptions, capabilities, and display metadata.
