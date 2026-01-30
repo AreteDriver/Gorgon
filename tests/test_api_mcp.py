@@ -89,9 +89,16 @@ def client(backend, mcp_manager, monkeypatch):
             api_module.mcp_manager = mcp_manager
 
             from test_ai.api import app, limiter
+            from test_ai.security.brute_force import get_brute_force_protection
 
             # Disable rate limiting for tests
             limiter.enabled = False
+
+            # Reset brute force protection state for tests
+            protection = get_brute_force_protection()
+            protection._attempts.clear()
+            protection._total_blocked = 0
+            protection._total_allowed = 0
 
             yield TestClient(app)
 
