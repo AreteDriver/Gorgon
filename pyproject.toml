@@ -33,9 +33,15 @@ jsonschema = "^4.23.0"
 slowapi = "^0.1.9"
 cryptography = "^45.0.0"
 psycopg2-binary = {version = "^2.9.0", optional = true}
+python-telegram-bot = {version = "^21.0", optional = true}
+discord-py = {version = "^2.3.0", optional = true}
+playwright = {version = "^1.40.0", optional = true}
 
 [tool.poetry.extras]
 postgres = ["psycopg2-binary"]
+messaging = ["python-telegram-bot", "discord-py"]
+browser = ["playwright"]
+all = ["psycopg2-binary", "python-telegram-bot", "discord-py", "playwright"]
 dev = ["pytest", "pytest-cov", "pytest-asyncio"]
 
 [tool.poetry.group.dev.dependencies]

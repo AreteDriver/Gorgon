@@ -2190,5 +2190,862 @@ def logs(
             console.print("\n[dim]Stopped following logs[/dim]")
 
 
+# =============================================================================
+# MESSAGING BOT COMMANDS (Clawdbot-style operation)
+# =============================================================================
+
+bot_app = typer.Typer(help="Run messaging bots for 24/7 AI assistant")
+app.add_typer(bot_app, name="bot")
+
+
+@bot_app.command("telegram")
+def bot_telegram(
+    token: str = typer.Option(
+        None, "--token", "-t", envvar="TELEGRAM_BOT_TOKEN", help="Telegram bot token"
+    ),
+    allowed_users: str = typer.Option(
+        None,
+        "--allowed",
+        "-a",
+        envvar="TELEGRAM_ALLOWED_USERS",
+        help="Comma-separated allowed user IDs",
+    ),
+    admin_users: str = typer.Option(
+        None,
+        "--admins",
+        envvar="TELEGRAM_ADMIN_USERS",
+        help="Comma-separated admin user IDs",
+    ),
+):
+    """Start Telegram bot for two-way messaging.
+
+    This enables Clawdbot-style operation where Gorgon acts as a
+    24/7 personal AI assistant via Telegram.
+
+    Example:
+        gorgon bot telegram --token YOUR_BOT_TOKEN
+        gorgon bot telegram  # Uses TELEGRAM_BOT_TOKEN env var
+
+    Setup:
+        1. Message @BotFather on Telegram to create a bot
+        2. Copy the token and set TELEGRAM_BOT_TOKEN
+        3. Optionally set TELEGRAM_ALLOWED_USERS to restrict access
+    """
+    import asyncio
+
+    if not token:
+        console.print("[red]Telegram bot token required.[/red]")
+        console.print("\nSet TELEGRAM_BOT_TOKEN environment variable or use --token")
+        console.print("\nTo get a token:")
+        console.print("  1. Open Telegram and message @BotFather")
+        console.print("  2. Send /newbot and follow the prompts")
+        console.print("  3. Copy the token you receive")
+        raise typer.Exit(1)
+
+    try:
+        from test_ai.messaging import TelegramBot, MessageHandler
+        from test_ai.chat import ChatSessionManager
+        from test_ai.state.backends import get_backend
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        console.print("\nInstall with: pip install 'gorgon[messaging]'")
+        console.print("Or: pip install python-telegram-bot")
+        raise typer.Exit(1)
+
+    # Parse user lists
+    allowed = [u.strip() for u in allowed_users.split(",") if u.strip()] if allowed_users else None
+    admins = [u.strip() for u in admin_users.split(",") if u.strip()] if admin_users else None
+
+    console.print(
+        Panel(
+            "[bold]Telegram Bot Starting[/bold]\n\n"
+            f"Allowed Users: {len(allowed) if allowed else 'All'}\n"
+            f"Admin Users: {len(admins) if admins else 'None'}",
+            title="Gorgon Messaging",
+            border_style="cyan",
+        )
+    )
+
+    async def run_bot():
+        # Initialize components
+        backend = get_backend()
+        session_manager = ChatSessionManager(backend)
+
+        # Create bot
+        bot = TelegramBot(
+            token=token,
+            name="Gorgon",
+            allowed_users=allowed,
+            admin_users=admins,
+        )
+
+        # Create message handler
+        handler = MessageHandler(session_manager)
+        bot.set_message_callback(handler.handle_message)
+        bot.set_command_handler(handler)
+
+        console.print("[green]Bot started! Listening for messages...[/green]")
+        console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+
+        try:
+            await bot.start()
+            # Keep running until interrupted
+            while bot.is_running:
+                await asyncio.sleep(1)
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down...[/yellow]")
+        finally:
+            await bot.stop()
+            console.print("[green]Bot stopped[/green]")
+
+    try:
+        asyncio.run(run_bot())
+    except Exception as e:
+        console.print(f"[red]Bot error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@bot_app.command("discord")
+def bot_discord(
+    token: str = typer.Option(
+        None, "--token", "-t", envvar="DISCORD_BOT_TOKEN", help="Discord bot token"
+    ),
+    allowed_users: str = typer.Option(
+        None,
+        "--allowed",
+        "-a",
+        envvar="DISCORD_ALLOWED_USERS",
+        help="Comma-separated allowed user IDs",
+    ),
+    admin_users: str = typer.Option(
+        None,
+        "--admins",
+        envvar="DISCORD_ADMIN_USERS",
+        help="Comma-separated admin user IDs",
+    ),
+    allowed_guilds: str = typer.Option(
+        None,
+        "--guilds",
+        "-g",
+        envvar="DISCORD_ALLOWED_GUILDS",
+        help="Comma-separated guild IDs to operate in",
+    ),
+):
+    """Start Discord bot for two-way messaging.
+
+    The bot responds to:
+    - Direct messages (DMs)
+    - Mentions in channels (@Gorgon)
+    - Commands with prefix (default: !)
+
+    Example:
+        gorgon bot discord --token YOUR_BOT_TOKEN
+        gorgon bot discord  # Uses DISCORD_BOT_TOKEN env var
+
+    Setup:
+        1. Go to https://discord.com/developers/applications
+        2. Create a new application and add a bot
+        3. Enable MESSAGE CONTENT INTENT in bot settings
+        4. Copy the bot token
+        5. Invite bot with: /oauth2/authorize?client_id=YOUR_CLIENT_ID&scope=bot&permissions=68608
+    """
+    import asyncio
+
+    if not token:
+        console.print("[red]Discord bot token required.[/red]")
+        console.print("\nSet DISCORD_BOT_TOKEN environment variable or use --token")
+        console.print("\nTo get a token:")
+        console.print("  1. Go to https://discord.com/developers/applications")
+        console.print("  2. Create a new application")
+        console.print("  3. Go to 'Bot' section and click 'Add Bot'")
+        console.print("  4. Enable 'MESSAGE CONTENT INTENT'")
+        console.print("  5. Copy the token")
+        raise typer.Exit(1)
+
+    try:
+        from test_ai.messaging import DiscordBot, MessageHandler
+        from test_ai.chat import ChatSessionManager
+        from test_ai.state.backends import get_backend
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        console.print("\nInstall with: pip install 'gorgon[messaging]'")
+        console.print("Or: pip install discord.py")
+        raise typer.Exit(1)
+
+    # Parse user/guild lists
+    allowed = [u.strip() for u in allowed_users.split(",") if u.strip()] if allowed_users else None
+    admins = [u.strip() for u in admin_users.split(",") if u.strip()] if admin_users else None
+    guilds = [g.strip() for g in allowed_guilds.split(",") if g.strip()] if allowed_guilds else None
+
+    console.print(
+        Panel(
+            "[bold]Discord Bot Starting[/bold]\n\n"
+            f"Allowed Users: {len(allowed) if allowed else 'All'}\n"
+            f"Admin Users: {len(admins) if admins else 'None'}\n"
+            f"Allowed Guilds: {len(guilds) if guilds else 'All'}",
+            title="Gorgon Messaging",
+            border_style="blue",
+        )
+    )
+
+    async def run_bot():
+        # Initialize components
+        backend = get_backend()
+        session_manager = ChatSessionManager(backend)
+
+        # Create bot
+        bot = DiscordBot(
+            token=token,
+            name="Gorgon",
+            allowed_users=allowed,
+            admin_users=admins,
+            allowed_guilds=guilds,
+        )
+
+        # Create message handler
+        handler = MessageHandler(session_manager)
+        bot.set_message_callback(handler.handle_message)
+        bot.set_command_handler(handler)
+
+        console.print("[green]Bot started! Listening for messages...[/green]")
+        console.print("[dim]Responds to: DMs, @mentions, and !commands[/dim]")
+        console.print("[dim]Press Ctrl+C to stop[/dim]\n")
+
+        try:
+            await bot.start()
+        except KeyboardInterrupt:
+            console.print("\n[yellow]Shutting down...[/yellow]")
+        finally:
+            await bot.stop()
+            console.print("[green]Bot stopped[/green]")
+
+    try:
+        asyncio.run(run_bot())
+    except Exception as e:
+        console.print(f"[red]Bot error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@bot_app.command("status")
+def bot_status():
+    """Show messaging bot configuration status."""
+    import os
+
+    console.print("[bold]Messaging Bot Configuration[/bold]\n")
+
+    # Check Telegram
+    telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
+    telegram_users = os.environ.get("TELEGRAM_ALLOWED_USERS")
+    telegram_admins = os.environ.get("TELEGRAM_ADMIN_USERS")
+
+    table = Table(title="Telegram")
+    table.add_column("Setting", style="cyan")
+    table.add_column("Status")
+
+    table.add_row(
+        "TELEGRAM_BOT_TOKEN",
+        "[green]Configured[/green]" if telegram_token else "[red]Not set[/red]",
+    )
+    table.add_row(
+        "TELEGRAM_ALLOWED_USERS",
+        f"[green]{len(telegram_users.split(','))} users[/green]"
+        if telegram_users
+        else "[dim]All users allowed[/dim]",
+    )
+    table.add_row(
+        "TELEGRAM_ADMIN_USERS",
+        f"[green]{len(telegram_admins.split(','))} admins[/green]"
+        if telegram_admins
+        else "[dim]None[/dim]",
+    )
+
+    console.print(table)
+
+    # Check dependencies
+    console.print("\n[bold]Dependencies[/bold]\n")
+
+    deps = [
+        ("python-telegram-bot", "telegram"),
+        ("discord.py", "discord"),
+        ("playwright", "playwright"),
+    ]
+
+    for name, module in deps:
+        try:
+            __import__(module)
+            console.print(f"  [green]✓[/green] {name}")
+        except ImportError:
+            console.print(f"  [dim]○[/dim] {name} (not installed)")
+
+    console.print("\n[dim]Install messaging deps: pip install 'gorgon[messaging]'[/dim]")
+
+
+@bot_app.command("setup")
+def bot_setup():
+    """Interactive setup for messaging bots."""
+    console.print(
+        Panel(
+            "[bold]Messaging Bot Setup[/bold]\n\n"
+            "This will guide you through setting up messaging bots.",
+            border_style="cyan",
+        )
+    )
+
+    # Telegram setup
+    console.print("\n[bold]1. Telegram Setup[/bold]\n")
+    console.print("To create a Telegram bot:")
+    console.print("  1. Open Telegram and message @BotFather")
+    console.print("  2. Send /newbot")
+    console.print("  3. Choose a name (e.g., 'My Gorgon Assistant')")
+    console.print("  4. Choose a username (must end in 'bot', e.g., 'my_gorgon_bot')")
+    console.print("  5. Copy the API token")
+    console.print()
+
+    if typer.confirm("Do you have a Telegram bot token?"):
+        token = typer.prompt("Enter your Telegram bot token", hide_input=True)
+
+        # Validate token format
+        if ":" not in token or len(token) < 40:
+            console.print("[yellow]Warning: Token format looks unusual[/yellow]")
+
+        console.print("\n[green]Add this to your .env file:[/green]")
+        console.print(f"  TELEGRAM_BOT_TOKEN={token}")
+
+        # Get user ID
+        console.print("\n[dim]To find your Telegram user ID:[/dim]")
+        console.print("  1. Message @userinfobot on Telegram")
+        console.print("  2. It will reply with your user ID")
+        console.print()
+
+        if typer.confirm("Do you want to restrict bot access to specific users?"):
+            user_ids = typer.prompt("Enter comma-separated user IDs")
+            console.print(f"  TELEGRAM_ALLOWED_USERS={user_ids}")
+
+        console.print("\n[green]✓ Telegram configuration ready[/green]")
+        console.print("\nStart the bot with:")
+        console.print("  [cyan]gorgon bot telegram[/cyan]")
+    else:
+        console.print("\n[dim]Skipping Telegram setup[/dim]")
+
+
+# =============================================================================
+# CALENDAR COMMANDS
+# =============================================================================
+
+calendar_app = typer.Typer(help="Google Calendar integration")
+app.add_typer(calendar_app, name="calendar")
+
+
+@calendar_app.command("list")
+def calendar_list(
+    days: int = typer.Option(7, "--days", "-d", help="Number of days to show"),
+    max_events: int = typer.Option(20, "--max", "-m", help="Maximum events"),
+    calendar_id: str = typer.Option("primary", "--calendar", "-c", help="Calendar ID"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """List upcoming calendar events.
+
+    Example:
+        gorgon calendar list
+        gorgon calendar list --days 30 --max 50
+    """
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        from test_ai.api_clients import CalendarClient
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        raise typer.Exit(1)
+
+    client = CalendarClient()
+    if not client.authenticate():
+        console.print("[red]Failed to authenticate with Google Calendar.[/red]")
+        console.print("\nMake sure you have:")
+        console.print("  1. Set up OAuth credentials in Google Cloud Console")
+        console.print("  2. Downloaded credentials.json")
+        console.print("  3. Set GMAIL_CREDENTIALS_PATH in .env")
+        raise typer.Exit(1)
+
+    now = datetime.now(timezone.utc)
+    end = now + timedelta(days=days)
+
+    events = client.list_events(
+        calendar_id=calendar_id,
+        max_results=max_events,
+        time_min=now,
+        time_max=end,
+    )
+
+    if json_output:
+        import json as json_mod
+
+        events_dict = [
+            {
+                "id": e.id,
+                "summary": e.summary,
+                "start": e.start.isoformat() if e.start else None,
+                "end": e.end.isoformat() if e.end else None,
+                "location": e.location,
+                "all_day": e.all_day,
+            }
+            for e in events
+        ]
+        print(json_mod.dumps(events_dict, indent=2))
+        return
+
+    if not events:
+        console.print(f"[yellow]No events in the next {days} days[/yellow]")
+        return
+
+    console.print(f"[bold]Upcoming Events ({len(events)}):[/bold]\n")
+
+    current_date = None
+    for event in events:
+        if event.start:
+            event_date = event.start.strftime("%A, %B %d")
+            if event_date != current_date:
+                current_date = event_date
+                console.print(f"\n[cyan]{event_date}[/cyan]")
+
+            if event.all_day:
+                time_str = "All day"
+            else:
+                time_str = event.start.strftime("%I:%M %p")
+
+            console.print(f"  {time_str} - [bold]{event.summary}[/bold]")
+            if event.location:
+                console.print(f"            [dim]{event.location}[/dim]")
+
+
+@calendar_app.command("today")
+def calendar_today(
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show today's remaining events.
+
+    Example:
+        gorgon calendar today
+    """
+    try:
+        from test_ai.api_clients import CalendarClient
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        raise typer.Exit(1)
+
+    client = CalendarClient()
+    if not client.authenticate():
+        console.print("[red]Authentication failed[/red]")
+        raise typer.Exit(1)
+
+    events = client.get_upcoming_today()
+
+    if json_output:
+        import json as json_mod
+
+        events_dict = [
+            {
+                "summary": e.summary,
+                "start": e.start.isoformat() if e.start else None,
+                "end": e.end.isoformat() if e.end else None,
+            }
+            for e in events
+        ]
+        print(json_mod.dumps(events_dict, indent=2))
+        return
+
+    if not events:
+        console.print("[green]No more events today![/green]")
+        return
+
+    console.print("[bold]Remaining Today:[/bold]\n")
+    for event in events:
+        if event.start:
+            if event.all_day:
+                time_str = "All day"
+            else:
+                time_str = event.start.strftime("%I:%M %p")
+            console.print(f"  {time_str} - {event.summary}")
+
+
+@calendar_app.command("add")
+def calendar_add(
+    summary: str = typer.Argument(..., help="Event title"),
+    start_time: str = typer.Option(
+        None, "--start", "-s", help="Start time (e.g., '2024-01-15 14:00')"
+    ),
+    duration: int = typer.Option(60, "--duration", "-d", help="Duration in minutes"),
+    location: str = typer.Option(None, "--location", "-l", help="Event location"),
+    description: str = typer.Option(None, "--desc", help="Event description"),
+    all_day: bool = typer.Option(False, "--all-day", help="Create all-day event"),
+    quick: bool = typer.Option(
+        False, "--quick", "-q", help="Use natural language parsing"
+    ),
+):
+    """Create a new calendar event.
+
+    Example:
+        gorgon calendar add "Team Meeting" --start "2024-01-15 14:00" --duration 60
+        gorgon calendar add "Doctor Appointment" --start "tomorrow 10am" --quick
+        gorgon calendar add "Vacation" --start "2024-01-20" --all-day
+    """
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        from test_ai.api_clients import CalendarClient, CalendarEvent
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        raise typer.Exit(1)
+
+    client = CalendarClient()
+    if not client.authenticate():
+        console.print("[red]Authentication failed[/red]")
+        raise typer.Exit(1)
+
+    if quick:
+        # Use Google's natural language parsing
+        full_text = f"{summary}"
+        if start_time:
+            full_text += f" {start_time}"
+        if location:
+            full_text += f" at {location}"
+
+        result = client.quick_add(full_text)
+        if result:
+            console.print(f"[green]Event created:[/green] {result.summary}")
+            if result.start:
+                console.print(f"  Start: {result.start.strftime('%Y-%m-%d %I:%M %p')}")
+            if result.html_link:
+                console.print(f"  Link: {result.html_link}")
+        else:
+            console.print("[red]Failed to create event[/red]")
+        return
+
+    # Parse start time
+    if not start_time:
+        console.print("[red]Start time required (use --start or --quick)[/red]")
+        raise typer.Exit(1)
+
+    try:
+        # Try common formats
+        for fmt in [
+            "%Y-%m-%d %H:%M",
+            "%Y-%m-%d",
+            "%m/%d/%Y %H:%M",
+            "%m/%d/%Y",
+        ]:
+            try:
+                start = datetime.strptime(start_time, fmt)
+                start = start.replace(tzinfo=timezone.utc)
+                break
+            except ValueError:
+                continue
+        else:
+            console.print(f"[red]Could not parse date:[/red] {start_time}")
+            console.print("Use format: YYYY-MM-DD HH:MM or YYYY-MM-DD")
+            raise typer.Exit(1)
+    except Exception:
+        console.print(f"[red]Invalid date format:[/red] {start_time}")
+        raise typer.Exit(1)
+
+    # Calculate end time
+    if all_day:
+        end = start + timedelta(days=1)
+    else:
+        end = start + timedelta(minutes=duration)
+
+    event = CalendarEvent(
+        summary=summary,
+        description=description or "",
+        location=location or "",
+        start=start,
+        end=end,
+        all_day=all_day,
+    )
+
+    result = client.create_event(event)
+    if result:
+        console.print(f"[green]Event created:[/green] {result.summary}")
+        console.print(f"  ID: {result.id}")
+        if result.html_link:
+            console.print(f"  Link: {result.html_link}")
+    else:
+        console.print("[red]Failed to create event[/red]")
+        raise typer.Exit(1)
+
+
+@calendar_app.command("delete")
+def calendar_delete(
+    event_id: str = typer.Argument(..., help="Event ID to delete"),
+    force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),
+):
+    """Delete a calendar event.
+
+    Example:
+        gorgon calendar delete abc123xyz
+    """
+    try:
+        from test_ai.api_clients import CalendarClient
+    except ImportError:
+        console.print("[red]Missing dependencies[/red]")
+        raise typer.Exit(1)
+
+    client = CalendarClient()
+    if not client.authenticate():
+        console.print("[red]Authentication failed[/red]")
+        raise typer.Exit(1)
+
+    # Get event first to show what we're deleting
+    event = client.get_event(event_id)
+    if not event:
+        console.print(f"[red]Event not found:[/red] {event_id}")
+        raise typer.Exit(1)
+
+    if not force:
+        console.print(f"[yellow]Event:[/yellow] {event.summary}")
+        if event.start:
+            console.print(f"  Start: {event.start.strftime('%Y-%m-%d %I:%M %p')}")
+        if not typer.confirm("Delete this event?"):
+            raise typer.Abort()
+
+    if client.delete_event(event_id):
+        console.print(f"[green]Event deleted[/green]")
+    else:
+        console.print("[red]Failed to delete event[/red]")
+        raise typer.Exit(1)
+
+
+@calendar_app.command("busy")
+def calendar_busy(
+    days: int = typer.Option(1, "--days", "-d", help="Number of days to check"),
+):
+    """Check calendar availability.
+
+    Example:
+        gorgon calendar busy
+        gorgon calendar busy --days 7
+    """
+    from datetime import datetime, timedelta, timezone
+
+    try:
+        from test_ai.api_clients import CalendarClient
+    except ImportError:
+        console.print("[red]Missing dependencies[/red]")
+        raise typer.Exit(1)
+
+    client = CalendarClient()
+    if not client.authenticate():
+        console.print("[red]Authentication failed[/red]")
+        raise typer.Exit(1)
+
+    now = datetime.now(timezone.utc)
+    end = now + timedelta(days=days)
+
+    busy_periods = client.check_availability(now, end)
+
+    if not busy_periods:
+        console.print(f"[green]No busy periods in the next {days} day(s)[/green]")
+        return
+
+    console.print(f"[bold]Busy Periods ({len(busy_periods)}):[/bold]\n")
+    for period in busy_periods:
+        start = period.get("start", "")
+        end_p = period.get("end", "")
+        if start and end_p:
+            # Parse and format times
+            try:
+                start_dt = datetime.fromisoformat(start.replace("Z", "+00:00"))
+                end_dt = datetime.fromisoformat(end_p.replace("Z", "+00:00"))
+                console.print(
+                    f"  {start_dt.strftime('%a %m/%d %I:%M %p')} - "
+                    f"{end_dt.strftime('%I:%M %p')}"
+                )
+            except Exception:
+                console.print(f"  {start} - {end_p}")
+
+
+# =============================================================================
+# BROWSER AUTOMATION COMMANDS
+# =============================================================================
+
+browser_app = typer.Typer(help="Browser automation with Playwright")
+app.add_typer(browser_app, name="browser")
+
+
+@browser_app.command("navigate")
+def browser_navigate(
+    url: str = typer.Argument(..., help="URL to navigate to"),
+    screenshot: bool = typer.Option(False, "--screenshot", "-s", help="Take screenshot"),
+    extract: bool = typer.Option(False, "--extract", "-e", help="Extract page content"),
+    headless: bool = typer.Option(True, "--headless/--no-headless", help="Run headless"),
+):
+    """Navigate to a URL and optionally extract content.
+
+    Example:
+        gorgon browser navigate https://example.com
+        gorgon browser navigate https://news.ycombinator.com --extract
+        gorgon browser navigate https://example.com --screenshot --no-headless
+    """
+    import asyncio
+
+    try:
+        from test_ai.browser import BrowserAutomation, BrowserConfig
+    except ImportError as e:
+        console.print(f"[red]Missing dependencies:[/red] {e}")
+        console.print("\nInstall with: pip install 'gorgon[browser]'")
+        console.print("Then run: playwright install chromium")
+        raise typer.Exit(1)
+
+    async def run():
+        config = BrowserConfig(headless=headless)
+        async with BrowserAutomation(config) as browser:
+            console.print(f"[cyan]Navigating to:[/cyan] {url}")
+
+            result = await browser.navigate(url)
+            if not result.success:
+                console.print(f"[red]Navigation failed:[/red] {result.error}")
+                raise typer.Exit(1)
+
+            console.print(f"[green]Title:[/green] {result.title}")
+            console.print(f"[green]URL:[/green] {result.url}")
+
+            if extract:
+                console.print("\n[cyan]Extracting content...[/cyan]")
+                extract_result = await browser.extract_content()
+                if extract_result.success:
+                    data = extract_result.data
+                    console.print(f"\n[bold]Content Preview:[/bold]")
+                    text = data.get("text", "")[:1000]
+                    console.print(text)
+                    if data.get("links"):
+                        console.print(f"\n[bold]Links:[/bold] {len(data['links'])} found")
+
+            if screenshot:
+                console.print("\n[cyan]Taking screenshot...[/cyan]")
+                ss_result = await browser.screenshot()
+                if ss_result.success:
+                    console.print(f"[green]Screenshot saved:[/green] {ss_result.screenshot_path}")
+
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        console.print(f"[red]Browser error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@browser_app.command("screenshot")
+def browser_screenshot(
+    url: str = typer.Argument(..., help="URL to screenshot"),
+    output: Path = typer.Option(None, "--output", "-o", help="Output file path"),
+    full_page: bool = typer.Option(False, "--full", "-f", help="Capture full page"),
+):
+    """Take a screenshot of a URL.
+
+    Example:
+        gorgon browser screenshot https://example.com
+        gorgon browser screenshot https://example.com -o screenshot.png --full
+    """
+    import asyncio
+
+    try:
+        from test_ai.browser import BrowserAutomation
+    except ImportError:
+        console.print("[red]Playwright not installed.[/red]")
+        console.print("\nInstall with: pip install 'gorgon[browser]'")
+        raise typer.Exit(1)
+
+    async def run():
+        async with BrowserAutomation() as browser:
+            console.print(f"[cyan]Loading:[/cyan] {url}")
+
+            result = await browser.navigate(url)
+            if not result.success:
+                console.print(f"[red]Failed to load page:[/red] {result.error}")
+                raise typer.Exit(1)
+
+            console.print(f"[green]Page loaded:[/green] {result.title}")
+
+            path = str(output) if output else None
+            ss_result = await browser.screenshot(path=path, full_page=full_page)
+
+            if ss_result.success:
+                console.print(f"[green]Screenshot saved:[/green] {ss_result.screenshot_path}")
+            else:
+                console.print(f"[red]Screenshot failed:[/red] {ss_result.error}")
+                raise typer.Exit(1)
+
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+
+@browser_app.command("extract")
+def browser_extract(
+    url: str = typer.Argument(..., help="URL to extract content from"),
+    selector: str = typer.Option(None, "--selector", "-s", help="CSS selector to extract"),
+    links: bool = typer.Option(True, "--links/--no-links", help="Extract links"),
+    tables: bool = typer.Option(True, "--tables/--no-tables", help="Extract tables"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Extract content from a URL.
+
+    Example:
+        gorgon browser extract https://example.com
+        gorgon browser extract https://news.ycombinator.com --json
+        gorgon browser extract https://example.com -s "main article"
+    """
+    import asyncio
+
+    try:
+        from test_ai.browser import BrowserAutomation
+    except ImportError:
+        console.print("[red]Playwright not installed.[/red]")
+        raise typer.Exit(1)
+
+    async def run():
+        async with BrowserAutomation() as browser:
+            result = await browser.navigate(url)
+            if not result.success:
+                console.print(f"[red]Failed to load:[/red] {result.error}")
+                raise typer.Exit(1)
+
+            extract_result = await browser.extract_content(
+                selector=selector,
+                extract_links=links,
+                extract_tables=tables,
+            )
+
+            if not extract_result.success:
+                console.print(f"[red]Extraction failed:[/red] {extract_result.error}")
+                raise typer.Exit(1)
+
+            data = extract_result.data
+
+            if json_output:
+                print(json.dumps(data, indent=2))
+            else:
+                console.print(f"[bold]Title:[/bold] {data.get('title')}")
+                console.print(f"[bold]URL:[/bold] {data.get('url')}\n")
+
+                text = data.get("text", "")[:2000]
+                console.print("[bold]Content:[/bold]")
+                console.print(text)
+
+                if data.get("links"):
+                    console.print(f"\n[bold]Links ({len(data['links'])}):[/bold]")
+                    for link in data["links"][:10]:
+                        console.print(f"  • {link['text'][:50]}: {link['href']}")
+
+                if data.get("tables"):
+                    console.print(f"\n[bold]Tables:[/bold] {len(data['tables'])} found")
+
+    try:
+        asyncio.run(run())
+    except Exception as e:
+        console.print(f"[red]Error:[/red] {e}")
+        raise typer.Exit(1)
+
+
 if __name__ == "__main__":
     app()
