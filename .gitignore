@@ -85,7 +85,3 @@ tmp/
 node_modules/
 frontend/dist/
 *.tsbuildinfo
-
-# Rust / Tauri
-target/
-src-tauri/target/

@@ -22,8 +22,6 @@
 
 🔄 **Self-Improvement System** — Autonomous codebase improvement with safety guards and human approval gates
 
-🖥️ **Desktop App** — Native cross-platform app via Tauri (shares web codebase)
-
 ---
 
 ## Screenshots
@@ -84,12 +82,6 @@ Gorgon can analyze and improve its own codebase under strict safety controls:
 - **Change limits**: Max 10 files / 500 lines per PR
 - **Human approval gates**: Required at plan, apply, and merge stages
 - **Auto-rollback**: Reverts on test failures
-
-### Desktop App (Tauri)
-Native cross-platform desktop application sharing the web frontend codebase.
-```bash
-cd src-tauri && cargo tauri dev
-```
 
 ### Multi-Agent Development Workflows
 ```
@@ -281,7 +273,6 @@ Gorgon/
 │   │   └── workflow_engine.py    # Core execution engine
 │   ├── skills/                   # Skill context injection
 │   └── workflows/                # JSON workflow definitions
-├── src-tauri/                    # Tauri desktop app (Rust)
 ├── frontend/                     # React + TypeScript frontend
 ├── config/
 │   ├── agent_prompts.json        # Customizable agent prompts
@@ -458,7 +449,6 @@ Define workflows as JSON:
 - [x] **Chat interface** with session persistence
 - [x] **Supervisor agent** for task delegation
 - [x] **Self-improvement system** with safety guards
-- [x] **Desktop app** via Tauri
 - [ ] Plugin marketplace
 - [ ] Multi-tenant support
 - [ ] Workflow version control

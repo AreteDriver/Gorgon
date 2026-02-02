@@ -143,15 +143,7 @@ curl -X POST http://localhost:8000/v1/jobs \
 
 ---
 
-### 10. Desktop App (15 seconds)
-
-> "And now there's a native desktop app via Tauri - same web UI, native performance."
-
-**Show:** Desktop app screenshot or quick launch
-
----
-
-### 11. Close (15 seconds)
+### 10. Close (15 seconds)
 
 > "Gorgon turns complex AI workflows into reliable, observable pipelines. Check out the repo at github.com/AreteDriver/Gorgon."
 
@@ -168,7 +160,6 @@ curl -X POST http://localhost:8000/v1/jobs \
 - **Declarative workflows** as JSON
 - **Chat interface** with session persistence
 - **Self-improvement** with safety guards and human approval
-- **Desktop app** via Tauri
 
 ---
 
