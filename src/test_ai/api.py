@@ -227,6 +227,24 @@ async def lifespan(app: FastAPI):
 
     logger.info("WebSocket components initialized")
 
+    # Initialize chat module
+    from test_ai.chat import router as chat_router
+    from test_ai.chat.router import init_chat_module
+    from test_ai.agents import SupervisorAgent, create_agent_provider
+
+    def create_supervisor(mode=None):
+        """Factory function to create Supervisor agent."""
+        try:
+            provider = create_agent_provider("anthropic")
+            return SupervisorAgent(provider, mode=mode)
+        except Exception as e:
+            logger.warning(f"Could not create supervisor: {e}")
+            return None
+
+    init_chat_module(backend, supervisor_factory=create_supervisor)
+    app.include_router(chat_router)
+    logger.info("Chat module initialized")
+
     # Migrate existing workflows (one-time)
     try:
         workflows_dir = settings.workflows_dir

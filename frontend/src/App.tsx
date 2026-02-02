@@ -10,6 +10,7 @@ import { Toaster } from '@/components/ui/toaster';
 // Eager load primary pages
 import { DashboardPage } from '@/pages/Dashboard';
 import { WorkflowsPage } from '@/pages/Workflows';
+import { ChatPage } from '@/pages/Chat';
 
 // Lazy load heavy/secondary pages for code splitting
 const WorkflowBuilderPage = lazy(() => import('@/pages/WorkflowBuilder').then(m => ({ default: m.WorkflowBuilderPage })));
@@ -39,6 +40,7 @@ function App() {
               <Routes>
                 <Route path="/" element={<Layout />}>
                   <Route index element={<DashboardPage />} />
+                  <Route path="chat" element={<ChatPage />} />
                   <Route path="decisions" element={<DecisionsPage />} />
                   <Route path="workflows" element={<WorkflowsPage />} />
                   <Route path="workflows/new" element={<WorkflowBuilderPage />} />

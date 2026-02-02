@@ -21,6 +21,11 @@ import type {
   MCPTool,
   Credential,
 } from '@/types/mcp';
+import type {
+  ChatSession,
+  ChatSessionDetail,
+  ChatMode,
+} from '@/types/chat';
 
 // =============================================================================
 // API Client Configuration
@@ -376,6 +381,43 @@ class GorgonApiClient {
 
   async deleteApiKey(provider: string): Promise<void> {
     await this.client.delete(`/v1/settings/api-keys/${provider}`);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Chat
+  // ---------------------------------------------------------------------------
+
+  async getChatSessions(): Promise<ChatSession[]> {
+    const { data } = await this.client.get('/chat/sessions');
+    return data;
+  }
+
+  async createChatSession(params?: { title?: string; project_path?: string; mode?: ChatMode }): Promise<ChatSession> {
+    const { data } = await this.client.post('/chat/sessions', params);
+    return data;
+  }
+
+  async getChatSession(sessionId: string): Promise<ChatSessionDetail> {
+    const { data } = await this.client.get(`/chat/sessions/${sessionId}`);
+    return data;
+  }
+
+  async deleteChatSession(sessionId: string): Promise<void> {
+    await this.client.delete(`/chat/sessions/${sessionId}`);
+  }
+
+  async getChatSessionJobs(sessionId: string): Promise<{ session_id: string; job_ids: string[] }> {
+    const { data } = await this.client.get(`/chat/sessions/${sessionId}/jobs`);
+    return data;
+  }
+
+  // Note: sendChatMessage uses fetch for SSE streaming, not this client
+  getAuthToken(): string {
+    return localStorage.getItem('gorgon_token') || '';
+  }
+
+  getBaseUrl(): string {
+    return API_BASE_URL;
   }
 }
 
