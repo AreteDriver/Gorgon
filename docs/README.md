@@ -13,6 +13,7 @@ Welcome to the Gorgon documentation! This directory contains comprehensive guide
 
 ### User Guides
 - **[Creating Workflows](creating-workflows.md)** - Build your first workflow
+- **[Filesystem Tools](filesystem-tools.md)** - Local project access for chat agents
 - 📝 **Prompt Templates** _(coming soon)_ - Working with prompts
 - 📝 **Using the Dashboard** _(coming soon)_ - Navigate the web interface
 - **[Using the API](api-reference.md)** - Programmatic access
@@ -43,6 +44,7 @@ Welcome to the Gorgon documentation! This directory contains comprehensive guide
 ### I want to...
 
 - **Get started quickly** → [Quick Start Guide](../QUICKSTART.md)
+- **Use chat with my codebase** → [Filesystem Tools](filesystem-tools.md)
 - **Understand the architecture** → [Architecture Overview](../ARCHITECTURE.md)
 - **Contribute code** → [Contributing Guide](../CONTRIBUTING.md)
 - **See example workflows** → [Examples Directory](../examples/)

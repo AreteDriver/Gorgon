@@ -5,3 +5,5 @@ export { StreamingMessage } from './StreamingMessage';
 export { MessageInput } from './MessageInput';
 export { AgentBadge } from './AgentBadge';
 export { CodeBlock } from './CodeBlock';
+export { NewChatDialog } from './NewChatDialog';
+export { ProposalPanel } from './ProposalPanel';

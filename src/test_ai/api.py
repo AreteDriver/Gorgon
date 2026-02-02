@@ -177,6 +177,7 @@ async def lifespan(app: FastAPI):
 
     # Get shared database backend
     backend = get_database()
+    _app_state["backend"] = backend  # Store for supervisor factory
 
     # Run migrations
     logger.info("Running database migrations...")
@@ -232,11 +233,22 @@ async def lifespan(app: FastAPI):
     from test_ai.chat.router import init_chat_module
     from test_ai.agents import SupervisorAgent, create_agent_provider
 
-    def create_supervisor(mode=None):
-        """Factory function to create Supervisor agent."""
+    def create_supervisor(mode=None, session=None, backend=None):
+        """Factory function to create Supervisor agent.
+
+        Args:
+            mode: Chat mode (assistant or self_improve).
+            session: Chat session for filesystem access context.
+            backend: Database backend for proposal storage.
+        """
         try:
             provider = create_agent_provider("anthropic")
-            return SupervisorAgent(provider, mode=mode)
+            return SupervisorAgent(
+                provider,
+                mode=mode,
+                session=session,
+                backend=backend or _app_state.get("backend"),
+            )
         except Exception as e:
             logger.warning(f"Could not create supervisor: {e}")
             return None

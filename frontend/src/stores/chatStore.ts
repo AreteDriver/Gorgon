@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ChatSession, ChatMessage, ChatMode, StreamChunk } from '@/types/chat';
+import type { ChatSession, ChatMessage, ChatMode, StreamChunk, EditProposal } from '@/types/chat';
 import { api } from '@/api/client';
 
 interface ChatState {
@@ -8,6 +8,10 @@ interface ChatState {
   activeSessionId: string | null;
   activeSession: ChatSession | null;
   messages: ChatMessage[];
+
+  // Proposal state
+  proposals: EditProposal[];
+  isLoadingProposals: boolean;
 
   // UI state
   isLoading: boolean;
@@ -18,12 +22,17 @@ interface ChatState {
 
   // Actions
   fetchSessions: () => Promise<void>;
-  createSession: (projectPath?: string, mode?: ChatMode) => Promise<string>;
+  createSession: (projectPath?: string, mode?: ChatMode, filesystemEnabled?: boolean) => Promise<string>;
   selectSession: (sessionId: string) => Promise<void>;
   deleteSession: (sessionId: string) => Promise<void>;
   sendMessage: (content: string) => Promise<void>;
   cancelGeneration: () => void;
   clearError: () => void;
+
+  // Proposal actions
+  fetchProposals: () => Promise<void>;
+  approveProposal: (proposalId: string) => Promise<void>;
+  rejectProposal: (proposalId: string) => Promise<void>;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -32,6 +41,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
   activeSessionId: null,
   activeSession: null,
   messages: [],
+  proposals: [],
+  isLoadingProposals: false,
   isLoading: false,
   isStreaming: false,
   streamingContent: '',
@@ -48,12 +59,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }
   },
 
-  createSession: async (projectPath?: string, mode: ChatMode = 'assistant') => {
+  createSession: async (projectPath?: string, mode: ChatMode = 'assistant', filesystemEnabled = true) => {
     try {
       set({ isLoading: true, error: null });
       const newSession = await api.createChatSession({
         project_path: projectPath,
         mode,
+        filesystem_enabled: projectPath ? filesystemEnabled : false,
       });
 
       set((state) => ({
@@ -61,6 +73,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         activeSessionId: newSession.id,
         activeSession: newSession,
         messages: [],
+        proposals: [],
         isLoading: false,
       }));
 
@@ -212,5 +225,42 @@ export const useChatStore = create<ChatState>((set, get) => ({
 
   clearError: () => {
     set({ error: null });
+  },
+
+  fetchProposals: async () => {
+    const { activeSessionId } = get();
+    if (!activeSessionId) return;
+
+    try {
+      set({ isLoadingProposals: true });
+      const proposals = await api.getProposals(activeSessionId);
+      set({ proposals, isLoadingProposals: false });
+    } catch {
+      set({ isLoadingProposals: false });
+    }
+  },
+
+  approveProposal: async (proposalId: string) => {
+    const { activeSessionId, fetchProposals } = get();
+    if (!activeSessionId) return;
+
+    try {
+      await api.approveProposal(activeSessionId, proposalId);
+      await fetchProposals();
+    } catch (err) {
+      set({ error: 'Failed to approve proposal' });
+    }
+  },
+
+  rejectProposal: async (proposalId: string) => {
+    const { activeSessionId, fetchProposals } = get();
+    if (!activeSessionId) return;
+
+    try {
+      await api.rejectProposal(activeSessionId, proposalId);
+      await fetchProposals();
+    } catch (err) {
+      set({ error: 'Failed to reject proposal' });
+    }
   },
 }));

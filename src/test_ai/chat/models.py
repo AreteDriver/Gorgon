@@ -72,6 +72,21 @@ class ChatSession(BaseModel):
     metadata: dict[str, Any] = Field(default_factory=dict)
     messages: list[ChatMessage] = Field(default_factory=list)
 
+    # Filesystem tools integration
+    filesystem_enabled: bool = Field(
+        default=False,
+        description="Whether filesystem tools are enabled for this session",
+    )
+    allowed_paths: list[str] = Field(
+        default_factory=list,
+        description="Additional paths agents can access (beyond project_path)",
+    )
+
+    @property
+    def has_project_access(self) -> bool:
+        """Check if this session has project filesystem access."""
+        return self.filesystem_enabled and self.project_path is not None
+
     @classmethod
     def from_db_row(cls, row: dict) -> ChatSession:
         """Create from database row."""
@@ -87,6 +102,9 @@ class ChatSession(BaseModel):
         if isinstance(updated_at, str):
             updated_at = datetime.fromisoformat(updated_at)
 
+        # Parse allowed_paths from metadata if present
+        allowed_paths = metadata.get("allowed_paths", []) if metadata else []
+
         return cls(
             id=row["id"],
             title=row.get("title", "New Chat"),
@@ -96,6 +114,10 @@ class ChatSession(BaseModel):
             created_at=created_at or datetime.now(),
             updated_at=updated_at or datetime.now(),
             metadata=metadata or {},
+            filesystem_enabled=bool(
+                row.get("project_path")
+            ),  # Auto-enable if project_path set
+            allowed_paths=allowed_paths,
         )
 
 
@@ -108,6 +130,14 @@ class CreateSessionRequest(BaseModel):
     title: str | None = None
     project_path: str | None = None
     mode: ChatMode = ChatMode.ASSISTANT
+    filesystem_enabled: bool = Field(
+        default=True,
+        description="Enable filesystem tools when project_path is set",
+    )
+    allowed_paths: list[str] = Field(
+        default_factory=list,
+        description="Additional paths agents can access",
+    )
 
 
 class SendMessageRequest(BaseModel):
@@ -127,6 +157,8 @@ class ChatSessionResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
     message_count: int = 0
+    filesystem_enabled: bool = False
+    pending_proposals: int = 0
 
 
 class ChatSessionDetailResponse(ChatSessionResponse):

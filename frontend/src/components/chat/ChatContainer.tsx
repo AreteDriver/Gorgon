@@ -1,11 +1,13 @@
-import { useEffect, useRef } from 'react';
-import { Plus, MessageSquare, Trash2 } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Plus, MessageSquare, Trash2, FolderOpen } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { NewChatDialog } from './NewChatDialog';
+import { ProposalPanel } from './ProposalPanel';
 
 export function ChatContainer() {
   const {
@@ -13,12 +15,18 @@ export function ChatContainer() {
     activeSessionId,
     activeSession,
     isLoading,
+    proposals,
+    isLoadingProposals,
     fetchSessions,
     createSession,
     selectSession,
     deleteSession,
+    fetchProposals,
+    approveProposal,
+    rejectProposal,
   } = useChatStore();
 
+  const [isNewChatOpen, setIsNewChatOpen] = useState(false);
   const initialFetchRef = useRef(false);
 
   useEffect(() => {
@@ -28,8 +36,15 @@ export function ChatContainer() {
     }
   }, [fetchSessions]);
 
-  const handleNewChat = async () => {
-    await createSession();
+  // Fetch proposals when session changes
+  useEffect(() => {
+    if (activeSessionId && activeSession?.filesystem_enabled) {
+      fetchProposals();
+    }
+  }, [activeSessionId, activeSession?.filesystem_enabled, fetchProposals]);
+
+  const handleNewChat = async (projectPath?: string, mode?: 'assistant' | 'self_improve', filesystemEnabled?: boolean) => {
+    await createSession(projectPath, mode, filesystemEnabled);
   };
 
   const handleDeleteSession = async (e: React.MouseEvent, sessionId: string) => {
@@ -41,10 +56,17 @@ export function ChatContainer() {
 
   return (
     <div className="flex h-[calc(100vh-6rem)]">
+      {/* New Chat Dialog */}
+      <NewChatDialog
+        isOpen={isNewChatOpen}
+        onClose={() => setIsNewChatOpen(false)}
+        onCreateSession={handleNewChat}
+      />
+
       {/* Session Sidebar */}
       <div className="w-64 border-r bg-muted/30 flex flex-col">
         <div className="p-4 border-b">
-          <Button onClick={handleNewChat} className="w-full" disabled={isLoading}>
+          <Button onClick={() => setIsNewChatOpen(true)} className="w-full" disabled={isLoading}>
             <Plus className="h-4 w-4 mr-2" />
             New Chat
           </Button>
@@ -95,20 +117,38 @@ export function ChatContainer() {
               <div>
                 <h2 className="font-semibold">{activeSession.title}</h2>
                 {activeSession.project_path && (
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-xs text-muted-foreground flex items-center gap-1">
+                    <FolderOpen className="h-3 w-3" />
                     {activeSession.project_path}
                   </p>
                 )}
               </div>
-              {activeSession.mode === 'self_improve' && (
-                <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded">
-                  Self-Improvement Mode
-                </span>
-              )}
+              <div className="flex items-center gap-2">
+                {activeSession.filesystem_enabled && (
+                  <span className="text-xs bg-blue-500/10 text-blue-600 px-2 py-1 rounded">
+                    File Access
+                  </span>
+                )}
+                {activeSession.mode === 'self_improve' && (
+                  <span className="text-xs bg-yellow-500/10 text-yellow-600 px-2 py-1 rounded">
+                    Self-Improvement Mode
+                  </span>
+                )}
+              </div>
             </div>
 
             {/* Messages */}
             <MessageList />
+
+            {/* Proposals Panel */}
+            {activeSession.filesystem_enabled && (
+              <ProposalPanel
+                proposals={proposals}
+                onApprove={approveProposal}
+                onReject={rejectProposal}
+                isLoading={isLoadingProposals}
+              />
+            )}
 
             {/* Input */}
             <MessageInput />
@@ -119,7 +159,7 @@ export function ChatContainer() {
               <MessageSquare className="h-12 w-12 mx-auto mb-4 opacity-50" />
               <p className="text-lg font-medium">Welcome to Gorgon Chat</p>
               <p className="text-sm">Start a new conversation or select an existing one</p>
-              <Button onClick={handleNewChat} className="mt-4">
+              <Button onClick={() => setIsNewChatOpen(true)} className="mt-4">
                 <Plus className="h-4 w-4 mr-2" />
                 New Chat
               </Button>

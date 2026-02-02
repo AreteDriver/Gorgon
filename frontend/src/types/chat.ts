@@ -27,6 +27,8 @@ export interface ChatSession {
   created_at: string;
   updated_at: string;
   message_count: number;
+  filesystem_enabled?: boolean;
+  pending_proposals?: number;
 }
 
 export interface ChatSessionDetail extends ChatSession {
@@ -37,6 +39,23 @@ export interface CreateSessionRequest {
   title?: string;
   project_path?: string;
   mode?: ChatMode;
+  filesystem_enabled?: boolean;
+  allowed_paths?: string[];
+}
+
+export type ProposalStatus = 'pending' | 'approved' | 'rejected' | 'applied' | 'failed';
+
+export interface EditProposal {
+  id: string;
+  session_id: string;
+  file_path: string;
+  old_content?: string;
+  new_content: string;
+  description: string;
+  status: ProposalStatus;
+  created_at: string;
+  applied_at?: string;
+  error_message?: string;
 }
 
 export interface SendMessageRequest {
@@ -44,10 +63,17 @@ export interface SendMessageRequest {
 }
 
 export interface StreamChunk {
-  type: 'text' | 'agent' | 'job' | 'done' | 'error';
+  type: 'text' | 'agent' | 'job' | 'done' | 'error' | 'tool_result';
   content?: string;
   agent?: string;
   job_id?: string;
+  error?: string;
+}
+
+export interface ToolResult {
+  tool: string;
+  success: boolean;
+  data?: Record<string, unknown>;
   error?: string;
 }
 

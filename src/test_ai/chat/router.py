@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, AsyncGenerator
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from .models import (
     ChatSessionDetailResponse,
@@ -29,6 +29,7 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 # Module-level manager (initialized by lifespan)
 _session_manager: ChatSessionManager | None = None
 _supervisor_factory = None  # Factory function for creating supervisor
+_backend: "DatabaseBackend | None" = None
 
 
 def get_session_manager() -> ChatSessionManager:
@@ -38,6 +39,13 @@ def get_session_manager() -> ChatSessionManager:
     return _session_manager
 
 
+def get_backend() -> "DatabaseBackend":
+    """Get the database backend."""
+    if _backend is None:
+        raise HTTPException(status_code=503, detail="Database not initialized")
+    return _backend
+
+
 def init_chat_module(backend: "DatabaseBackend", supervisor_factory=None):
     """Initialize the chat module with database backend.
 
@@ -45,9 +53,10 @@ def init_chat_module(backend: "DatabaseBackend", supervisor_factory=None):
         backend: Database backend instance.
         supervisor_factory: Factory function to create SupervisorAgent.
     """
-    global _session_manager, _supervisor_factory
+    global _session_manager, _supervisor_factory, _backend
     _session_manager = ChatSessionManager(backend)
     _supervisor_factory = supervisor_factory
+    _backend = backend
     logger.info("Chat module initialized")
 
 
@@ -62,11 +71,21 @@ async def create_session(
     manager: ChatSessionManager = Depends(get_session_manager),
 ) -> ChatSessionResponse:
     """Create a new chat session."""
+    # Store allowed_paths in metadata if provided
+    metadata = {}
+    if request.allowed_paths:
+        metadata["allowed_paths"] = request.allowed_paths
+
     session = manager.create_session(
         title=request.title,
         project_path=request.project_path,
         mode=request.mode,
+        metadata=metadata,
     )
+
+    # Determine filesystem_enabled status
+    filesystem_enabled = request.filesystem_enabled and request.project_path is not None
+
     return ChatSessionResponse(
         id=session.id,
         title=session.title,
@@ -76,6 +95,7 @@ async def create_session(
         created_at=session.created_at,
         updated_at=session.updated_at,
         message_count=0,
+        filesystem_enabled=filesystem_enabled,
     )
 
 
@@ -215,8 +235,12 @@ async def send_message(
             return
 
         try:
-            # Create supervisor with session context
-            supervisor = _supervisor_factory(mode=session.mode)
+            # Create supervisor with session and backend context
+            supervisor = _supervisor_factory(
+                mode=session.mode,
+                session=session,
+                backend=_backend,
+            )
 
             # Get conversation history
             messages = manager.get_messages(session_id)
@@ -318,3 +342,225 @@ async def get_session_jobs(
 
     # TODO: Fetch full job details from JobManager
     return {"session_id": session_id, "job_ids": job_ids}
+
+
+# ============================================================================
+# Edit proposal endpoints
+# ============================================================================
+
+
+class ProposalResponse(BaseModel):
+    """Response model for edit proposals."""
+
+    id: str
+    session_id: str
+    file_path: str
+    description: str
+    status: str
+    created_at: str
+    applied_at: str | None = None
+    error_message: str | None = None
+    # Content fields (optional for list views)
+    old_content: str | None = None
+    new_content: str | None = None
+
+
+class ApproveProposalRequest(BaseModel):
+    """Request to approve a proposal."""
+
+    pass  # No body needed, just the action
+
+
+class RejectProposalRequest(BaseModel):
+    """Request to reject a proposal."""
+
+    reason: str | None = Field(default=None, description="Optional rejection reason")
+
+
+def _get_proposal_manager(session_id: str):
+    """Get proposal manager for a session."""
+    backend = get_backend()
+    manager = get_session_manager()
+    session = manager.get_session(session_id)
+
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.project_path:
+        raise HTTPException(
+            status_code=400,
+            detail="Session has no project path configured",
+        )
+
+    from test_ai.tools.safety import PathValidator, SecurityError
+    from test_ai.tools.proposals import ProposalManager
+
+    try:
+        validator = PathValidator(
+            project_path=session.project_path,
+            allowed_paths=session.allowed_paths,
+        )
+        return ProposalManager(backend, validator)
+    except SecurityError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+
+@router.get("/sessions/{session_id}/proposals", response_model=list[ProposalResponse])
+async def list_proposals(
+    session_id: str,
+    status: str | None = Query(None, description="Filter by status"),
+    manager: ChatSessionManager = Depends(get_session_manager),
+) -> list[ProposalResponse]:
+    """List edit proposals for a session."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    if not session.project_path:
+        return []  # No proposals without project path
+
+    proposal_manager = _get_proposal_manager(session_id)
+
+    # Convert status string to enum if provided
+    from test_ai.tools.models import ProposalStatus
+
+    status_filter = ProposalStatus(status) if status else None
+    proposals = proposal_manager.get_session_proposals(session_id, status_filter)
+
+    return [
+        ProposalResponse(
+            id=p.id,
+            session_id=p.session_id,
+            file_path=p.file_path,
+            description=p.description,
+            status=p.status.value,
+            created_at=p.created_at.isoformat(),
+            applied_at=p.applied_at.isoformat() if p.applied_at else None,
+            error_message=p.error_message,
+        )
+        for p in proposals
+    ]
+
+
+@router.get(
+    "/sessions/{session_id}/proposals/{proposal_id}", response_model=ProposalResponse
+)
+async def get_proposal(
+    session_id: str,
+    proposal_id: str,
+    manager: ChatSessionManager = Depends(get_session_manager),
+) -> ProposalResponse:
+    """Get a specific edit proposal with content."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    proposal_manager = _get_proposal_manager(session_id)
+    proposal = proposal_manager.get_proposal(proposal_id)
+
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+
+    if proposal.session_id != session_id:
+        raise HTTPException(
+            status_code=404, detail="Proposal not found in this session"
+        )
+
+    return ProposalResponse(
+        id=proposal.id,
+        session_id=proposal.session_id,
+        file_path=proposal.file_path,
+        description=proposal.description,
+        status=proposal.status.value,
+        created_at=proposal.created_at.isoformat(),
+        applied_at=proposal.applied_at.isoformat() if proposal.applied_at else None,
+        error_message=proposal.error_message,
+        old_content=proposal.old_content,
+        new_content=proposal.new_content,
+    )
+
+
+@router.post(
+    "/sessions/{session_id}/proposals/{proposal_id}/approve",
+    response_model=ProposalResponse,
+)
+async def approve_proposal(
+    session_id: str,
+    proposal_id: str,
+    manager: ChatSessionManager = Depends(get_session_manager),
+) -> ProposalResponse:
+    """Approve and apply an edit proposal."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    proposal_manager = _get_proposal_manager(session_id)
+
+    # Verify proposal belongs to session
+    proposal = proposal_manager.get_proposal(proposal_id)
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if proposal.session_id != session_id:
+        raise HTTPException(
+            status_code=404, detail="Proposal not found in this session"
+        )
+
+    try:
+        approved = proposal_manager.approve_proposal(proposal_id)
+        return ProposalResponse(
+            id=approved.id,
+            session_id=approved.session_id,
+            file_path=approved.file_path,
+            description=approved.description,
+            status=approved.status.value,
+            created_at=approved.created_at.isoformat(),
+            applied_at=approved.applied_at.isoformat() if approved.applied_at else None,
+            error_message=approved.error_message,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Failed to approve proposal: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=f"Failed to apply edit: {e}")
+
+
+@router.post(
+    "/sessions/{session_id}/proposals/{proposal_id}/reject",
+    response_model=ProposalResponse,
+)
+async def reject_proposal(
+    session_id: str,
+    proposal_id: str,
+    request: RejectProposalRequest | None = None,
+    manager: ChatSessionManager = Depends(get_session_manager),
+) -> ProposalResponse:
+    """Reject an edit proposal."""
+    session = manager.get_session(session_id)
+    if not session:
+        raise HTTPException(status_code=404, detail="Session not found")
+
+    proposal_manager = _get_proposal_manager(session_id)
+
+    # Verify proposal belongs to session
+    proposal = proposal_manager.get_proposal(proposal_id)
+    if not proposal:
+        raise HTTPException(status_code=404, detail="Proposal not found")
+    if proposal.session_id != session_id:
+        raise HTTPException(
+            status_code=404, detail="Proposal not found in this session"
+        )
+
+    try:
+        rejected = proposal_manager.reject_proposal(proposal_id)
+        return ProposalResponse(
+            id=rejected.id,
+            session_id=rejected.session_id,
+            file_path=rejected.file_path,
+            description=rejected.description,
+            status=rejected.status.value,
+            created_at=rejected.created_at.isoformat(),
+            applied_at=rejected.applied_at.isoformat() if rejected.applied_at else None,
+            error_message=rejected.error_message,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))

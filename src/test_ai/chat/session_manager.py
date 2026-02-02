@@ -37,6 +37,7 @@ class ChatSessionManager:
         title: str | None = None,
         project_path: str | None = None,
         mode: ChatMode = ChatMode.ASSISTANT,
+        metadata: dict | None = None,
     ) -> ChatSession:
         """Create a new chat session.
 
@@ -44,6 +45,7 @@ class ChatSessionManager:
             title: Optional session title.
             project_path: Optional project path for context.
             mode: Chat mode (assistant or self_improve).
+            metadata: Optional session metadata (e.g., allowed_paths).
 
         Returns:
             Created ChatSession.
@@ -53,8 +55,8 @@ class ChatSessionManager:
         title = title or "New Chat"
 
         query = """
-            INSERT INTO chat_sessions (id, title, project_path, mode, status, created_at, updated_at)
-            VALUES (?, ?, ?, ?, 'active', ?, ?)
+            INSERT INTO chat_sessions (id, title, project_path, mode, status, created_at, updated_at, metadata)
+            VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
         """
         self.backend.execute(
             self.backend.adapt_query(query),
@@ -65,10 +67,16 @@ class ChatSessionManager:
                 mode.value,
                 now.isoformat(),
                 now.isoformat(),
+                json.dumps(metadata) if metadata else None,
             ),
         )
 
         logger.info(f"Created chat session: {session_id}")
+
+        # Determine filesystem_enabled
+        filesystem_enabled = project_path is not None
+        allowed_paths = metadata.get("allowed_paths", []) if metadata else []
+
         return ChatSession(
             id=session_id,
             title=title,
@@ -77,6 +85,9 @@ class ChatSessionManager:
             status="active",
             created_at=now,
             updated_at=now,
+            metadata=metadata or {},
+            filesystem_enabled=filesystem_enabled,
+            allowed_paths=allowed_paths,
         )
 
     def get_session(self, session_id: str) -> ChatSession | None:
