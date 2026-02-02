@@ -228,7 +228,9 @@ class Sandbox:
             )
 
             return SandboxResult(
-                status=SandboxStatus.SUCCESS if result.returncode == 0 else SandboxStatus.FAILED,
+                status=SandboxStatus.SUCCESS
+                if result.returncode == 0
+                else SandboxStatus.FAILED,
                 exit_code=result.returncode,
                 stdout=result.stdout,
                 stderr=result.stderr,

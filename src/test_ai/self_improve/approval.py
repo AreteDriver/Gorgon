@@ -23,9 +23,9 @@ class ApprovalStatus(str, Enum):
 class ApprovalStage(str, Enum):
     """Stage requiring approval."""
 
-    PLAN = "plan"      # Before starting work
-    APPLY = "apply"    # Before applying changes
-    MERGE = "merge"    # Before merging PR
+    PLAN = "plan"  # Before starting work
+    APPLY = "apply"  # Before applying changes
+    MERGE = "merge"  # Before merging PR
 
 
 @dataclass
@@ -211,7 +211,9 @@ class ApprovalGate:
         Args:
             request_id: Request to auto-approve.
         """
-        self.approve(request_id, approved_by="auto_test", reason="Auto-approved for testing")
+        self.approve(
+            request_id, approved_by="auto_test", reason="Auto-approved for testing"
+        )
 
     def get_history(
         self,

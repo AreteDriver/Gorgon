@@ -345,9 +345,7 @@ class SelfImproveOrchestrator:
             description = "\n".join(f"- {s.title}" for s in suggestions)
 
         # Generate implementation steps
-        steps = [
-            f"Implement: {s.title}" for s in suggestions
-        ]
+        steps = [f"Implement: {s.title}" for s in suggestions]
 
         return ImprovementPlan(
             id=str(uuid.uuid4())[:8],

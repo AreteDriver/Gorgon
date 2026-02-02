@@ -2,14 +2,9 @@
 
 from __future__ import annotations
 
-import pytest
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from test_ai.agents import (
-    SupervisorAgent,
     AgentDelegation,
-    AgentProvider,
-    create_agent_provider,
 )
 from test_ai.agents.supervisor import AgentRole, DelegationPlan
 
@@ -107,7 +102,10 @@ class TestDelegationPlan:
         assert plan.analysis == "This is a feature request for user authentication"
         assert len(plan.delegations) == 2
         assert plan.delegations[0]["agent"] == "planner"
-        assert plan.synthesis_approach == "Combine plan and implementation into a complete solution"
+        assert (
+            plan.synthesis_approach
+            == "Combine plan and implementation into a complete solution"
+        )
 
     def test_plan_validation(self):
         """Test DelegationPlan field validation."""

@@ -3,8 +3,7 @@
 from __future__ import annotations
 
 import pytest
-from datetime import datetime, timedelta
-from unittest.mock import AsyncMock, MagicMock, patch
+from datetime import datetime
 
 from test_ai.chat.models import (
     ChatMessage,
@@ -16,7 +15,6 @@ from test_ai.chat.models import (
     ChatSessionResponse,
     StreamChunk,
 )
-from test_ai.chat.session_manager import ChatSessionManager
 
 
 class TestChatModels:

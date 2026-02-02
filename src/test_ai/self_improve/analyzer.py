@@ -259,7 +259,9 @@ class CodebaseAnalyzer:
         suggestions = []
 
         # Check for missing module docstring
-        if not content.strip().startswith('"""') and not content.strip().startswith("'''"):
+        if not content.strip().startswith('"""') and not content.strip().startswith(
+            "'''"
+        ):
             suggestions.append(
                 ImprovementSuggestion(
                     id=f"missing_module_docstring_{file_path}",
@@ -273,7 +275,9 @@ class CodebaseAnalyzer:
             )
 
         # Check for public functions without docstrings
-        function_pattern = re.compile(r"^def\s+(\w+)\s*\([^)]*\)\s*(?:->.*)?:", re.MULTILINE)
+        function_pattern = re.compile(
+            r"^def\s+(\w+)\s*\([^)]*\)\s*(?:->.*)?:", re.MULTILINE
+        )
         for match in function_pattern.finditer(content):
             func_name = match.group(1)
             if func_name.startswith("_"):
@@ -281,8 +285,11 @@ class CodebaseAnalyzer:
 
             # Check if next non-empty line is a docstring
             start_pos = match.end()
-            remaining = content[start_pos:start_pos + 200]
-            if not (remaining.strip().startswith('"""') or remaining.strip().startswith("'''")):
+            remaining = content[start_pos : start_pos + 200]
+            if not (
+                remaining.strip().startswith('"""')
+                or remaining.strip().startswith("'''")
+            ):
                 suggestions.append(
                     ImprovementSuggestion(
                         id=f"missing_docstring_{file_path}_{func_name}",
@@ -328,7 +335,8 @@ class CodebaseAnalyzer:
                 # Count public functions that need tests
                 function_pattern = re.compile(r"^def\s+([a-z]\w*)\s*\(", re.MULTILINE)
                 public_functions = [
-                    m.group(1) for m in function_pattern.finditer(content)
+                    m.group(1)
+                    for m in function_pattern.finditer(content)
                     if not m.group(1).startswith("_")
                 ]
 

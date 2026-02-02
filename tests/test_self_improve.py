@@ -2,29 +2,13 @@
 
 from __future__ import annotations
 
-import pytest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import AsyncMock, MagicMock, patch
 
 from test_ai.self_improve import (
     SafetyConfig,
-    SafetyChecker,
-    CodebaseAnalyzer,
-    ImprovementSuggestion,
-    SelfImproveOrchestrator,
-    Sandbox,
-    SandboxResult,
-    ApprovalGate,
-    ApprovalStatus,
-    RollbackManager,
-    Snapshot,
-    PRManager,
-    PRStatus,
 )
-from test_ai.self_improve.orchestrator import WorkflowStage, ImprovementPlan
-from test_ai.self_improve.safety import SafetyViolation
-from test_ai.self_improve.sandbox import SandboxStatus
+from test_ai.self_improve.orchestrator import WorkflowStage
 
 
 class TestSafetyConfig:

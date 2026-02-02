@@ -105,7 +105,9 @@ class SafetyConfig:
             isolated_execution=sandbox.get("isolated_execution", True),
             sandbox_timeout=sandbox.get("timeout", 300),
             max_snapshots=rollback.get("max_snapshots", 10),
-            auto_rollback_on_test_failure=rollback.get("auto_rollback_on_test_failure", True),
+            auto_rollback_on_test_failure=rollback.get(
+                "auto_rollback_on_test_failure", True
+            ),
         )
 
 

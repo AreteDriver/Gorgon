@@ -1,18 +1,15 @@
 """Integration tests for filesystem tools with supervisor and API."""
 
-import json
-import tempfile
 from pathlib import Path
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
 from test_ai.agents.supervisor import SupervisorAgent
-from test_ai.chat.models import ChatMessage, ChatMode, ChatSession, MessageRole
+from test_ai.chat.models import ChatMode, ChatSession
 from test_ai.tools.models import ProposalStatus
 from test_ai.tools.proposals import ProposalManager
 from test_ai.tools.safety import PathValidator
-from test_ai.tools.filesystem import FilesystemTools
 
 
 class TestSupervisorToolIntegration:
@@ -61,13 +58,13 @@ class TestSupervisorToolIntegration:
         """Test parsing a single tool call from response."""
         supervisor = SupervisorAgent(mock_provider)
 
-        response = '''Let me check the files.
+        response = """Let me check the files.
 
 <tool_call>
 {"tool": "list_files", "path": "."}
 </tool_call>
 
-I'll analyze the results.'''
+I'll analyze the results."""
 
         tool_calls = supervisor._parse_tool_calls(response)
 
@@ -79,7 +76,7 @@ I'll analyze the results.'''
         """Test parsing multiple tool calls from response."""
         supervisor = SupervisorAgent(mock_provider)
 
-        response = '''<tool_call>
+        response = """<tool_call>
 {"tool": "get_structure"}
 </tool_call>
 
@@ -87,7 +84,7 @@ Now let me read a file:
 
 <tool_call>
 {"tool": "read_file", "path": "main.py"}
-</tool_call>'''
+</tool_call>"""
 
         tool_calls = supervisor._parse_tool_calls(response)
 
@@ -100,13 +97,13 @@ Now let me read a file:
         """Test that invalid JSON in tool calls is gracefully ignored."""
         supervisor = SupervisorAgent(mock_provider)
 
-        response = '''<tool_call>
+        response = """<tool_call>
 {"tool": "list_files", invalid json here}
 </tool_call>
 
 <tool_call>
 {"tool": "read_file", "path": "valid.py"}
-</tool_call>'''
+</tool_call>"""
 
         tool_calls = supervisor._parse_tool_calls(response)
 
@@ -439,7 +436,9 @@ class TestProposalManagerIntegration:
         manager.reject_proposal(p1.id)
 
         pending = manager.get_session_proposals("test-session", ProposalStatus.PENDING)
-        rejected = manager.get_session_proposals("test-session", ProposalStatus.REJECTED)
+        rejected = manager.get_session_proposals(
+            "test-session", ProposalStatus.REJECTED
+        )
 
         assert len(pending) == 1
         assert len(rejected) == 1

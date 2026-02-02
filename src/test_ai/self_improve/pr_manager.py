@@ -286,7 +286,9 @@ Please review carefully before merging.
         """
         try:
             # Get default branch name
-            result = self._run_git(["symbolic-ref", "refs/remotes/origin/HEAD", "--short"])
+            result = self._run_git(
+                ["symbolic-ref", "refs/remotes/origin/HEAD", "--short"]
+            )
             default_branch = result.stdout.strip().replace("origin/", "")
 
             self._run_git(["checkout", default_branch])
