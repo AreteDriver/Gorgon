@@ -27,9 +27,11 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api': {
-        target: 'http://localhost:8001',
+        target: 'http://localhost:8000',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        // Long timeout for YAML workflow execution (3 minutes)
+        timeout: 180000,
       },
     },
   },

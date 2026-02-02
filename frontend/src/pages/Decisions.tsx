@@ -71,7 +71,7 @@ export function DecisionsPage() {
   const startExecution = useStartYAMLExecution();
 
   const isRunning = startExecution.isPending;
-  const isCompleted = execution?.status === 'completed';
+  const isCompleted = execution?.status === 'completed' || execution?.status === 'success';
   const isFailed = execution?.status === 'failed' || !!execution?.error;
 
   const handleSubmit = async (e: React.FormEvent) => {
