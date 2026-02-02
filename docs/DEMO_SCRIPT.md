@@ -1,7 +1,8 @@
 # Gorgon Demo Script
 
-**Duration:** 3-5 minutes
+**Duration:** 5-7 minutes
 **Target Audience:** AI Engineering / Solutions Engineering hiring managers
+**Version:** 0.2.0
 
 ---
 
@@ -99,15 +100,58 @@ curl -X POST http://localhost:8000/v1/jobs \
 
 ---
 
-### 7. Production Features (20 seconds)
+### 7. NEW: Chat Interface (45 seconds)
 
-> "Production-ready: job queues, scheduled workflows, webhook triggers, rate limiting, request tracing. 2300+ tests, full CI/CD."
+**Show:** Navigate to Chat tab
+
+> "New in v0.2: a conversational interface. Ask Gorgon anything, and it routes to the right agent."
+
+**Demo:**
+1. Click **Chat** in sidebar
+2. Type: "Help me design a rate limiter for an API"
+3. Watch streaming response with agent attribution
+
+> "Notice the agent badge - the Supervisor routed this to the Architect. Sessions persist, so you can pick up conversations later."
+
+**Show:** Session list, message history
+
+---
+
+### 8. NEW: Self-Improvement System (60 seconds)
+
+**Show:** `config/self_improve_safety.yaml`
+
+> "The most advanced feature: Gorgon can improve its own codebase. But safety comes first."
+
+**Key points:**
+- Protected files (auth, security, credentials)
+- Max 10 files / 500 lines per PR
+- Human approval at plan, apply, and merge stages
+- Auto-rollback on test failures
+
+> "It can refactor code, fix bugs, improve tests - but it can't touch security code or bypass approval gates."
+
+**Show:** Safety config, then approval workflow diagram
+
+---
+
+### 9. Production Features (20 seconds)
+
+> "Production-ready: job queues, scheduled workflows, webhook triggers, rate limiting, request tracing. 3,200+ tests at 83% coverage, full CI/CD."
 
 **Show:** CI badge, test count badge
 
 ---
 
-### 8. Close (15 seconds)
+### 10. Desktop App (15 seconds)
+
+> "And now there's a native desktop app via Tauri - same web UI, native performance."
+
+**Show:** Desktop app screenshot or quick launch
+
+---
+
+### 11. Close (15 seconds)
 
 > "Gorgon turns complex AI workflows into reliable, observable pipelines. Check out the repo at github.com/AreteDriver/Gorgon."
 
@@ -119,9 +163,12 @@ curl -X POST http://localhost:8000/v1/jobs \
 
 - **10 specialized agent roles** (Planner, Builder, Tester, Reviewer, Architect, Documenter, Data Engineer, Analyst, Visualizer, Reporter)
 - **6 integrations** (OpenAI, Claude, GitHub, Notion, Gmail, Slack)
-- **2,300+ tests** with CI/CD
+- **3,200+ tests** at 83% coverage with CI/CD
 - **Docker-ready** with PostgreSQL support
 - **Declarative workflows** as JSON
+- **Chat interface** with session persistence
+- **Self-improvement** with safety guards and human approval
+- **Desktop app** via Tauri
 
 ---
 
@@ -132,6 +179,9 @@ curl -X POST http://localhost:8000/v1/jobs \
 
 ### Webhook Trigger
 > "Trigger workflows from external events - GitHub webhooks, Slack commands, custom integrations."
+
+### Self-Improvement Deep Dive
+> "Let me show you the 10-stage self-improvement workflow: analyze → plan → approve → implement → test → approve → snapshot → apply → PR → approve merge. Every stage has safety checks."
 
 ---
 
