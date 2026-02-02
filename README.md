@@ -9,8 +9,20 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/downloads/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.128+-green.svg)](https://fastapi.tiangolo.com/)
-[![Tests](https://img.shields.io/badge/tests-2353-brightgreen.svg)]()
-[![Coverage](https://img.shields.io/badge/coverage-passing-brightgreen.svg)]()
+[![Tests](https://img.shields.io/badge/tests-3222-brightgreen.svg)]()
+[![Coverage](https://img.shields.io/badge/coverage-83%25-brightgreen.svg)]()
+
+---
+
+## What's New in v0.2.0
+
+🗣️ **Chat Interface** — Conversational AI with session persistence and agent attribution
+
+🤖 **Supervisor Agent** — Intelligent task delegation to specialized sub-agents
+
+🔄 **Self-Improvement System** — Autonomous codebase improvement with safety guards and human approval gates
+
+🖥️ **Desktop App** — Native cross-platform app via Tauri (shares web codebase)
 
 ---
 
@@ -56,6 +68,28 @@ Each head works independently yet in perfect coordination, turning complex workf
 ---
 
 ## Features
+
+### Chat Interface
+Conversational AI with persistent sessions, streaming responses, and agent attribution.
+```bash
+# Start chatting with Gorgon
+curl -X POST http://localhost:8000/v1/chat/sessions \
+  -H "Content-Type: application/json" \
+  -d '{"title": "New Feature Discussion"}'
+```
+
+### Self-Improvement System
+Gorgon can analyze and improve its own codebase under strict safety controls:
+- **Protected files**: Auth, security, and credentials cannot be modified
+- **Change limits**: Max 10 files / 500 lines per PR
+- **Human approval gates**: Required at plan, apply, and merge stages
+- **Auto-rollback**: Reverts on test failures
+
+### Desktop App (Tauri)
+Native cross-platform desktop application sharing the web frontend codebase.
+```bash
+cd src-tauri && cargo tauri dev
+```
 
 ### Multi-Agent Development Workflows
 ```
@@ -228,6 +262,13 @@ Pipeline stages:
 Gorgon/
 ├── src/test_ai/
 │   ├── api.py                    # FastAPI backend
+│   ├── agents/                   # Supervisor & provider wrapper
+│   ├── chat/                     # Chat sessions & messages
+│   ├── self_improve/             # Self-improvement system
+│   │   ├── orchestrator.py       # 10-stage workflow
+│   │   ├── safety.py             # Protected files, limits
+│   │   ├── sandbox.py            # Isolated execution
+│   │   └── rollback.py           # Snapshot/restore
 │   ├── api_clients/
 │   │   ├── openai_client.py      # GPT integration
 │   │   ├── claude_code_client.py # Claude agents
@@ -240,8 +281,11 @@ Gorgon/
 │   │   └── workflow_engine.py    # Core execution engine
 │   ├── skills/                   # Skill context injection
 │   └── workflows/                # JSON workflow definitions
+├── src-tauri/                    # Tauri desktop app (Rust)
+├── frontend/                     # React + TypeScript frontend
 ├── config/
-│   └── agent_prompts.json        # Customizable agent prompts
+│   ├── agent_prompts.json        # Customizable agent prompts
+│   └── self_improve_safety.yaml  # Self-improvement constraints
 ├── docs/
 │   └── claude-code-integration.md
 └── requirements.txt
@@ -411,6 +455,13 @@ Define workflows as JSON:
 - [x] Skill context injection
 - [x] Slack integration
 - [x] API resilience (retry, circuit breaker, fallbacks)
+- [x] **Chat interface** with session persistence
+- [x] **Supervisor agent** for task delegation
+- [x] **Self-improvement system** with safety guards
+- [x] **Desktop app** via Tauri
+- [ ] Plugin marketplace
+- [ ] Multi-tenant support
+- [ ] Workflow version control
 
 ---
 
@@ -451,4 +502,4 @@ MIT License — see [LICENSE](LICENSE)
 
 **Author**: ARETE
 **Status**: Active Development
-**Version**: 1.0.0
+**Version**: 0.2.0
