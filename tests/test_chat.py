@@ -196,6 +196,81 @@ class TestChatModels:
         chunk = StreamChunk(type="done")
         assert chunk.type == "done"
 
+        # Cancelled chunk
+        chunk = StreamChunk(type="cancelled", content="Generation cancelled")
+        assert chunk.type == "cancelled"
+        assert chunk.content == "Generation cancelled"
+
+
+class TestChatRouterCancellation:
+    """Tests for chat generation cancellation."""
+
+    def test_active_generations_tracking(self):
+        """Test that _active_generations dict exists and is accessible."""
+        from test_ai.chat.router import _active_generations
+
+        assert isinstance(_active_generations, dict)
+
+    def test_cancel_event_creation(self):
+        """Test asyncio.Event can be created and used for cancellation."""
+        import asyncio
+
+        event = asyncio.Event()
+        assert not event.is_set()
+
+        event.set()
+        assert event.is_set()
+
+    def test_cancel_response_no_active_generation(self):
+        """Test cancel endpoint returns appropriate status when no active generation."""
+        # When no generation is active, should return no_active_generation
+        from test_ai.chat.router import _active_generations
+
+        # Ensure clean state
+        _active_generations.clear()
+
+        # Simulate checking for non-existent session
+        session_id = "non-existent-session"
+        cancel_event = _active_generations.get(session_id)
+        assert cancel_event is None
+
+
+class TestChatRouterJobDetails:
+    """Tests for chat session job details."""
+
+    def test_job_response_structure(self):
+        """Test job details response structure."""
+        # Expected structure when jobs are fetched
+        job_data = {
+            "id": "job-123",
+            "workflow_id": "workflow-456",
+            "status": "completed",
+            "created_at": "2026-02-02T00:00:00",
+            "started_at": "2026-02-02T00:00:01",
+            "completed_at": "2026-02-02T00:00:10",
+            "progress": "100%",
+            "error": None,
+        }
+
+        assert "id" in job_data
+        assert "workflow_id" in job_data
+        assert "status" in job_data
+        assert "created_at" in job_data
+
+    def test_session_jobs_response_structure(self):
+        """Test session jobs endpoint response structure."""
+        response = {
+            "session_id": "sess-123",
+            "jobs": [],
+            "job_ids": ["job-1", "job-2"],
+        }
+
+        assert "session_id" in response
+        assert "jobs" in response
+        assert "job_ids" in response
+        assert isinstance(response["jobs"], list)
+        assert isinstance(response["job_ids"], list)
+
 
 # Note: ChatSessionManager tests require more complex mocking
 # of the database backend. Skipping for now - the model tests

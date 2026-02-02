@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import logging
 import re
+import uuid
 from dataclasses import dataclass, field
 from enum import Enum
 from pathlib import Path
@@ -375,8 +377,109 @@ class CodebaseAnalyzer:
         # First do static analysis
         static_result = self.analyze()
 
-        # TODO: Enhance with AI analysis
-        # This would send code to the AI for deeper analysis
-        # For now, just return static analysis
+        # Read code to analyze
+        code_samples = []
+        if focus_file:
+            focus_path = self.codebase_path / focus_file
+            if focus_path.exists() and focus_path.is_file():
+                code_samples.append((focus_file, focus_path.read_text()[:5000]))
+        else:
+            # Sample a few Python files from the codebase
+            py_files = list(self.codebase_path.rglob("*.py"))
+            for py_file in py_files[:3]:  # Limit to 3 files
+                rel_path = py_file.relative_to(self.codebase_path)
+                if not any(
+                    part.startswith(".") or part == "__pycache__"
+                    for part in rel_path.parts
+                ):
+                    try:
+                        code_samples.append((str(rel_path), py_file.read_text()[:3000]))
+                    except Exception:
+                        pass
+
+        if not code_samples:
+            return static_result
+
+        # Build prompt for AI analysis
+        code_context = "\n\n".join(
+            f"=== {path} ===\n{code}" for path, code in code_samples
+        )
+        prompt = f"""Analyze the following Python code and suggest improvements.
+Focus on: code quality, potential bugs, performance, and maintainability.
+
+{code_context}
+
+Return your suggestions as a JSON array with this structure:
+[
+  {{
+    "category": "refactoring|bug_fixes|documentation|test_coverage|performance|code_quality",
+    "title": "Brief title",
+    "description": "Detailed description",
+    "affected_files": ["file1.py"],
+    "priority": 1-5,
+    "reasoning": "Why this improvement matters",
+    "implementation_hints": "How to implement"
+  }}
+]
+
+Return ONLY the JSON array, no other text."""
+
+        try:
+            response = await self.provider.complete(
+                [
+                    {"role": "system", "content": "You are a code review expert."},
+                    {"role": "user", "content": prompt},
+                ]
+            )
+
+            # Parse AI suggestions
+            ai_suggestions = self._parse_ai_suggestions(response)
+
+            # Merge AI suggestions with static analysis
+            static_result.suggestions.extend(ai_suggestions)
+            logger.info(f"AI analysis added {len(ai_suggestions)} suggestions")
+
+        except Exception as e:
+            logger.warning(f"AI analysis failed: {e}")
 
         return static_result
+
+    def _parse_ai_suggestions(self, response: str) -> list[ImprovementSuggestion]:
+        """Parse AI response into ImprovementSuggestion objects."""
+        suggestions = []
+
+        # Try to extract JSON from response
+        try:
+            # Handle markdown code blocks
+            if "```json" in response:
+                response = response.split("```json")[1].split("```")[0]
+            elif "```" in response:
+                response = response.split("```")[1].split("```")[0]
+
+            data = json.loads(response.strip())
+            if not isinstance(data, list):
+                data = [data]
+
+            for item in data:
+                try:
+                    category_str = item.get("category", "code_quality").lower()
+                    category = ImprovementCategory(category_str)
+                except ValueError:
+                    category = ImprovementCategory.CODE_QUALITY
+
+                suggestion = ImprovementSuggestion(
+                    id=f"ai-{uuid.uuid4().hex[:8]}",
+                    category=category,
+                    title=item.get("title", "AI Suggestion"),
+                    description=item.get("description", ""),
+                    affected_files=item.get("affected_files", []),
+                    priority=min(5, max(1, int(item.get("priority", 3)))),
+                    reasoning=item.get("reasoning", ""),
+                    implementation_hints=item.get("implementation_hints", ""),
+                )
+                suggestions.append(suggestion)
+
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse AI response as JSON: {e}")
+
+        return suggestions

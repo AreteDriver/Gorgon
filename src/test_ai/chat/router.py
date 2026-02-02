@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from typing import TYPE_CHECKING, AsyncGenerator
 
@@ -30,6 +31,9 @@ router = APIRouter(prefix="/chat", tags=["chat"])
 _session_manager: ChatSessionManager | None = None
 _supervisor_factory = None  # Factory function for creating supervisor
 _backend: "DatabaseBackend | None" = None
+
+# Track active generation tasks for cancellation
+_active_generations: dict[str, asyncio.Event] = {}
 
 
 def get_session_manager() -> ChatSessionManager:
@@ -220,21 +224,25 @@ async def send_message(
         title = manager.generate_title(session_id)
         manager.update_session(session_id, title=title)
 
+    # Create cancellation event for this generation
+    cancel_event = asyncio.Event()
+    _active_generations[session_id] = cancel_event
+
     # Stream response
     async def generate() -> AsyncGenerator[str, None]:
         """Generate SSE stream."""
-        if _supervisor_factory is None:
-            # No supervisor available, return simple acknowledgment
-            chunk = StreamChunk(
-                type="text",
-                content="I received your message, but the AI backend is not configured.",
-                agent="system",
-            )
-            yield f"data: {chunk.model_dump_json()}\n\n"
-            yield f"data: {StreamChunk(type='done').model_dump_json()}\n\n"
-            return
-
         try:
+            if _supervisor_factory is None:
+                # No supervisor available, return simple acknowledgment
+                chunk = StreamChunk(
+                    type="text",
+                    content="I received your message, but the AI backend is not configured.",
+                    agent="system",
+                )
+                yield f"data: {chunk.model_dump_json()}\n\n"
+                yield f"data: {StreamChunk(type='done').model_dump_json()}\n\n"
+                return
+
             # Create supervisor with session and backend context
             supervisor = _supervisor_factory(
                 mode=session.mode,
@@ -248,12 +256,22 @@ async def send_message(
             # Process message through supervisor
             full_response = ""
             current_agent = "supervisor"
+            cancelled = False
 
             async for chunk_data in supervisor.process_message(
                 content=request.content,
                 messages=messages[:-1],  # Exclude the just-added user message
                 project_path=session.project_path,
             ):
+                # Check for cancellation
+                if cancel_event.is_set():
+                    cancelled = True
+                    cancel_chunk = StreamChunk(
+                        type="cancelled", content="Generation cancelled"
+                    )
+                    yield f"data: {cancel_chunk.model_dump_json()}\n\n"
+                    break
+
                 chunk_type = chunk_data.get("type", "text")
                 content = chunk_data.get("content", "")
                 agent = chunk_data.get("agent", current_agent)
@@ -273,12 +291,12 @@ async def send_message(
                 )
                 yield f"data: {chunk.model_dump_json()}\n\n"
 
-            # Store assistant response
+            # Store assistant response (even partial if cancelled)
             if full_response:
                 manager.add_message(
                     session_id=session_id,
                     role=MessageRole.ASSISTANT,
-                    content=full_response,
+                    content=full_response + (" [cancelled]" if cancelled else ""),
                     agent=current_agent,
                 )
 
@@ -293,6 +311,9 @@ async def send_message(
                 role=MessageRole.SYSTEM,
                 content=f"Error: {str(e)}",
             )
+        finally:
+            # Clean up cancellation tracking
+            _active_generations.pop(session_id, None)
 
     return StreamingResponse(
         generate(),
@@ -312,14 +333,20 @@ async def cancel_generation(
 ):
     """Cancel an ongoing generation.
 
-    Note: This is a placeholder. Actual cancellation requires
-    tracking active generation tasks.
+    Sets the cancellation event for the session, which will cause
+    the streaming generator to stop and return a cancelled chunk.
     """
     session = manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # TODO: Implement actual cancellation via task tracking
+    # Check if there's an active generation for this session
+    cancel_event = _active_generations.get(session_id)
+    if cancel_event is None:
+        return {"status": "no_active_generation"}
+
+    # Signal cancellation
+    cancel_event.set()
     return {"status": "cancelled"}
 
 
@@ -333,15 +360,42 @@ async def get_session_jobs(
     session_id: str,
     manager: ChatSessionManager = Depends(get_session_manager),
 ):
-    """Get jobs linked to a chat session."""
+    """Get jobs linked to a chat session with full details."""
     session = manager.get_session(session_id)
     if not session:
         raise HTTPException(status_code=404, detail="Session not found")
 
     job_ids = manager.get_session_jobs(session_id)
 
-    # TODO: Fetch full job details from JobManager
-    return {"session_id": session_id, "job_ids": job_ids}
+    # Fetch full job details from JobManager
+    jobs = []
+    try:
+        from test_ai.api import job_manager
+
+        if job_manager:
+            for job_id in job_ids:
+                job = job_manager.get_job(job_id)
+                if job:
+                    jobs.append(
+                        {
+                            "id": job.id,
+                            "workflow_id": job.workflow_id,
+                            "status": job.status.value,
+                            "created_at": job.created_at.isoformat(),
+                            "started_at": job.started_at.isoformat()
+                            if job.started_at
+                            else None,
+                            "completed_at": job.completed_at.isoformat()
+                            if job.completed_at
+                            else None,
+                            "progress": job.progress,
+                            "error": job.error,
+                        }
+                    )
+    except ImportError:
+        logger.warning("JobManager not available, returning job IDs only")
+
+    return {"session_id": session_id, "jobs": jobs, "job_ids": job_ids}
 
 
 # ============================================================================

@@ -111,3 +111,78 @@ class TestWorkflowStage:
 # Note: SelfImproveOrchestrator integration tests require
 # more complex mocking. The config and workflow stage tests
 # above provide coverage of core data structures.
+
+
+class TestCodebaseAnalyzer:
+    """Tests for CodebaseAnalyzer."""
+
+    def test_analyzer_creation(self):
+        """Test creating an analyzer."""
+        from test_ai.self_improve.analyzer import CodebaseAnalyzer
+
+        analyzer = CodebaseAnalyzer(codebase_path=".")
+        assert analyzer.codebase_path == Path(".")
+        assert analyzer.provider is None
+
+    def test_parse_ai_suggestions_valid_json(self):
+        """Test parsing valid AI suggestions."""
+        from test_ai.self_improve.analyzer import (
+            CodebaseAnalyzer,
+            ImprovementCategory,
+        )
+
+        analyzer = CodebaseAnalyzer()
+        response = """[
+            {
+                "category": "refactoring",
+                "title": "Extract method",
+                "description": "Extract common logic",
+                "affected_files": ["src/main.py"],
+                "priority": 2,
+                "reasoning": "Reduces duplication",
+                "implementation_hints": "Use helper function"
+            }
+        ]"""
+
+        suggestions = analyzer._parse_ai_suggestions(response)
+        assert len(suggestions) == 1
+        assert suggestions[0].category == ImprovementCategory.REFACTORING
+        assert suggestions[0].title == "Extract method"
+        assert suggestions[0].priority == 2
+
+    def test_parse_ai_suggestions_with_code_block(self):
+        """Test parsing AI suggestions wrapped in markdown code block."""
+        from test_ai.self_improve.analyzer import CodebaseAnalyzer
+
+        analyzer = CodebaseAnalyzer()
+        response = """```json
+[{"category": "bug_fixes", "title": "Fix bug", "description": "Desc", "affected_files": []}]
+```"""
+
+        suggestions = analyzer._parse_ai_suggestions(response)
+        assert len(suggestions) == 1
+        assert suggestions[0].title == "Fix bug"
+
+    def test_parse_ai_suggestions_invalid_json(self):
+        """Test parsing invalid JSON returns empty list."""
+        from test_ai.self_improve.analyzer import CodebaseAnalyzer
+
+        analyzer = CodebaseAnalyzer()
+        response = "This is not valid JSON"
+
+        suggestions = analyzer._parse_ai_suggestions(response)
+        assert len(suggestions) == 0
+
+    def test_parse_ai_suggestions_invalid_category(self):
+        """Test parsing with invalid category falls back to code_quality."""
+        from test_ai.self_improve.analyzer import (
+            CodebaseAnalyzer,
+            ImprovementCategory,
+        )
+
+        analyzer = CodebaseAnalyzer()
+        response = '[{"category": "invalid_category", "title": "Test", "description": "Desc", "affected_files": []}]'
+
+        suggestions = analyzer._parse_ai_suggestions(response)
+        assert len(suggestions) == 1
+        assert suggestions[0].category == ImprovementCategory.CODE_QUALITY
