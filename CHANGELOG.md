@@ -7,16 +7,35 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-02-01
+
 ### Added
-- Comprehensive README with project overview and features
-- CONTRIBUTING.md with contribution guidelines
-- ARCHITECTURE.md with technical architecture details
-- LICENSE file (MIT License)
-- Structured docs/ directory with documentation index
-- examples/ directory with sample workflows
-- tests/ directory structure for future test implementation
-- Enhanced .gitignore for better repository hygiene
-- CHANGELOG.md for tracking project changes
+- **Chat Interface** - Conversational AI interface with session persistence
+  - `ChatSessionManager`: Session lifecycle and message storage
+  - `ChatMessage`, `ChatSession`, `ChatMode` models
+  - FastAPI routes for chat CRUD and streaming responses
+  - Full React frontend with markdown/code rendering
+  - Agent attribution on messages (shows which agent authored each response)
+  - Session history and archival
+- **Supervisor Agent** - Intelligent task delegation system
+  - `SupervisorAgent`: Analyzes requests and delegates to specialized sub-agents
+  - `AgentProvider`: Abstraction layer for AI providers (OpenAI, Anthropic)
+  - `AgentDelegation`: Tracks delegation decisions and results
+  - Routes tasks to Planner, Builder, Tester, Reviewer, etc. based on intent
+- **Self-Improvement System** - Autonomous codebase improvement with safety guards
+  - 10-stage workflow: analyze → plan → approve → implement → test → approve → snapshot → apply → PR → approve
+  - `SafetyChecker`: Protected files (auth, security, credentials), change limits (10 files, 500 lines max)
+  - `ApprovalGate`: Human approval required at plan, apply, and merge stages
+  - `RollbackManager`: Snapshot/restore capability for safe rollback
+  - `Sandbox`: Isolated execution environment for testing changes
+  - `PRManager`: Automatic branch and PR creation
+  - Auto-rollback on test failures
+  - Cannot modify its own safety module (no recursive self-modification)
+- **Tauri Desktop App** - Native cross-platform desktop application
+  - Tauri 2.0 with shell, notification, fs, dialog plugins
+  - Git operations via git2 crate
+  - Shares web frontend codebase
+  - Release-optimized builds (LTO, stripped, size-optimized)
 - **Parallel Agent Execution** with rate-limited parallel execution for AI workflows
   - `RateLimitedParallelExecutor`: Per-provider concurrency control with semaphores
   - `AdaptiveRateLimitConfig/State`: Dynamic rate limit adjustment based on 429 responses
@@ -27,13 +46,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - `Provider.complete_async()` and `Provider.generate_async()`
   - `ProviderManager.complete_async()` with fallback support
   - `ClaudeCodeClient.execute_agent_async()` for async agent execution
-- **Documentation**: Added `docs/PARALLEL_EXECUTION.md` with usage guide
+- **Documentation**
+  - `docs/PARALLEL_EXECUTION.md` with usage guide
+  - Comprehensive README, CONTRIBUTING.md, ARCHITECTURE.md
+  - Structured docs/ directory with documentation index
+  - examples/ directory with sample workflows
 
 ### Changed
 - Improved repository structure with proper organization
 - Updated documentation to be more comprehensive
 - `WorkflowEngineAdapter` now the recommended way to interact with workflows
 - Deprecated `WorkflowEngine` class (use `WorkflowEngineAdapter` instead)
+- 3,200+ tests with 83% coverage
 
 ## [0.1.0] - 2024-12-08
 
@@ -65,5 +89,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive web dashboard
 - Health check endpoints
 
-[Unreleased]: https://github.com/AreteDriver/Gorgon/compare/v0.1.0...HEAD
+[Unreleased]: https://github.com/AreteDriver/Gorgon/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/AreteDriver/Gorgon/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AreteDriver/Gorgon/releases/tag/v0.1.0
