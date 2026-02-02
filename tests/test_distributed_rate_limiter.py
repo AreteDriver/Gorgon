@@ -193,11 +193,12 @@ class TestSQLiteRateLimiter:
     @pytest.mark.asyncio
     async def test_concurrent_acquires(self, limiter):
         """Handles concurrent acquires correctly."""
-        tasks = [limiter.acquire("test", limit=100) for _ in range(10)]
+        # Use long window (3600s) to avoid crossing minute boundaries during test
+        tasks = [limiter.acquire("test", limit=100, window_seconds=3600) for _ in range(10)]
         results = await asyncio.gather(*tasks)
 
         assert all(r.allowed for r in results)
-        final = await limiter.get_current("test")
+        final = await limiter.get_current("test", window_seconds=3600)
         assert final == 10
 
 
