@@ -17,6 +17,10 @@ from .base import (
 )
 from .openai_provider import OpenAIProvider
 from .anthropic_provider import AnthropicProvider
+from .azure_openai_provider import AzureOpenAIProvider
+from .bedrock_provider import BedrockProvider
+from .vertex_provider import VertexProvider
+from .ollama_provider import OllamaProvider
 
 
 logger = logging.getLogger(__name__)
@@ -37,6 +41,10 @@ class ProviderManager:
     PROVIDER_CLASSES: dict[ProviderType, type[Provider]] = {
         ProviderType.OPENAI: OpenAIProvider,
         ProviderType.ANTHROPIC: AnthropicProvider,
+        ProviderType.AZURE_OPENAI: AzureOpenAIProvider,
+        ProviderType.BEDROCK: BedrockProvider,
+        ProviderType.VERTEX: VertexProvider,
+        ProviderType.OLLAMA: OllamaProvider,
     }
 
     def __init__(self):
