@@ -251,9 +251,9 @@ class PromptEvolution:
             # Pick the variant with the highest EMA quality
             best_variant = max(
                 variants,
-                key=lambda v: self._stats.get(
-                    v.variant_id, _RunningStats()
-                ).ema_quality,
+                key=lambda v: (
+                    self._stats.get(v.variant_id, _RunningStats()).ema_quality
+                ),
             )
             logger.debug(
                 "Exploitation: selected best variant '%s' (quality=%.3f) for '%s'",
@@ -586,9 +586,9 @@ class PromptEvolution:
             # Pick variant with best quality as the base
             best = max(
                 variants,
-                key=lambda v: self._stats.get(
-                    v.variant_id, _RunningStats()
-                ).ema_quality,
+                key=lambda v: (
+                    self._stats.get(v.variant_id, _RunningStats()).ema_quality
+                ),
             )
             base_prompt = best.user_prompt
             base_system = best.system_prompt
