@@ -34,13 +34,14 @@ try:
 except ImportError:
     NEW_COMPONENTS_AVAILABLE = False
 
-# Import workflow builder
-try:
-    from test_ai.dashboard.workflow_builder import render_workflow_builder
+def _get_workflow_builder_renderer():
+    """Get the workflow builder renderer, importing lazily."""
+    try:
+        from test_ai.dashboard.workflow_builder import render_workflow_builder
 
-    WORKFLOW_BUILDER_AVAILABLE = True
-except ImportError:
-    WORKFLOW_BUILDER_AVAILABLE = False
+        return render_workflow_builder
+    except ImportError:
+        return None
 
 
 # Initialize components
@@ -417,6 +418,15 @@ def _render_builder_fallback():
     )
 
 
+def _render_builder_page():
+    """Render builder page with lazy import."""
+    renderer = _get_workflow_builder_renderer()
+    if renderer:
+        renderer()
+    else:
+        _render_builder_fallback()
+
+
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
     "Costs": render_cost_dashboard
@@ -427,9 +437,7 @@ _PAGE_RENDERERS = {
     "Agents": render_agents_page,
     "Metrics": render_metrics_page,
     "Analytics": render_analytics_page,
-    "Builder": render_workflow_builder
-    if WORKFLOW_BUILDER_AVAILABLE
-    else _render_builder_fallback,
+    "Builder": _render_builder_page,
     "Workflows": render_workflows_page,
     "Prompts": render_prompts_page,
     "Execute": render_execute_page,
