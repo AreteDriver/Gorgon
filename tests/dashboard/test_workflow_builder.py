@@ -1,9 +1,8 @@
 """Tests for the visual workflow builder."""
 
-from pathlib import Path
-from unittest.mock import MagicMock, patch
-
 import pytest
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from test_ai.dashboard.workflow_builder import (
     NODE_TYPE_CONFIG,
@@ -304,6 +303,7 @@ class TestPersistence:
 
     def test_get_workflows_dir_fallback(self, monkeypatch):
         """Should fall back to local workflows dir on error."""
+        # Mock get_settings to raise an exception
         monkeypatch.setattr(
             "test_ai.dashboard.workflow_builder.get_settings",
             MagicMock(side_effect=Exception("No settings")),
@@ -318,12 +318,11 @@ class TestPersistence:
         ) as mock_dir:
             mock_dir.return_value = Path("/tmp/test_workflows")
             result = _get_builder_state_path("Test Workflow!")
-            assert result == Path(
-                "/tmp/test_workflows/.builder_state/test_workflow_.json"
-            )
+            assert result == Path("/tmp/test_workflows/.builder_state/test_workflow_.json")
 
     def test_save_and_load_builder_state(self, mock_session_state, tmp_path):
         """Should save and load builder state correctly."""
+        # Setup mock session state
         mock_session_state.builder_nodes = [
             {"id": "node-1", "type": "claude_code", "position": {"x": 100, "y": 200}}
         ]
@@ -339,11 +338,14 @@ class TestPersistence:
         ) as mock_dir:
             mock_dir.return_value = tmp_path
 
+            # Save state
             _save_builder_state("Test Workflow")
 
+            # Reset state
             mock_session_state.builder_nodes = []
             mock_session_state.builder_edges = []
 
+            # Load state
             result = _load_builder_state("Test Workflow")
 
             assert result is True
@@ -363,15 +365,12 @@ class TestPersistence:
 
     def test_list_saved_workflows(self, tmp_path):
         """Should list saved workflows with metadata."""
+        # Create test workflow files
         wf1 = tmp_path / "workflow1.yaml"
-        wf1.write_text(
-            "name: Workflow One\nversion: '1.0'\ndescription: First\nsteps: []"
-        )
+        wf1.write_text("name: Workflow One\nversion: '1.0'\ndescription: First\nsteps: []")
 
         wf2 = tmp_path / "workflow2.yaml"
-        wf2.write_text(
-            "name: Workflow Two\nversion: '2.0'\nsteps:\n  - id: step1\n    type: shell"
-        )
+        wf2.write_text("name: Workflow Two\nversion: '2.0'\nsteps:\n  - id: step1\n    type: shell")
 
         with patch(
             "test_ai.dashboard.workflow_builder._get_workflows_dir"
@@ -387,6 +386,7 @@ class TestPersistence:
 
     def test_new_workflow(self, mock_session_state):
         """Should reset all state to defaults."""
+        # Set up non-default state
         mock_session_state.builder_nodes = [{"id": "node1"}]
         mock_session_state.builder_current_file = Path("/tmp/test.yaml")
         mock_session_state.builder_dirty = True

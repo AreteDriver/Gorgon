@@ -139,9 +139,9 @@ def _init_session_state():
         st.session_state.connection_source = None
     # Persistence state
     if "builder_current_file" not in st.session_state:
-        st.session_state.builder_current_file = None
+        st.session_state.builder_current_file = None  # Path to current workflow file
     if "builder_dirty" not in st.session_state:
-        st.session_state.builder_dirty = False
+        st.session_state.builder_dirty = False  # True if unsaved changes exist
 
 
 def _get_workflows_dir() -> Path:
@@ -149,11 +149,12 @@ def _get_workflows_dir() -> Path:
     try:
         return get_settings().workflows_dir
     except Exception:
+        # Fallback to local workflows directory
         return Path("workflows")
 
 
 def _get_builder_state_path(workflow_name: str) -> Path:
-    """Get path for builder state JSON (preserves node positions)."""
+    """Get path for builder state JSON (preserves node positions/metadata)."""
     workflows_dir = _get_workflows_dir()
     builder_dir = workflows_dir / ".builder_state"
     builder_dir.mkdir(parents=True, exist_ok=True)
@@ -220,6 +221,13 @@ def _list_saved_workflows() -> list[dict]:
             })
         except Exception as e:
             logger.warning(f"Failed to load workflow {yaml_path}: {e}")
+            workflows.append({
+                "path": yaml_path,
+                "name": yaml_path.stem,
+                "version": "?",
+                "description": f"Error: {e}",
+                "steps": 0,
+            })
     return workflows
 
 
@@ -234,11 +242,18 @@ def _save_workflow_yaml(filepath: Path | None = None) -> Path | None:
         workflows_dir = _get_workflows_dir()
         workflows_dir.mkdir(parents=True, exist_ok=True)
         safe_name = re.sub(r"[^\w\-]", "_", workflow["name"].lower())
+        safe_name = safe_name.strip("_")[:50] or "workflow"
         filepath = workflows_dir / f"{safe_name}.yaml"
+
+        # Ensure filepath stays within workflows_dir
+        if not filepath.resolve().is_relative_to(workflows_dir.resolve()):
+            logger.error("Invalid workflow name - path traversal attempt")
+            return None
 
     try:
         with open(filepath, "w") as f:
             yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
+        # Also save builder state for positions
         _save_builder_state(workflow["name"])
         st.session_state.builder_current_file = filepath
         st.session_state.builder_dirty = False
@@ -249,37 +264,22 @@ def _save_workflow_yaml(filepath: Path | None = None) -> Path | None:
         return None
 
 
-def _load_workflow_from_file(filepath: Path) -> bool:
-    """Load a workflow from a YAML file, trying builder state first."""
-    try:
-        with open(filepath) as f:
-            data = yaml.safe_load(f)
-        workflow_name = data.get("name", filepath.stem)
-
-        # Try to load builder state (preserves positions)
-        if _load_builder_state(workflow_name):
-            st.session_state.builder_current_file = filepath
-            return True
-
-        # Fall back to loading from YAML (recalculates positions)
-        _load_yaml_to_state(data)
-        st.session_state.builder_current_file = filepath
-        return True
-    except Exception as e:
-        logger.error(f"Failed to load workflow from {filepath}: {e}")
-        return False
-
-
 def _delete_workflow(filepath: Path) -> bool:
     """Delete a workflow YAML and its builder state."""
     try:
+        # Load to get name for state file
         with open(filepath) as f:
             data = yaml.safe_load(f)
         workflow_name = data.get("name", filepath.stem)
+
+        # Delete YAML
         filepath.unlink()
+
+        # Delete builder state if exists
         state_path = _get_builder_state_path(workflow_name)
         if state_path.exists():
             state_path.unlink()
+
         logger.info(f"Deleted workflow {filepath}")
         return True
     except Exception as e:
@@ -974,6 +974,27 @@ def _load_yaml_to_state(workflow_data: dict):
     st.session_state.builder_dirty = False
 
 
+def _load_workflow_from_file(filepath: Path) -> bool:
+    """Load a workflow from a YAML file, trying builder state first."""
+    try:
+        with open(filepath) as f:
+            data = yaml.safe_load(f)
+        workflow_name = data.get("name", filepath.stem)
+
+        # Try to load builder state (preserves positions)
+        if _load_builder_state(workflow_name):
+            st.session_state.builder_current_file = filepath
+            return True
+
+        # Fall back to loading from YAML (recalculates positions)
+        _load_yaml_to_state(data)
+        st.session_state.builder_current_file = filepath
+        return True
+    except Exception as e:
+        logger.error(f"Failed to load workflow from {filepath}: {e}")
+        return False
+
+
 def _render_yaml_preview():
     """Render YAML preview and export options."""
     st.markdown("### YAML Preview")
@@ -1007,7 +1028,7 @@ def _render_yaml_preview():
         )
 
     with col2:
-        # Save to workflows directory using persistence
+        # Save to workflows directory
         if st.button("Save to Workflows", disabled=bool(errors)):
             filepath = _save_workflow_yaml()
             if filepath:
@@ -1241,7 +1262,7 @@ def render_workflow_builder():
             "Save",
             use_container_width=True,
             disabled=save_disabled,
-            help="Save workflow",
+            help="Save workflow (Ctrl+S)",
         ):
             filepath = _save_workflow_yaml()
             if filepath:
