@@ -34,6 +34,14 @@ try:
 except ImportError:
     NEW_COMPONENTS_AVAILABLE = False
 
+# Import workflow builder
+try:
+    from test_ai.dashboard.workflow_builder import render_workflow_builder
+
+    WORKFLOW_BUILDER_AVAILABLE = True
+except ImportError:
+    WORKFLOW_BUILDER_AVAILABLE = False
+
 
 # Initialize components
 @st.cache_resource
@@ -66,6 +74,7 @@ def render_sidebar():
         "Agents": "🤖",
         "Metrics": "📈",
         "Analytics": "🔬",
+        "Builder": "🎨",
         "Workflows": "⚙️",
         "Prompts": "📝",
         "Execute": "▶️",
@@ -120,14 +129,19 @@ def render_dashboard_page():
 
     st.subheader("Quick Actions")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
+        if st.button("🎨 Visual Builder", use_container_width=True):
+            st.session_state.page = "Builder"
+            st.rerun()
+
+    with col2:
         if st.button("🆕 Create Workflow", use_container_width=True):
             st.session_state.page = "Workflows"
             st.rerun()
 
-    with col2:
+    with col3:
         if st.button("📝 Create Prompt", use_container_width=True):
             st.session_state.page = "Prompts"
             st.rerun()
@@ -395,6 +409,12 @@ def render_logs_page():
         st.info("No logs found. Execute a workflow to generate logs.")
 
 
+def _render_builder_fallback():
+    """Fallback when workflow builder is not available."""
+    st.title("🎨 Visual Workflow Builder")
+    st.warning("Workflow builder component not available. Please check your installation.")
+
+
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
     "Costs": render_cost_dashboard
@@ -405,6 +425,9 @@ _PAGE_RENDERERS = {
     "Agents": render_agents_page,
     "Metrics": render_metrics_page,
     "Analytics": render_analytics_page,
+    "Builder": render_workflow_builder
+    if WORKFLOW_BUILDER_AVAILABLE
+    else _render_builder_fallback,
     "Workflows": render_workflows_page,
     "Prompts": render_prompts_page,
     "Execute": render_execute_page,
