@@ -253,9 +253,7 @@ class Evaluator(ABC):
         import asyncio
 
         loop = asyncio.get_event_loop()
-        return await loop.run_in_executor(
-            None, lambda: self.evaluate(case, metrics)
-        )
+        return await loop.run_in_executor(None, lambda: self.evaluate(case, metrics))
 
 
 class AgentEvaluator(Evaluator):

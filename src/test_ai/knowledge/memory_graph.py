@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from collections import defaultdict
 from pathlib import Path
-from typing import Any
 
 from .base import (
     Entity,
@@ -42,9 +41,15 @@ class MemoryKnowledgeGraph(KnowledgeGraph):
         # Indexes
         self._entity_by_name: dict[str, str] = {}  # name -> id
         self._entity_by_type: dict[str, set[str]] = defaultdict(set)  # type -> ids
-        self._triples_by_subject: dict[str, set[str]] = defaultdict(set)  # entity_id -> triple_ids
-        self._triples_by_object: dict[str, set[str]] = defaultdict(set)  # entity_id -> triple_ids
-        self._triples_by_relation: dict[str, set[str]] = defaultdict(set)  # relation -> triple_ids
+        self._triples_by_subject: dict[str, set[str]] = defaultdict(
+            set
+        )  # entity_id -> triple_ids
+        self._triples_by_object: dict[str, set[str]] = defaultdict(
+            set
+        )  # entity_id -> triple_ids
+        self._triples_by_relation: dict[str, set[str]] = defaultdict(
+            set
+        )  # relation -> triple_ids
 
         self._persist_path = Path(persist_path) if persist_path else None
 
@@ -172,10 +177,9 @@ class MemoryKnowledgeGraph(KnowledgeGraph):
             return False
 
         # Delete related triples
-        triple_ids = (
-            self._triples_by_subject.get(entity_id, set())
-            | self._triples_by_object.get(entity_id, set())
-        )
+        triple_ids = self._triples_by_subject.get(
+            entity_id, set()
+        ) | self._triples_by_object.get(entity_id, set())
         for triple_id in list(triple_ids):
             self.delete_triple(triple_id)
 

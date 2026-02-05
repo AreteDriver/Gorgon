@@ -294,9 +294,7 @@ class Provider(ABC):
         except Exception:
             return False
 
-    def complete_stream(
-        self, request: CompletionRequest
-    ) -> Iterator[StreamChunk]:
+    def complete_stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
         """Generate a streaming completion.
 
         Default implementation yields single chunk from non-streaming response.

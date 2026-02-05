@@ -103,9 +103,7 @@ class BedrockProvider(Provider):
             return False
         try:
             # Try to get credentials
-            session = boto3.Session(
-                profile_name=self.config.metadata.get("profile")
-            )
+            session = boto3.Session(profile_name=self.config.metadata.get("profile"))
             credentials = session.get_credentials()
             return credentials is not None
         except Exception:

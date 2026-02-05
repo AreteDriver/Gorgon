@@ -160,7 +160,9 @@ class SentenceTransformerEmbeddings(EmbeddingProvider):
 
         self._model_name = model
         self._model = SentenceTransformer(model, device=device)
-        self._dim = self.MODELS.get(model, self._model.get_sentence_embedding_dimension())
+        self._dim = self.MODELS.get(
+            model, self._model.get_sentence_embedding_dimension()
+        )
 
     @property
     def dimension(self) -> int:

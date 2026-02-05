@@ -491,6 +491,8 @@ class KnowledgeGraph(ABC):
                 if triple.subject.id == entity_obj.id:
                     lines.append(f"- {triple.relation_name} {triple.object.name}")
                 else:
-                    lines.append(f"- {triple.subject.name} {triple.relation_name} (this)")
+                    lines.append(
+                        f"- {triple.subject.name} {triple.relation_name} (this)"
+                    )
 
         return "\n".join(lines)

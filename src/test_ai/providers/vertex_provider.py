@@ -113,9 +113,11 @@ class VertexProvider(Provider):
 
         import os
 
-        project = self.config.metadata.get("project") or os.environ.get(
-            "GOOGLE_CLOUD_PROJECT"
-        ) or os.environ.get("GCLOUD_PROJECT")
+        project = (
+            self.config.metadata.get("project")
+            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or os.environ.get("GCLOUD_PROJECT")
+        )
         location = self.config.metadata.get("location", "us-central1")
 
         if not project:
@@ -190,8 +192,14 @@ class VertexProvider(Provider):
 
         # Extract usage
         usage_metadata = getattr(response, "usage_metadata", None)
-        input_tokens = getattr(usage_metadata, "prompt_token_count", 0) if usage_metadata else 0
-        output_tokens = getattr(usage_metadata, "candidates_token_count", 0) if usage_metadata else 0
+        input_tokens = (
+            getattr(usage_metadata, "prompt_token_count", 0) if usage_metadata else 0
+        )
+        output_tokens = (
+            getattr(usage_metadata, "candidates_token_count", 0)
+            if usage_metadata
+            else 0
+        )
 
         return CompletionResponse(
             content=content,
@@ -249,8 +257,14 @@ class VertexProvider(Provider):
                 content = candidate.content.parts[0].text
 
         usage_metadata = getattr(response, "usage_metadata", None)
-        input_tokens = getattr(usage_metadata, "prompt_token_count", 0) if usage_metadata else 0
-        output_tokens = getattr(usage_metadata, "candidates_token_count", 0) if usage_metadata else 0
+        input_tokens = (
+            getattr(usage_metadata, "prompt_token_count", 0) if usage_metadata else 0
+        )
+        output_tokens = (
+            getattr(usage_metadata, "candidates_token_count", 0)
+            if usage_metadata
+            else 0
+        )
 
         return CompletionResponse(
             content=content,

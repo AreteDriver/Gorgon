@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 from abc import ABC, abstractmethod
 from pathlib import Path
-from typing import Any
 
 from .base import EvalStatus
 from .runner import SuiteResult
@@ -63,10 +62,18 @@ class ConsoleReporter(Reporter):
         # Summary
         lines.append("Summary:")
         lines.append(f"  Total Cases:  {result.total}")
-        lines.append(f"  Passed:       {result.passed} ({self._pct(result.passed, result.total)})")
-        lines.append(f"  Failed:       {result.failed} ({self._pct(result.failed, result.total)})")
-        lines.append(f"  Errors:       {result.errors} ({self._pct(result.errors, result.total)})")
-        lines.append(f"  Skipped:      {result.skipped} ({self._pct(result.skipped, result.total)})")
+        lines.append(
+            f"  Passed:       {result.passed} ({self._pct(result.passed, result.total)})"
+        )
+        lines.append(
+            f"  Failed:       {result.failed} ({self._pct(result.failed, result.total)})"
+        )
+        lines.append(
+            f"  Errors:       {result.errors} ({self._pct(result.errors, result.total)})"
+        )
+        lines.append(
+            f"  Skipped:      {result.skipped} ({self._pct(result.skipped, result.total)})"
+        )
         lines.append(f"  Avg Score:    {result.total_score:.2%}")
         lines.append(f"  Duration:     {result.duration_ms:.0f}ms")
         lines.append("")
@@ -118,7 +125,7 @@ class ConsoleReporter(Reporter):
     def _pct(self, part: int, total: int) -> str:
         if total == 0:
             return "0%"
-        return f"{part/total:.0%}"
+        return f"{part / total:.0%}"
 
 
 class JSONReporter(Reporter):
@@ -295,13 +302,13 @@ class HTMLReporter(Reporter):
         </table>
     </div>
 
-    <div class="verdict {'passed' if result.pass_rate >= result.suite.threshold else 'failed'}">
-        {'PASSED' if result.pass_rate >= result.suite.threshold else 'FAILED'}
+    <div class="verdict {"passed" if result.pass_rate >= result.suite.threshold else "failed"}">
+        {"PASSED" if result.pass_rate >= result.suite.threshold else "FAILED"}
         (Pass rate: {result.pass_rate:.0%}, Threshold: {result.suite.threshold:.0%})
     </div>
 
     <footer>
-        Generated on {result.timestamp.strftime('%Y-%m-%d %H:%M:%S')}
+        Generated on {result.timestamp.strftime("%Y-%m-%d %H:%M:%S")}
         by Gorgon Evaluation Framework
     </footer>
 </body>
@@ -331,11 +338,11 @@ class HTMLReporter(Reporter):
                 <td><span class="status {status_class}">{case_result.status.value.upper()}</span></td>
                 <td>
                     <div class="score-bar">
-                        <div class="score-bar-fill" style="width: {case_result.score*100}%"></div>
+                        <div class="score-bar-fill" style="width: {case_result.score * 100}%"></div>
                     </div>
                     {case_result.score:.0%}
                 </td>
-                <td class="metrics">{metrics_html or '-'}</td>
+                <td class="metrics">{metrics_html or "-"}</td>
                 <td>{case_result.latency_ms:.0f}ms</td>
             </tr>
             """
@@ -354,10 +361,12 @@ class MarkdownReporter(Reporter):
             "",
             "## Summary",
             "",
-            f"| Metric | Value |",
-            f"|--------|-------|",
+            "| Metric | Value |",
+            "|--------|-------|",
             f"| Total Cases | {result.total} |",
-            f"| Passed | {result.passed} ({result.passed/result.total:.0%}) |" if result.total > 0 else "| Passed | 0 |",
+            f"| Passed | {result.passed} ({result.passed / result.total:.0%}) |"
+            if result.total > 0
+            else "| Passed | 0 |",
             f"| Failed | {result.failed} |",
             f"| Errors | {result.errors} |",
             f"| Avg Score | {result.total_score:.2%} |",
@@ -378,12 +387,14 @@ class MarkdownReporter(Reporter):
                 f"| {case_result.case.name} | {emoji} {status} | {case_result.score:.0%} | {case_result.latency_ms:.0f}ms |"
             )
 
-        lines.extend([
-            "",
-            "---",
-            "",
-            f"**Verdict**: {'✅ PASSED' if result.pass_rate >= result.suite.threshold else '❌ FAILED'}",
-            f"(Threshold: {result.suite.threshold:.0%})",
-        ])
+        lines.extend(
+            [
+                "",
+                "---",
+                "",
+                f"**Verdict**: {'✅ PASSED' if result.pass_rate >= result.suite.threshold else '❌ FAILED'}",
+                f"(Threshold: {result.suite.threshold:.0%})",
+            ]
+        )
 
         return "\n".join(lines)
