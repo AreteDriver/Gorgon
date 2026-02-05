@@ -2923,7 +2923,6 @@ class WorkflowExecutor:
             headless: Run headless (default: True)
             full_page: Full page screenshot (default: False)
         """
-        import asyncio
         from test_ai.browser import BrowserAutomation, BrowserConfig
 
         action = step.params.get("action", "navigate")
