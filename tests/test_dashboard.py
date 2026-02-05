@@ -64,7 +64,19 @@ def mock_streamlit():
     mock_st.tabs.side_effect = _create_tabs
     mock_st.expander.side_effect = _create_expander
 
-    with patch.dict(sys.modules, {"streamlit": mock_st}):
+    # Mock all streamlit submodules that might be imported internally
+    mock_submodules = {
+        "streamlit": mock_st,
+        "streamlit.emojis": MagicMock(),
+        "streamlit.components": MagicMock(),
+        "streamlit.components.v1": MagicMock(),
+        "streamlit.runtime": MagicMock(),
+        "streamlit.runtime.scriptrunner": MagicMock(),
+        "streamlit.web": MagicMock(),
+        "streamlit.delta_generator": MagicMock(),
+    }
+
+    with patch.dict(sys.modules, mock_submodules):
         yield mock_st
 
 
