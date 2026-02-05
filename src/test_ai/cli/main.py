@@ -2808,7 +2808,7 @@ def calendar_delete(
             raise typer.Abort()
 
     if client.delete_event(event_id):
-        console.print(f"[green]Event deleted[/green]")
+        console.print("[green]Event deleted[/green]")
     else:
         console.print("[red]Failed to delete event[/red]")
         raise typer.Exit(1)
@@ -2913,7 +2913,7 @@ def browser_navigate(
                 extract_result = await browser.extract_content()
                 if extract_result.success:
                     data = extract_result.data
-                    console.print(f"\n[bold]Content Preview:[/bold]")
+                    console.print("\n[bold]Content Preview:[/bold]")
                     text = data.get("text", "")[:1000]
                     console.print(text)
                     if data.get("links"):
