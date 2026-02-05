@@ -24,28 +24,6 @@ from test_ai.workflow.loader import (
 
 logger = logging.getLogger(__name__)
 
-# Lazy imports for executor and config to avoid circular imports
-_executor_class = None
-_workflow_config_class = None
-
-
-def _get_executor_class():
-    """Lazily import WorkflowExecutor."""
-    global _executor_class
-    if _executor_class is None:
-        from test_ai.workflow.executor import WorkflowExecutor
-        _executor_class = WorkflowExecutor
-    return _executor_class
-
-
-def _get_workflow_config_class():
-    """Lazily import WorkflowConfig."""
-    global _workflow_config_class
-    if _workflow_config_class is None:
-        from test_ai.workflow.loader import WorkflowConfig
-        _workflow_config_class = WorkflowConfig
-    return _workflow_config_class
-
 
 # Node type configurations
 NODE_TYPE_CONFIG = {
@@ -428,17 +406,6 @@ def _init_session_state():
         st.session_state.builder_current_file = None  # Path to current workflow file
     if "builder_dirty" not in st.session_state:
         st.session_state.builder_dirty = False  # True if unsaved changes exist
-    # Execution state
-    if "builder_execution_running" not in st.session_state:
-        st.session_state.builder_execution_running = False
-    if "builder_execution_result" not in st.session_state:
-        st.session_state.builder_execution_result = None
-    if "builder_execution_step_status" not in st.session_state:
-        st.session_state.builder_execution_step_status = {}  # step_id -> status
-    if "builder_execution_logs" not in st.session_state:
-        st.session_state.builder_execution_logs = []
-    if "builder_execution_inputs" not in st.session_state:
-        st.session_state.builder_execution_inputs = {}
 
 
 def _get_workflows_dir() -> Path:
@@ -605,303 +572,6 @@ def _new_workflow() -> None:
 def _mark_dirty() -> None:
     """Mark the current workflow as having unsaved changes."""
     st.session_state.builder_dirty = True
-
-
-def _reset_execution_state() -> None:
-    """Reset execution state for a new run."""
-    st.session_state.builder_execution_running = False
-    st.session_state.builder_execution_result = None
-    st.session_state.builder_execution_step_status = {}
-    st.session_state.builder_execution_logs = []
-
-
-def _add_execution_log(message: str, level: str = "info") -> None:
-    """Add a log entry to execution logs."""
-    timestamp = datetime.now().strftime("%H:%M:%S")
-    st.session_state.builder_execution_logs.append({
-        "timestamp": timestamp,
-        "level": level,
-        "message": message,
-    })
-
-
-def _update_step_status(step_id: str, status: str, error: str | None = None) -> None:
-    """Update execution status for a step."""
-    st.session_state.builder_execution_step_status[step_id] = {
-        "status": status,
-        "error": error,
-    }
-
-
-def _execute_workflow_sync() -> None:
-    """Execute the current workflow synchronously."""
-    workflow_data = _build_yaml_from_state()
-    errors = validate_workflow(workflow_data)
-
-    if errors:
-        _add_execution_log(f"Validation failed: {', '.join(errors)}", "error")
-        return
-
-    # Reset state
-    _reset_execution_state()
-    st.session_state.builder_execution_running = True
-    _add_execution_log("Starting workflow execution...")
-
-    try:
-        # Get executor and config classes
-        WorkflowExecutor = _get_executor_class()
-        WorkflowConfig = _get_workflow_config_class()
-
-        # Create config from workflow data
-        config = WorkflowConfig.from_dict(workflow_data)
-        _add_execution_log(f"Loaded workflow: {config.name} v{config.version}")
-
-        # Mark all steps as pending
-        for step in config.steps:
-            _update_step_status(step.id, "pending")
-
-        # Get input values from session state
-        inputs = dict(st.session_state.builder_execution_inputs)
-        _add_execution_log(f"Inputs: {inputs}")
-
-        # Create executor and run
-        executor = WorkflowExecutor()
-
-        # Execute workflow
-        _add_execution_log("Executing workflow...")
-        result = executor.execute(
-            workflow=config,
-            inputs=inputs,
-        )
-
-        # Update step statuses from result
-        for step_result in result.steps:
-            status_str = step_result.status.value if hasattr(step_result.status, "value") else str(step_result.status)
-            error_msg = step_result.error if hasattr(step_result, "error") else None
-            _update_step_status(step_result.step_id, status_str, error_msg)
-            if status_str == "completed":
-                _add_execution_log(f"Step completed: {step_result.step_id}")
-            elif status_str == "failed":
-                _add_execution_log(f"Step failed: {step_result.step_id} - {error_msg}", "error")
-            elif status_str == "skipped":
-                _add_execution_log(f"Step skipped: {step_result.step_id}")
-
-        st.session_state.builder_execution_result = result
-        _add_execution_log(f"Workflow completed with status: {result.status}")
-
-    except Exception as e:
-        _add_execution_log(f"Execution error: {e}", "error")
-        st.session_state.builder_execution_result = None
-    finally:
-        st.session_state.builder_execution_running = False
-
-
-def _render_execution_inputs() -> None:
-    """Render input fields for workflow execution."""
-    inputs_config = st.session_state.builder_inputs
-
-    if not inputs_config:
-        st.info("This workflow has no required inputs.")
-        return
-
-    st.markdown("#### Workflow Inputs")
-
-    for name, config in inputs_config.items():
-        input_type = config.get("type", "string")
-        required = config.get("required", False)
-        description = config.get("description", "")
-
-        label = f"{name}" + (" *" if required else "")
-
-        if input_type == "string":
-            st.session_state.builder_execution_inputs[name] = st.text_input(
-                label,
-                value=st.session_state.builder_execution_inputs.get(name, ""),
-                help=description,
-                key=f"exec_input_{name}",
-            )
-        elif input_type == "list":
-            value = st.text_area(
-                label,
-                value=st.session_state.builder_execution_inputs.get(name, ""),
-                help=f"{description} (one item per line)",
-                key=f"exec_input_{name}",
-            )
-            st.session_state.builder_execution_inputs[name] = [
-                line.strip() for line in value.split("\n") if line.strip()
-            ]
-        elif input_type == "object":
-            value = st.text_area(
-                label,
-                value=st.session_state.builder_execution_inputs.get(name, "{}"),
-                help=f"{description} (JSON format)",
-                key=f"exec_input_{name}",
-            )
-            try:
-                st.session_state.builder_execution_inputs[name] = json.loads(value)
-            except json.JSONDecodeError:
-                st.error(f"Invalid JSON for {name}")
-
-
-def _render_step_status_indicator(step_id: str) -> str:
-    """Get status indicator emoji for a step."""
-    status_info = st.session_state.builder_execution_step_status.get(step_id, {})
-    status = status_info.get("status", "pending")
-
-    indicators = {
-        "pending": "⏳",
-        "running": "🔄",
-        "completed": "✅",
-        "failed": "❌",
-        "skipped": "⏭️",
-    }
-    return indicators.get(status, "❓")
-
-
-def _render_execution_progress() -> None:
-    """Render step-by-step execution progress."""
-    st.markdown("#### Execution Progress")
-
-    nodes = st.session_state.builder_nodes
-    if not nodes:
-        st.info("No steps to execute.")
-        return
-
-    for node in nodes:
-        node_id = node["id"]
-        config = NODE_TYPE_CONFIG.get(node["type"], {"icon": "📦", "label": node["type"]})
-        indicator = _render_step_status_indicator(node_id)
-        status_info = st.session_state.builder_execution_step_status.get(node_id, {})
-        error = status_info.get("error")
-
-        col1, col2 = st.columns([1, 4])
-        with col1:
-            st.markdown(f"### {indicator}")
-        with col2:
-            st.markdown(f"**{node_id}** ({config['label']})")
-            if error:
-                st.error(error)
-
-
-def _render_execution_logs() -> None:
-    """Render execution logs."""
-    st.markdown("#### Execution Logs")
-
-    logs = st.session_state.builder_execution_logs
-    if not logs:
-        st.info("No logs yet. Run the workflow to see execution logs.")
-        return
-
-    for log in logs:
-        level = log["level"]
-        timestamp = log["timestamp"]
-        message = log["message"]
-
-        if level == "error":
-            st.error(f"[{timestamp}] {message}")
-        elif level == "warning":
-            st.warning(f"[{timestamp}] {message}")
-        else:
-            st.text(f"[{timestamp}] {message}")
-
-
-def _render_execution_result() -> None:
-    """Render execution result summary."""
-    result = st.session_state.builder_execution_result
-
-    if result is None:
-        return
-
-    st.markdown("#### Execution Result")
-
-    # Status badge
-    status = result.status if hasattr(result, "status") else "unknown"
-    if status == "completed":
-        st.success(f"Status: {status}")
-    elif status == "failed":
-        st.error(f"Status: {status}")
-    else:
-        st.info(f"Status: {status}")
-
-    # Metrics
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        total_tokens = getattr(result, "total_tokens", 0)
-        st.metric("Total Tokens", f"{total_tokens:,}")
-    with col2:
-        duration_ms = getattr(result, "total_duration_ms", 0)
-        st.metric("Duration", f"{duration_ms / 1000:.1f}s")
-    with col3:
-        step_count = len(getattr(result, "steps", []))
-        st.metric("Steps Executed", step_count)
-
-    # Outputs
-    outputs = getattr(result, "outputs", {})
-    if outputs:
-        st.markdown("**Outputs:**")
-        st.json(outputs)
-
-
-def _render_execute_tab() -> None:
-    """Render the Execute tab content."""
-    st.markdown("### Execute Workflow")
-
-    # Validation check
-    workflow_data = _build_yaml_from_state()
-    errors = validate_workflow(workflow_data)
-
-    if errors:
-        st.error("Cannot execute - workflow has validation errors:")
-        for error in errors:
-            st.markdown(f"- {error}")
-        return
-
-    nodes = st.session_state.builder_nodes
-    if not nodes:
-        st.warning("Add some steps to your workflow before executing.")
-        return
-
-    # Execution inputs
-    _render_execution_inputs()
-
-    st.divider()
-
-    # Run button
-    is_running = st.session_state.builder_execution_running
-
-    col1, col2 = st.columns(2)
-    with col1:
-        if st.button(
-            "▶️ Run Workflow",
-            disabled=is_running,
-            use_container_width=True,
-            type="primary",
-        ):
-            _execute_workflow_sync()
-            st.rerun()
-
-    with col2:
-        if st.button(
-            "🔄 Reset",
-            disabled=is_running,
-            use_container_width=True,
-        ):
-            _reset_execution_state()
-            st.rerun()
-
-    st.divider()
-
-    # Progress and results in columns
-    left, right = st.columns(2)
-
-    with left:
-        _render_execution_progress()
-
-    with right:
-        _render_execution_logs()
-
-    # Result at bottom
-    _render_execution_result()
 
 
 def _generate_node_id(step_type: str) -> str:
@@ -2154,6 +1824,40 @@ def _render_templates_section():
                 st.rerun()
 
 
+def _render_saved_workflows():
+    """Render saved workflows management section."""
+    st.markdown("### Saved Workflows")
+
+    workflows = _list_saved_workflows()
+
+    if not workflows:
+        st.info("No saved workflows yet. Create one and save it!")
+        return
+
+    for wf in workflows:
+        with st.expander(f"**{wf['name']}** v{wf['version']}", expanded=False):
+            st.caption(wf["description"] or "No description")
+            st.markdown(f"Steps: {wf['steps']}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Load", key=f"load_{wf['path']}", use_container_width=True):
+                    if _load_workflow_from_file(wf["path"]):
+                        st.success(f"Loaded {wf['name']}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to load")
+            with col2:
+                if st.button(
+                    "Delete", key=f"del_{wf['path']}", use_container_width=True
+                ):
+                    if _delete_workflow(wf["path"]):
+                        st.success(f"Deleted {wf['name']}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete")
+
+
 def render_workflow_builder():
     """Main entry point for the visual workflow builder."""
     st.title("🎨 Visual Workflow Builder")
@@ -2218,7 +1922,7 @@ def render_workflow_builder():
     sidebar, main = st.columns([1, 3])
 
     with sidebar:
-        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Templates", "Nodes", "Settings", "Saved", "Import"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Nodes", "Settings", "Saved", "Import"])
 
         with tab1:
             _render_templates_section()
@@ -2227,12 +1931,9 @@ def render_workflow_builder():
             _render_node_palette()
 
         with tab3:
-            _render_workflow_settings()
-
-        with tab4:
             _render_saved_workflows()
 
-        with tab5:
+        with tab4:
             _render_import_section()
 
     with main:
