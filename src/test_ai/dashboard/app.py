@@ -45,6 +45,16 @@ def _get_workflow_builder_renderer():
         return None
 
 
+def _get_plugin_marketplace_renderer():
+    """Get the plugin marketplace renderer, importing lazily."""
+    try:
+        from test_ai.dashboard.plugin_marketplace import render_plugin_marketplace
+
+        return render_plugin_marketplace
+    except ImportError:
+        return None
+
+
 # Initialize components
 @st.cache_resource
 def get_workflow_engine():
@@ -77,6 +87,7 @@ def render_sidebar():
         "Metrics": "📈",
         "Analytics": "🔬",
         "Builder": "🎨",
+        "Plugins": "🏪",
         "Workflows": "⚙️",
         "Prompts": "📝",
         "Execute": "▶️",
@@ -428,6 +439,23 @@ def _render_builder_page():
         _render_builder_fallback()
 
 
+def _render_plugins_fallback():
+    """Fallback when plugin marketplace is not available."""
+    st.title("🏪 Plugin Marketplace")
+    st.warning(
+        "Plugin marketplace component not available. Please check your installation."
+    )
+
+
+def _render_plugins_page():
+    """Render plugins page with lazy import."""
+    renderer = _get_plugin_marketplace_renderer()
+    if renderer:
+        renderer()
+    else:
+        _render_plugins_fallback()
+
+
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
     "Costs": render_cost_dashboard
@@ -439,6 +467,7 @@ _PAGE_RENDERERS = {
     "Metrics": render_metrics_page,
     "Analytics": render_analytics_page,
     "Builder": _render_builder_page,
+    "Plugins": _render_plugins_page,
     "Workflows": render_workflows_page,
     "Prompts": render_prompts_page,
     "Execute": render_execute_page,
