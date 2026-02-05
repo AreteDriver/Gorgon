@@ -137,6 +137,208 @@ def _init_session_state():
         st.session_state.connection_mode = False
     if "connection_source" not in st.session_state:
         st.session_state.connection_source = None
+    if "builder_current_file" not in st.session_state:
+        st.session_state.builder_current_file = None
+    if "builder_dirty" not in st.session_state:
+        st.session_state.builder_dirty = False
+
+
+def _get_workflows_dir() -> Path:
+    """Get the workflows directory from settings."""
+    return get_settings().workflows_dir
+
+
+def _get_builder_state_path(workflow_name: str) -> Path:
+    """Get path for builder state JSON file."""
+    safe_name = re.sub(r"[^a-zA-Z0-9_-]", "-", workflow_name.lower())
+    return _get_workflows_dir() / f".builder-{safe_name}.json"
+
+
+def _save_builder_state(workflow_name: str) -> bool:
+    """Save the current builder state to a JSON file.
+
+    Args:
+        workflow_name: Name of the workflow
+
+    Returns:
+        True if saved successfully
+    """
+    try:
+        workflows_dir = _get_workflows_dir()
+        workflows_dir.mkdir(parents=True, exist_ok=True)
+
+        state = {
+            "nodes": st.session_state.builder_nodes,
+            "edges": st.session_state.builder_edges,
+            "metadata": st.session_state.builder_metadata,
+            "inputs": st.session_state.builder_inputs,
+            "outputs": st.session_state.builder_outputs,
+        }
+
+        state_path = _get_builder_state_path(workflow_name)
+        with open(state_path, "w") as f:
+            json.dump(state, f, indent=2)
+
+        logger.info(f"Saved builder state to {state_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to save builder state: {e}")
+        return False
+
+
+def _load_builder_state(workflow_name: str) -> bool:
+    """Load builder state from a JSON file.
+
+    Args:
+        workflow_name: Name of the workflow
+
+    Returns:
+        True if loaded successfully
+    """
+    try:
+        state_path = _get_builder_state_path(workflow_name)
+        if not state_path.exists():
+            return False
+
+        with open(state_path) as f:
+            state = json.load(f)
+
+        st.session_state.builder_nodes = state.get("nodes", [])
+        st.session_state.builder_edges = state.get("edges", [])
+        st.session_state.builder_metadata = state.get(
+            "metadata",
+            {
+                "name": "New Workflow",
+                "version": "1.0",
+                "description": "",
+                "token_budget": 100000,
+                "timeout_seconds": 3600,
+            },
+        )
+        st.session_state.builder_inputs = state.get("inputs", {})
+        st.session_state.builder_outputs = state.get("outputs", [])
+        st.session_state.selected_node = None
+        st.session_state.builder_dirty = False
+
+        logger.info(f"Loaded builder state from {state_path}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to load builder state: {e}")
+        return False
+
+
+def _list_saved_workflows() -> list[dict]:
+    """List all saved workflows with their metadata.
+
+    Returns:
+        List of dicts with name, path, has_builder_state
+    """
+    workflows = []
+    workflows_dir = _get_workflows_dir()
+
+    if not workflows_dir.exists():
+        return workflows
+
+    for yaml_path in workflows_dir.glob("*.yaml"):
+        try:
+            with open(yaml_path) as f:
+                data = yaml.safe_load(f)
+
+            name = data.get("name", yaml_path.stem)
+            builder_state_path = _get_builder_state_path(name)
+
+            workflows.append(
+                {
+                    "name": name,
+                    "path": yaml_path,
+                    "description": data.get("description", ""),
+                    "has_builder_state": builder_state_path.exists(),
+                }
+            )
+        except Exception as e:
+            logger.warning(f"Failed to read workflow {yaml_path}: {e}")
+            continue
+
+    return sorted(workflows, key=lambda w: w["name"].lower())
+
+
+def _save_workflow_yaml(workflow_name: str) -> Path | None:
+    """Save the current workflow as YAML.
+
+    Args:
+        workflow_name: Name of the workflow
+
+    Returns:
+        Path to saved file, or None on failure
+    """
+    try:
+        workflows_dir = _get_workflows_dir()
+        workflows_dir.mkdir(parents=True, exist_ok=True)
+
+        workflow = _build_yaml_from_state()
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]", "-", workflow_name.lower())
+        filepath = workflows_dir / f"{safe_name}.yaml"
+
+        with open(filepath, "w") as f:
+            yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
+
+        # Also save builder state
+        _save_builder_state(workflow_name)
+
+        st.session_state.builder_current_file = str(filepath)
+        st.session_state.builder_dirty = False
+
+        logger.info(f"Saved workflow to {filepath}")
+        return filepath
+    except Exception as e:
+        logger.error(f"Failed to save workflow: {e}")
+        return None
+
+
+def _delete_workflow(workflow_name: str) -> bool:
+    """Delete a workflow and its builder state.
+
+    Args:
+        workflow_name: Name of the workflow
+
+    Returns:
+        True if deleted successfully
+    """
+    try:
+        workflows_dir = _get_workflows_dir()
+        safe_name = re.sub(r"[^a-zA-Z0-9_-]", "-", workflow_name.lower())
+
+        yaml_path = workflows_dir / f"{safe_name}.yaml"
+        state_path = _get_builder_state_path(workflow_name)
+
+        if yaml_path.exists():
+            yaml_path.unlink()
+        if state_path.exists():
+            state_path.unlink()
+
+        logger.info(f"Deleted workflow {workflow_name}")
+        return True
+    except Exception as e:
+        logger.error(f"Failed to delete workflow: {e}")
+        return False
+
+
+def _new_workflow():
+    """Reset to a new empty workflow."""
+    st.session_state.builder_nodes = []
+    st.session_state.builder_edges = []
+    st.session_state.builder_metadata = {
+        "name": "New Workflow",
+        "version": "1.0",
+        "description": "",
+        "token_budget": 100000,
+        "timeout_seconds": 3600,
+    }
+    st.session_state.builder_inputs = {}
+    st.session_state.builder_outputs = []
+    st.session_state.selected_node = None
+    st.session_state.builder_current_file = None
+    st.session_state.builder_dirty = False
 
 
 def _generate_node_id(step_type: str) -> str:
@@ -831,31 +1033,14 @@ def _render_yaml_preview():
         )
 
     with col2:
-        # Save to workflows directory
-        if st.button("Save to Workflows"):
-            try:
-                workflows_dir = Path("workflows")
-                workflows_dir.mkdir(exist_ok=True)
-
-                # Sanitize filename to prevent path traversal
-                safe_name = re.sub(r"[^a-zA-Z0-9_-]", "-", workflow["name"].lower())
-                safe_name = safe_name.strip("-")[:50]  # Limit length
-                if not safe_name:
-                    safe_name = "workflow"
-                filename = f"{safe_name}.yaml"
-                filepath = workflows_dir / filename
-
-                # Ensure filepath stays within workflows_dir
-                if not filepath.resolve().is_relative_to(workflows_dir.resolve()):
-                    st.error("Invalid workflow name")
-                    return
-
-                with open(filepath, "w") as f:
-                    yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
-
+        # Save to workflows directory using persistence functions
+        if st.button("Save Workflow", key="save_workflow_btn"):
+            workflow_name = st.session_state.builder_metadata.get("name", "workflow")
+            filepath = _save_workflow_yaml(workflow_name)
+            if filepath:
                 st.success(f"Saved to {filepath}")
-            except Exception as e:
-                st.error(f"Failed to save: {e}")
+            else:
+                st.error("Failed to save workflow")
 
 
 def _render_import_section():
@@ -903,7 +1088,7 @@ def _render_import_section():
     # Load from existing workflows
     st.markdown("#### Or Load Existing Workflow")
 
-    workflows_dir = Path("workflows")
+    workflows_dir = _get_workflows_dir()
     if workflows_dir.exists():
         yaml_files = list(workflows_dir.glob("*.yaml"))
         if yaml_files:
@@ -918,7 +1103,15 @@ def _render_import_section():
                 try:
                     with open(selected_file) as f:
                         data = yaml.safe_load(f)
-                    _load_yaml_to_state(data)
+
+                    # First try to load builder state if available
+                    workflow_name = data.get("name", selected_file.stem)
+                    if not _load_builder_state(workflow_name):
+                        # Fall back to loading from YAML
+                        _load_yaml_to_state(data)
+
+                    st.session_state.builder_current_file = str(selected_file)
+                    st.session_state.builder_dirty = False
                     st.success(f"Loaded {selected_file.name}")
                     st.rerun()
                 except Exception as e:
@@ -1015,40 +1208,112 @@ def _render_visual_graph():
             )
 
 
+def _render_saved_workflows_sidebar():
+    """Render saved workflows panel in the Streamlit sidebar."""
+    st.sidebar.markdown("---")
+    st.sidebar.markdown("### Saved Workflows")
+
+    # Current workflow info
+    current_name = st.session_state.builder_metadata.get("name", "New Workflow")
+    current_file = st.session_state.builder_current_file
+    is_dirty = st.session_state.builder_dirty
+
+    status = current_name
+    if is_dirty:
+        status += " *"
+    st.sidebar.caption(f"**Current:** {status}")
+
+    # Quick save button
+    col1, col2 = st.sidebar.columns(2)
+    with col1:
+        if st.button("💾 Save", key="sidebar_save", use_container_width=True):
+            filepath = _save_workflow_yaml(current_name)
+            if filepath:
+                st.sidebar.success("Saved!")
+                st.rerun()
+    with col2:
+        if st.button("📄 New", key="sidebar_new", use_container_width=True):
+            _new_workflow()
+            st.rerun()
+
+    # List saved workflows
+    workflows = _list_saved_workflows()
+    if workflows:
+        st.sidebar.markdown("#### Load Workflow")
+        for wf in workflows:
+            col1, col2 = st.sidebar.columns([3, 1])
+            with col1:
+                label = wf["name"]
+                if wf["has_builder_state"]:
+                    label += " 📐"  # Has builder state
+                if st.button(
+                    label,
+                    key=f"load_{wf['name']}",
+                    use_container_width=True,
+                    help=wf["description"] or "Click to load",
+                ):
+                    # Try to load builder state first
+                    if not _load_builder_state(wf["name"]):
+                        # Fall back to YAML
+                        with open(wf["path"]) as f:
+                            data = yaml.safe_load(f)
+                        _load_yaml_to_state(data)
+
+                    st.session_state.builder_current_file = str(wf["path"])
+                    st.session_state.builder_dirty = False
+                    st.rerun()
+
+            with col2:
+                if st.button(
+                    "🗑️",
+                    key=f"delete_{wf['name']}",
+                    help="Delete workflow",
+                ):
+                    if _delete_workflow(wf["name"]):
+                        if st.session_state.builder_current_file == str(wf["path"]):
+                            _new_workflow()
+                        st.rerun()
+    else:
+        st.sidebar.info("No saved workflows yet")
+
+
 def render_workflow_builder():
     """Main entry point for the visual workflow builder."""
     st.title("🎨 Visual Workflow Builder")
 
     _init_session_state()
 
+    # Render saved workflows in sidebar
+    _render_saved_workflows_sidebar()
+
     # Top action bar
-    col1, col2, col3, col4 = st.columns(4)
+    col1, col2, col3, col4, col5 = st.columns(5)
 
     with col1:
-        if st.button("New Workflow", use_container_width=True):
-            st.session_state.builder_nodes = []
-            st.session_state.builder_edges = []
-            st.session_state.builder_metadata = {
-                "name": "New Workflow",
-                "version": "1.0",
-                "description": "",
-                "token_budget": 100000,
-                "timeout_seconds": 3600,
-            }
-            st.session_state.builder_inputs = {}
-            st.session_state.builder_outputs = []
-            st.session_state.selected_node = None
+        if st.button("New", use_container_width=True, help="Create new workflow"):
+            _new_workflow()
             st.rerun()
 
     with col2:
-        node_count = len(st.session_state.builder_nodes)
-        edge_count = len(st.session_state.builder_edges)
-        st.metric("Nodes", node_count)
+        if st.button(
+            "Save", use_container_width=True, help="Save current workflow"
+        ):
+            workflow_name = st.session_state.builder_metadata.get("name", "workflow")
+            filepath = _save_workflow_yaml(workflow_name)
+            if filepath:
+                st.toast(f"Saved to {filepath}")
+            else:
+                st.error("Failed to save")
 
     with col3:
-        st.metric("Connections", edge_count)
+        node_count = len(st.session_state.builder_nodes)
+        st.metric("Nodes", node_count)
 
     with col4:
+        edge_count = len(st.session_state.builder_edges)
+        st.metric("Edges", edge_count)
+
+    with col5:
         workflow = _build_yaml_from_state()
         errors = validate_workflow(workflow)
         if errors:
