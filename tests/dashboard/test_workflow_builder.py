@@ -23,6 +23,7 @@ from test_ai.dashboard.workflow_builder import (
     _update_step_status,
     _render_step_status_indicator,
     _get_workflow_templates,
+    _get_node_execution_status,
 )
 
 
@@ -477,6 +478,34 @@ class TestExecution:
         assert _render_step_status_indicator("step4") == "❌"
         assert _render_step_status_indicator("step5") == "⏭️"
         assert _render_step_status_indicator("unknown") == "⏳"  # Default for missing
+
+    def test_get_node_execution_status(self, mock_session_state):
+        """Should return color and icon for execution status."""
+        mock_session_state.builder_execution_step_status = {
+            "running_step": {"status": "running"},
+            "completed_step": {"status": "completed"},
+            "failed_step": {"status": "failed"},
+        }
+
+        # Running step
+        color, icon = _get_node_execution_status("running_step")
+        assert color == "#3b82f6"  # Blue
+        assert icon == "🔄"
+
+        # Completed step
+        color, icon = _get_node_execution_status("completed_step")
+        assert color == "#10b981"  # Green
+        assert icon == "✅"
+
+        # Failed step
+        color, icon = _get_node_execution_status("failed_step")
+        assert color == "#ef4444"  # Red
+        assert icon == "❌"
+
+        # Unknown step returns empty
+        color, icon = _get_node_execution_status("unknown_step")
+        assert color == ""
+        assert icon == ""
 
 
 class TestWorkflowTemplates:

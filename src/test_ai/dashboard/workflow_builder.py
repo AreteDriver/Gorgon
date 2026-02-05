@@ -1009,8 +1009,23 @@ def _render_node_palette():
         st.divider()
 
 
+def _get_node_execution_status(node_id: str) -> tuple[str, str]:
+    """Get execution status and color for a node."""
+    status_info = st.session_state.builder_execution_step_status.get(node_id, {})
+    status = status_info.get("status", "")
+
+    status_colors = {
+        "pending": ("#f59e0b", "⏳"),
+        "running": ("#3b82f6", "🔄"),
+        "completed": ("#10b981", "✅"),
+        "failed": ("#ef4444", "❌"),
+        "skipped": ("#6b7280", "⏭️"),
+    }
+    return status_colors.get(status, ("", ""))
+
+
 def _render_node_card(node: dict) -> None:
-    """Render a single node card."""
+    """Render a single node card with enhanced visuals."""
     node_id = node["id"]
     node_type = node["type"]
     config = NODE_TYPE_CONFIG.get(
@@ -1018,30 +1033,133 @@ def _render_node_card(node: dict) -> None:
     )
     is_selected = st.session_state.selected_node == node_id
 
-    border_style = (
-        "3px solid #007bff" if is_selected else f"2px solid {config['color']}"
-    )
+    # Get execution status
+    status_color, status_icon = _get_node_execution_status(node_id)
 
-    # Get dependencies
+    # Selection styling
+    if is_selected:
+        border_style = "3px solid #007bff"
+        box_shadow = "0 4px 12px rgba(0, 123, 255, 0.3)"
+        transform = "scale(1.02)"
+    else:
+        border_style = f"2px solid {config['color']}50"
+        box_shadow = "0 2px 8px rgba(0, 0, 0, 0.1)"
+        transform = "scale(1)"
+
+    # Get node details
     deps = node["data"].get("depends_on", [])
-    deps_str = f" ← {', '.join(deps)}" if deps else ""
+    outputs = node["data"].get("outputs", [])
+    params = node["data"].get("params", {})
+    role = params.get("role", "")
 
-    # Node card HTML
+    # Build dependency badge
+    deps_html = ""
+    if deps:
+        deps_html = f"""
+            <div style="
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                background: #f3f4f6;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                color: #6b7280;
+                margin-top: 6px;
+            ">
+                <span>⬅</span> {', '.join(deps)}
+            </div>
+        """
+
+    # Build outputs badge
+    outputs_html = ""
+    if outputs:
+        outputs_html = f"""
+            <div style="
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                background: {config['color']}15;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                color: {config['color']};
+                margin-top: 6px;
+                margin-left: 4px;
+            ">
+                <span>📤</span> {', '.join(outputs)}
+            </div>
+        """
+
+    # Build role badge
+    role_html = ""
+    if role:
+        role_html = f"""
+            <span style="
+                background: {config['color']}20;
+                color: {config['color']};
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 10px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            ">{role}</span>
+        """
+
+    # Build status indicator
+    status_html = ""
+    if status_color:
+        status_html = f"""
+            <div style="
+                position: absolute;
+                top: -6px;
+                right: -6px;
+                background: {status_color};
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            ">{status_icon}</div>
+        """
+
+    # Node card HTML with enhanced styling
     st.markdown(
         f"""
         <div style="
+            position: relative;
             border: {border_style};
-            border-radius: 12px;
-            padding: 12px;
-            margin: 8px 0;
-            background: linear-gradient(135deg, {config["color"]}20, {config["color"]}10);
-            cursor: pointer;
+            border-radius: 16px;
+            padding: 16px;
+            margin: 10px 0;
+            background: linear-gradient(145deg, white, {config["color"]}08);
+            box-shadow: {box_shadow};
+            transform: {transform};
+            transition: all 0.2s ease;
         ">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 28px;">{config["icon"]}</span>
-                <div>
-                    <div style="font-weight: bold; font-size: 14px;">{node_id}</div>
-                    <div style="font-size: 11px; color: #666;">{config["label"]}{deps_str}</div>
+            {status_html}
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+                <div style="
+                    font-size: 32px;
+                    background: {config['color']}15;
+                    padding: 8px;
+                    border-radius: 12px;
+                    line-height: 1;
+                ">{config["icon"]}</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="font-weight: 700; font-size: 15px; color: #1f2937;">{node_id}</span>
+                        {role_html}
+                    </div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">{config["label"]}</div>
+                    <div style="margin-top: 4px;">
+                        {deps_html}{outputs_html}
+                    </div>
                 </div>
             </div>
         </div>
@@ -1049,28 +1167,57 @@ def _render_node_card(node: dict) -> None:
         unsafe_allow_html=True,
     )
 
-    # Selection and delete buttons
+    # Selection and delete buttons with better styling
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Edit", key=f"select_{node_id}", use_container_width=True):
+        if st.button("✏️ Edit", key=f"select_{node_id}", use_container_width=True):
             st.session_state.selected_node = node_id
             st.rerun()
     with col2:
-        if st.button("Delete", key=f"delete_{node_id}", use_container_width=True):
+        if st.button("🗑️ Delete", key=f"delete_{node_id}", use_container_width=True):
             _delete_node(node_id)
             st.rerun()
 
 
 def _render_canvas():
     """Render the workflow canvas with nodes."""
-    st.markdown("### Workflow Canvas")
+    st.markdown("### 🎯 Workflow Canvas")
 
     nodes = st.session_state.builder_nodes
 
     if not nodes:
-        st.info(
-            "Add nodes from the palette on the left to start building your workflow."
-        )
+        st.markdown("""
+            <div style="
+                text-align: center;
+                padding: 48px 24px;
+                background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+                border-radius: 20px;
+                border: 2px dashed #7dd3fc;
+                margin: 16px 0;
+            ">
+                <div style="font-size: 56px; margin-bottom: 16px;">🚀</div>
+                <div style="font-size: 20px; font-weight: 700; color: #0369a1; margin-bottom: 8px;">
+                    Start Building Your Workflow
+                </div>
+                <div style="font-size: 14px; color: #0284c7; max-width: 400px; margin: 0 auto;">
+                    Choose a <strong>Template</strong> to get started quickly, or add individual <strong>Nodes</strong> from the sidebar
+                </div>
+                <div style="
+                    display: flex;
+                    justify-content: center;
+                    gap: 24px;
+                    margin-top: 24px;
+                    font-size: 13px;
+                    color: #6b7280;
+                ">
+                    <span>📋 Templates</span>
+                    <span>•</span>
+                    <span>🤖 AI Agents</span>
+                    <span>•</span>
+                    <span>💻 Shell Commands</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
     # Render nodes in columns
@@ -1081,9 +1228,9 @@ def _render_canvas():
         with cols[i % num_cols]:
             _render_node_card(node)
 
-    # Connection builder
+    # Connection builder with improved styling
     st.markdown("---")
-    st.markdown("#### Connections")
+    st.markdown("#### 🔗 Connections")
 
     if len(nodes) >= 2:
         col1, col2, col3 = st.columns([2, 2, 1])
@@ -1098,7 +1245,7 @@ def _render_canvas():
             target = st.selectbox("To", target_options, key="conn_target")
         with col3:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Connect", use_container_width=True):
+            if st.button("🔗 Connect", use_container_width=True, type="primary"):
                 if source and target:
                     _add_edge(source, target)
                     # Also update depends_on
@@ -1110,16 +1257,45 @@ def _render_canvas():
                                 node["data"]["depends_on"] = deps
                     st.rerun()
 
-    # Show existing connections
+    # Show existing connections with improved styling
     edges = st.session_state.builder_edges
     if edges:
-        st.markdown("**Current Connections:**")
+        st.markdown("""
+            <div style="
+                background: #f9fafb;
+                border-radius: 12px;
+                padding: 12px;
+                margin-top: 12px;
+            ">
+                <div style="font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">
+                    Active Connections
+                </div>
+        """, unsafe_allow_html=True)
+
         for edge in edges:
             col1, col2 = st.columns([4, 1])
             with col1:
-                st.markdown(f"`{edge['source']}` → `{edge['target']}`")
+                source_node = next((n for n in nodes if n["id"] == edge["source"]), None)
+                target_node = next((n for n in nodes if n["id"] == edge["target"]), None)
+                source_config = NODE_TYPE_CONFIG.get(source_node["type"], {}) if source_node else {}
+                target_config = NODE_TYPE_CONFIG.get(target_node["type"], {}) if target_node else {}
+
+                st.markdown(f"""
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 6px 0;
+                    ">
+                        <span style="font-size: 16px;">{source_config.get('icon', '📦')}</span>
+                        <span style="font-weight: 500;">{edge['source']}</span>
+                        <span style="color: #9ca3af;">→</span>
+                        <span style="font-size: 16px;">{target_config.get('icon', '📦')}</span>
+                        <span style="font-weight: 500;">{edge['target']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
             with col2:
-                if st.button("Remove", key=f"del_edge_{edge['id']}"):
+                if st.button("✕", key=f"del_edge_{edge['id']}", help="Remove connection"):
                     _delete_edge(edge["id"])
                     # Also update depends_on
                     for node in st.session_state.builder_nodes:
@@ -1129,6 +1305,8 @@ def _render_canvas():
                                 deps.remove(edge["source"])
                                 node["data"]["depends_on"] = deps
                     st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_node_config():
@@ -1696,14 +1874,28 @@ def _render_import_section():
 
 
 def _render_visual_graph():
-    """Render a visual representation of the workflow graph."""
+    """Render a visual representation of the workflow graph with enhanced styling."""
     nodes = st.session_state.builder_nodes
     edges = st.session_state.builder_edges
 
     if not nodes:
+        st.markdown("""
+            <div style="
+                text-align: center;
+                padding: 60px 20px;
+                color: #9ca3af;
+                background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+                border-radius: 16px;
+                border: 2px dashed #d1d5db;
+            ">
+                <div style="font-size: 48px; margin-bottom: 16px;">🔗</div>
+                <div style="font-size: 18px; font-weight: 600;">No workflow steps yet</div>
+                <div style="font-size: 14px; margin-top: 8px;">Add nodes from the Templates or Nodes tab</div>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
-    st.markdown("### Visual Flow")
+    st.markdown("### 🔀 Visual Flow")
 
     # Build adjacency for topological display
     node_map = {n["id"]: n for n in nodes}
@@ -1746,43 +1938,150 @@ def _render_visual_graph():
             level_groups[level] = []
         level_groups[level].append(node_id)
 
-    # Render level by level
+    # Calculate if this is a parallel workflow
+    max_parallel = max(len(group) for group in level_groups.values())
+    is_parallel = max_parallel > 1
+
+    # Render level by level with enhanced visuals
+    total_levels = len(level_groups)
     for level in sorted(level_groups.keys()):
         node_ids = level_groups[level]
+        is_parallel_level = len(node_ids) > 1
         cols = st.columns(max(len(node_ids), 1))
+
+        # Show parallel indicator
+        if is_parallel_level:
+            st.markdown("""
+                <div style="
+                    text-align: center;
+                    font-size: 11px;
+                    color: #3b82f6;
+                    background: #eff6ff;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    display: inline-block;
+                    margin: 0 auto 8px auto;
+                    width: fit-content;
+                ">
+                    🔀 Parallel Execution
+                </div>
+            """, unsafe_allow_html=True)
 
         for i, node_id in enumerate(node_ids):
             node = node_map[node_id]
             config = NODE_TYPE_CONFIG.get(node["type"], {"icon": "📦", "color": "#666"})
+
+            # Get execution status for visual indicator
+            status_color, status_icon = _get_node_execution_status(node_id)
+
+            # Get role if available
+            params = node["data"].get("params", {})
+            role = params.get("role", "")
+            role_badge = f'<div style="font-size: 9px; color: {config["color"]}; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">{role}</div>' if role else ""
+
+            # Status ring styling
+            status_ring = ""
+            if status_color:
+                status_ring = f"box-shadow: 0 0 0 3px {status_color}40, 0 4px 12px rgba(0,0,0,0.15);"
 
             with cols[i]:
                 st.markdown(
                     f"""
                     <div style="
                         text-align: center;
-                        padding: 12px;
+                        padding: 16px 12px;
                         border: 2px solid {config["color"]};
-                        border-radius: 8px;
-                        background: {config["color"]}15;
+                        border-radius: 16px;
+                        background: linear-gradient(145deg, white, {config["color"]}10);
                         margin: 4px;
+                        {status_ring}
+                        transition: all 0.2s ease;
                     ">
-                        <div style="font-size: 24px;">{config["icon"]}</div>
-                        <div style="font-size: 12px; font-weight: bold;">{node_id}</div>
+                        <div style="
+                            font-size: 32px;
+                            background: {config['color']}15;
+                            width: 56px;
+                            height: 56px;
+                            border-radius: 14px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            margin: 0 auto 8px auto;
+                            position: relative;
+                        ">
+                            {config["icon"]}
+                            {f'<span style="position: absolute; top: -4px; right: -4px; font-size: 14px;">{status_icon}</span>' if status_icon else ''}
+                        </div>
+                        <div style="font-size: 13px; font-weight: 700; color: #1f2937;">{node_id}</div>
+                        <div style="font-size: 11px; color: #6b7280;">{config["label"]}</div>
+                        {role_badge}
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-        # Draw arrows if not last level
+        # Draw connection arrows if not last level
         if level < max(level_groups.keys()):
-            st.markdown(
+            next_level_count = len(level_groups.get(level + 1, []))
+            current_count = len(node_ids)
+
+            # Choose arrow style based on branching
+            if current_count == 1 and next_level_count > 1:
+                # Fan out
+                arrow_html = """
+                    <div style="text-align: center; padding: 8px 0;">
+                        <div style="font-size: 16px; color: #3b82f6;">↙️ ↓ ↘️</div>
+                    </div>
                 """
-                <div style="text-align: center; font-size: 20px; color: #999;">
-                    ↓
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            elif current_count > 1 and next_level_count == 1:
+                # Fan in
+                arrow_html = """
+                    <div style="text-align: center; padding: 8px 0;">
+                        <div style="font-size: 16px; color: #8b5cf6;">↘️ ↓ ↙️</div>
+                    </div>
+                """
+            else:
+                # Regular flow
+                arrow_html = """
+                    <div style="text-align: center; padding: 8px 0;">
+                        <div style="
+                            width: 2px;
+                            height: 20px;
+                            background: linear-gradient(to bottom, #d1d5db, #9ca3af);
+                            margin: 0 auto;
+                            border-radius: 1px;
+                        "></div>
+                        <div style="
+                            width: 0;
+                            height: 0;
+                            border-left: 6px solid transparent;
+                            border-right: 6px solid transparent;
+                            border-top: 8px solid #9ca3af;
+                            margin: 0 auto;
+                        "></div>
+                    </div>
+                """
+            st.markdown(arrow_html, unsafe_allow_html=True)
+
+    # Show workflow summary
+    st.markdown(f"""
+        <div style="
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            font-size: 13px;
+            color: #6b7280;
+        ">
+            <span>📊 <strong>{len(nodes)}</strong> steps</span>
+            <span>🔗 <strong>{len(edges)}</strong> connections</span>
+            <span>📐 <strong>{total_levels}</strong> levels</span>
+            {'<span>🔀 <strong>parallel</strong></span>' if is_parallel else '<span>📏 <strong>sequential</strong></span>'}
+        </div>
+    """, unsafe_allow_html=True)
 
 
 def _render_saved_workflows():
