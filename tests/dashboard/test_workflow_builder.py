@@ -17,6 +17,10 @@ from test_ai.dashboard.workflow_builder import (
     _list_saved_workflows,
     _new_workflow,
     _mark_dirty,
+    _reset_execution_state,
+    _add_execution_log,
+    _update_step_status,
+    _render_step_status_indicator,
 )
 
 
@@ -287,6 +291,12 @@ def mock_session_state(monkeypatch):
             # Persistence state
             self.builder_current_file = None
             self.builder_dirty = False
+            # Execution state
+            self.builder_execution_running = False
+            self.builder_execution_result = None
+            self.builder_execution_step_status = {}
+            self.builder_execution_logs = []
+            self.builder_execution_inputs = {}
 
     mock_state = MockSessionState()
 
@@ -404,3 +414,64 @@ class TestPersistence:
         assert mock_session_state.builder_dirty is False
         _mark_dirty()
         assert mock_session_state.builder_dirty is True
+
+
+class TestExecution:
+    """Test workflow execution functions."""
+
+    def test_reset_execution_state(self, mock_session_state):
+        """Should reset all execution state."""
+        # Set up non-default state
+        mock_session_state.builder_execution_running = True
+        mock_session_state.builder_execution_result = {"status": "completed"}
+        mock_session_state.builder_execution_step_status = {"step1": {"status": "completed"}}
+        mock_session_state.builder_execution_logs = [{"message": "test"}]
+
+        _reset_execution_state()
+
+        assert mock_session_state.builder_execution_running is False
+        assert mock_session_state.builder_execution_result is None
+        assert mock_session_state.builder_execution_step_status == {}
+        assert mock_session_state.builder_execution_logs == []
+
+    def test_add_execution_log(self, mock_session_state):
+        """Should add log entries with timestamp."""
+        mock_session_state.builder_execution_logs = []
+
+        _add_execution_log("Test message")
+        _add_execution_log("Error message", "error")
+
+        assert len(mock_session_state.builder_execution_logs) == 2
+        assert mock_session_state.builder_execution_logs[0]["message"] == "Test message"
+        assert mock_session_state.builder_execution_logs[0]["level"] == "info"
+        assert mock_session_state.builder_execution_logs[1]["level"] == "error"
+        assert "timestamp" in mock_session_state.builder_execution_logs[0]
+
+    def test_update_step_status(self, mock_session_state):
+        """Should update step status with optional error."""
+        mock_session_state.builder_execution_step_status = {}
+
+        _update_step_status("step1", "running")
+        _update_step_status("step2", "failed", "Connection error")
+
+        assert mock_session_state.builder_execution_step_status["step1"]["status"] == "running"
+        assert mock_session_state.builder_execution_step_status["step1"]["error"] is None
+        assert mock_session_state.builder_execution_step_status["step2"]["status"] == "failed"
+        assert mock_session_state.builder_execution_step_status["step2"]["error"] == "Connection error"
+
+    def test_render_step_status_indicator(self, mock_session_state):
+        """Should return correct emoji for each status."""
+        mock_session_state.builder_execution_step_status = {
+            "step1": {"status": "pending"},
+            "step2": {"status": "running"},
+            "step3": {"status": "completed"},
+            "step4": {"status": "failed"},
+            "step5": {"status": "skipped"},
+        }
+
+        assert _render_step_status_indicator("step1") == "⏳"
+        assert _render_step_status_indicator("step2") == "🔄"
+        assert _render_step_status_indicator("step3") == "✅"
+        assert _render_step_status_indicator("step4") == "❌"
+        assert _render_step_status_indicator("step5") == "⏭️"
+        assert _render_step_status_indicator("unknown") == "⏳"  # Default for missing
