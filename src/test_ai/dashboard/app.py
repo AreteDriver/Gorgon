@@ -35,6 +35,16 @@ except ImportError:
     NEW_COMPONENTS_AVAILABLE = False
 
 
+def _get_workflow_builder_renderer():
+    """Get the workflow builder renderer, importing lazily."""
+    try:
+        from test_ai.dashboard.workflow_builder import render_workflow_builder
+
+        return render_workflow_builder
+    except ImportError:
+        return None
+
+
 # Initialize components
 @st.cache_resource
 def get_workflow_engine():
@@ -66,6 +76,7 @@ def render_sidebar():
         "Agents": "🤖",
         "Metrics": "📈",
         "Analytics": "🔬",
+        "Builder": "🎨",
         "Workflows": "⚙️",
         "Prompts": "📝",
         "Execute": "▶️",
@@ -120,14 +131,19 @@ def render_dashboard_page():
 
     st.subheader("Quick Actions")
 
-    col1, col2 = st.columns(2)
+    col1, col2, col3 = st.columns(3)
 
     with col1:
+        if st.button("🎨 Visual Builder", use_container_width=True):
+            st.session_state.page = "Builder"
+            st.rerun()
+
+    with col2:
         if st.button("🆕 Create Workflow", use_container_width=True):
             st.session_state.page = "Workflows"
             st.rerun()
 
-    with col2:
+    with col3:
         if st.button("📝 Create Prompt", use_container_width=True):
             st.session_state.page = "Prompts"
             st.rerun()
@@ -395,6 +411,23 @@ def render_logs_page():
         st.info("No logs found. Execute a workflow to generate logs.")
 
 
+def _render_builder_fallback():
+    """Fallback when workflow builder is not available."""
+    st.title("🎨 Visual Workflow Builder")
+    st.warning(
+        "Workflow builder component not available. Please check your installation."
+    )
+
+
+def _render_builder_page():
+    """Render builder page with lazy import."""
+    renderer = _get_workflow_builder_renderer()
+    if renderer:
+        renderer()
+    else:
+        _render_builder_fallback()
+
+
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
     "Costs": render_cost_dashboard
@@ -405,6 +438,7 @@ _PAGE_RENDERERS = {
     "Agents": render_agents_page,
     "Metrics": render_metrics_page,
     "Analytics": render_analytics_page,
+    "Builder": _render_builder_page,
     "Workflows": render_workflows_page,
     "Prompts": render_prompts_page,
     "Execute": render_execute_page,
