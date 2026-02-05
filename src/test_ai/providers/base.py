@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import asyncio
 from abc import ABC, abstractmethod
+from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
+from typing import Iterator
 
 
 class ProviderError(Exception):
@@ -34,6 +36,10 @@ class ProviderType(Enum):
 
     OPENAI = "openai"
     ANTHROPIC = "anthropic"
+    AZURE_OPENAI = "azure_openai"
+    BEDROCK = "bedrock"
+    VERTEX = "vertex"
+    OLLAMA = "ollama"
 
 
 @dataclass
@@ -78,6 +84,35 @@ class CompletionResponse:
     finish_reason: str | None = None
     latency_ms: float = 0
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    metadata: dict = field(default_factory=dict)
+
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "content": self.content,
+            "model": self.model,
+            "provider": self.provider,
+            "tokens_used": self.tokens_used,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "finish_reason": self.finish_reason,
+            "latency_ms": self.latency_ms,
+            "timestamp": self.timestamp.isoformat(),
+            "metadata": self.metadata,
+        }
+
+
+@dataclass
+class StreamChunk:
+    """A chunk from a streaming completion response."""
+
+    content: str
+    model: str
+    provider: str
+    finish_reason: str | None = None
+    input_tokens: int = 0
+    output_tokens: int = 0
+    is_final: bool = False
     metadata: dict = field(default_factory=dict)
 
     def to_dict(self) -> dict:
@@ -273,3 +308,64 @@ class Provider(ABC):
             return True
         except Exception:
             return False
+
+    def complete_stream(self, request: CompletionRequest) -> Iterator[StreamChunk]:
+        """Generate a streaming completion.
+
+        Default implementation yields single chunk from non-streaming response.
+        Override for native streaming support.
+
+        Args:
+            request: Completion request
+
+        Yields:
+            StreamChunk objects as they arrive
+        """
+        # Default: fall back to non-streaming
+        response = self.complete(request)
+        yield StreamChunk(
+            content=response.content,
+            model=response.model,
+            provider=response.provider,
+            finish_reason=response.finish_reason,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            is_final=True,
+            metadata=response.metadata,
+        )
+
+    async def complete_stream_async(
+        self, request: CompletionRequest
+    ) -> AsyncIterator[StreamChunk]:
+        """Generate an async streaming completion.
+
+        Default implementation yields single chunk from non-streaming response.
+        Override for native streaming support.
+
+        Args:
+            request: Completion request
+
+        Yields:
+            StreamChunk objects as they arrive
+        """
+        # Default: fall back to non-streaming
+        response = await self.complete_async(request)
+        yield StreamChunk(
+            content=response.content,
+            model=response.model,
+            provider=response.provider,
+            finish_reason=response.finish_reason,
+            input_tokens=response.input_tokens,
+            output_tokens=response.output_tokens,
+            is_final=True,
+            metadata=response.metadata,
+        )
+
+    @property
+    def supports_streaming(self) -> bool:
+        """Whether this provider supports native streaming.
+
+        Returns:
+            True if native streaming is supported
+        """
+        return False
