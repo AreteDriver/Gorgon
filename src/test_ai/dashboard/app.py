@@ -412,7 +412,9 @@ def render_logs_page():
 def _render_builder_fallback():
     """Fallback when workflow builder is not available."""
     st.title("🎨 Visual Workflow Builder")
-    st.warning("Workflow builder component not available. Please check your installation.")
+    st.warning(
+        "Workflow builder component not available. Please check your installation."
+    )
 
 
 _PAGE_RENDERERS = {
