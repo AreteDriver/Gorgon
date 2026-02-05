@@ -457,8 +457,16 @@ class DiscordBot(MessagingBot):
             embed.set_footer(text="Gorgon AI Assistant")
 
             reference = None
-            if reply_to_id:
-                try:
+                except Exception as e:
+                    # Fall back to sending without a reply reference if construction fails
+                    logger.warning(
+                        "Failed to create Discord MessageReference for reply_to_id %r "
+                        "in channel %r: %s",
+                        reply_to_id,
+                        chat_id,
+                        e,
+                    )
+                    reference = None
                     reference = discord.MessageReference(
                         message_id=int(reply_to_id),
                         channel_id=int(chat_id),
