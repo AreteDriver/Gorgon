@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from test_ai.dashboard.workflow_builder import (
     NODE_TYPE_CONFIG,
     AGENT_ROLES,
+    WORKFLOW_TEMPLATES,
     _generate_node_id,
     _build_yaml_from_state,
     _load_yaml_to_state,
@@ -21,6 +22,7 @@ from test_ai.dashboard.workflow_builder import (
     _add_execution_log,
     _update_step_status,
     _render_step_status_indicator,
+    _get_workflow_templates,
 )
 
 
@@ -475,3 +477,68 @@ class TestExecution:
         assert _render_step_status_indicator("step4") == "❌"
         assert _render_step_status_indicator("step5") == "⏭️"
         assert _render_step_status_indicator("unknown") == "⏳"  # Default for missing
+
+
+class TestWorkflowTemplates:
+    """Test workflow templates."""
+
+    def test_templates_exist(self):
+        """Should have pre-built workflow templates."""
+        templates = _get_workflow_templates()
+        assert len(templates) >= 5  # At least 5 templates
+
+    def test_template_structure(self):
+        """Each template should have required fields."""
+        templates = _get_workflow_templates()
+        for template_id, template in templates.items():
+            assert "name" in template, f"{template_id} missing name"
+            assert "icon" in template, f"{template_id} missing icon"
+            assert "description" in template, f"{template_id} missing description"
+            assert "workflow" in template, f"{template_id} missing workflow"
+
+            workflow = template["workflow"]
+            assert "name" in workflow, f"{template_id} workflow missing name"
+            assert "steps" in workflow, f"{template_id} workflow missing steps"
+            assert len(workflow["steps"]) > 0, f"{template_id} workflow has no steps"
+
+    def test_template_workflows_are_valid(self):
+        """All template workflows should pass validation."""
+        from test_ai.workflow.loader import validate_workflow
+
+        templates = _get_workflow_templates()
+        for template_id, template in templates.items():
+            errors = validate_workflow(template["workflow"])
+            assert not errors, f"{template_id} has validation errors: {errors}"
+
+    def test_expected_templates_present(self):
+        """Expected template types should be present."""
+        templates = _get_workflow_templates()
+        expected = {
+            "feature_development",
+            "code_review",
+            "documentation",
+            "data_analysis",
+            "bug_fix",
+        }
+        actual = set(templates.keys())
+        assert expected.issubset(actual), f"Missing templates: {expected - actual}"
+
+    def test_load_template_to_state(self, mock_session_state):
+        """Should load a template into session state."""
+        templates = _get_workflow_templates()
+        template = templates["feature_development"]
+
+        _load_yaml_to_state(template["workflow"])
+
+        assert mock_session_state.builder_metadata["name"] == "Feature Development"
+        assert len(mock_session_state.builder_nodes) == 4  # plan, build, test, review
+        assert len(mock_session_state.builder_edges) == 3  # 3 dependencies
+
+    def test_template_has_inputs_and_outputs(self):
+        """Templates should define inputs and outputs."""
+        templates = _get_workflow_templates()
+        for template_id, template in templates.items():
+            workflow = template["workflow"]
+            # All templates should have at least one output
+            assert "outputs" in workflow, f"{template_id} missing outputs"
+            assert len(workflow["outputs"]) > 0, f"{template_id} has no outputs"

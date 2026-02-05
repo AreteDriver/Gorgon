@@ -135,6 +135,269 @@ AGENT_ROLES = [
     "data_engineer",
 ]
 
+# Pre-built workflow templates
+WORKFLOW_TEMPLATES = {
+    "feature_development": {
+        "name": "Feature Development",
+        "icon": "🚀",
+        "description": "Plan, build, test, and review a new feature",
+        "workflow": {
+            "name": "Feature Development",
+            "version": "1.0",
+            "description": "End-to-end feature development workflow with planning, implementation, testing, and code review.",
+            "token_budget": 150000,
+            "timeout_seconds": 7200,
+            "inputs": {
+                "feature_request": {"type": "string", "required": True, "description": "Description of the feature to implement"},
+                "codebase_context": {"type": "string", "required": False, "description": "Relevant codebase information"},
+            },
+            "outputs": ["plan", "code", "tests", "review"],
+            "steps": [
+                {
+                    "id": "plan",
+                    "type": "claude_code",
+                    "params": {"role": "planner", "prompt": "Create a detailed implementation plan for: {{feature_request}}"},
+                    "outputs": ["plan"],
+                },
+                {
+                    "id": "build",
+                    "type": "claude_code",
+                    "params": {"role": "builder", "prompt": "Implement the feature based on this plan: {{plan}}"},
+                    "depends_on": "plan",
+                    "outputs": ["code"],
+                },
+                {
+                    "id": "test",
+                    "type": "claude_code",
+                    "params": {"role": "tester", "prompt": "Write comprehensive tests for: {{code}}"},
+                    "depends_on": "build",
+                    "outputs": ["tests"],
+                },
+                {
+                    "id": "review",
+                    "type": "claude_code",
+                    "params": {"role": "reviewer", "prompt": "Review the code and tests for quality and security: {{code}} {{tests}}"},
+                    "depends_on": "test",
+                    "outputs": ["review"],
+                },
+            ],
+        },
+    },
+    "code_review": {
+        "name": "Code Review",
+        "icon": "🔍",
+        "description": "Analyze code for bugs, security issues, and improvements",
+        "workflow": {
+            "name": "Code Review",
+            "version": "1.0",
+            "description": "Comprehensive code review with security analysis and improvement suggestions.",
+            "token_budget": 80000,
+            "timeout_seconds": 3600,
+            "inputs": {
+                "code": {"type": "string", "required": True, "description": "Code to review"},
+                "focus_areas": {"type": "string", "required": False, "description": "Specific areas to focus on"},
+            },
+            "outputs": ["analysis", "security_report", "suggestions"],
+            "steps": [
+                {
+                    "id": "analyze",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Analyze this code for correctness, patterns, and architecture: {{code}}"},
+                    "outputs": ["analysis"],
+                },
+                {
+                    "id": "security",
+                    "type": "claude_code",
+                    "params": {"role": "reviewer", "prompt": "Review for security vulnerabilities (OWASP Top 10, injection, etc.): {{code}}"},
+                    "outputs": ["security_report"],
+                },
+                {
+                    "id": "suggest",
+                    "type": "claude_code",
+                    "params": {"role": "architect", "prompt": "Based on analysis: {{analysis}} and security review: {{security_report}}, suggest improvements."},
+                    "depends_on": ["analyze", "security"],
+                    "outputs": ["suggestions"],
+                },
+            ],
+        },
+    },
+    "documentation": {
+        "name": "Documentation Generator",
+        "icon": "📚",
+        "description": "Generate comprehensive documentation from code",
+        "workflow": {
+            "name": "Documentation Generator",
+            "version": "1.0",
+            "description": "Automatically generate API docs, usage guides, and architecture documentation.",
+            "token_budget": 100000,
+            "timeout_seconds": 5400,
+            "inputs": {
+                "source_code": {"type": "string", "required": True, "description": "Source code to document"},
+                "project_name": {"type": "string", "required": True, "description": "Name of the project"},
+            },
+            "outputs": ["api_docs", "usage_guide", "architecture_doc"],
+            "steps": [
+                {
+                    "id": "analyze_structure",
+                    "type": "claude_code",
+                    "params": {"role": "architect", "prompt": "Analyze the structure and architecture of: {{source_code}}"},
+                    "outputs": ["structure_analysis"],
+                },
+                {
+                    "id": "generate_api_docs",
+                    "type": "claude_code",
+                    "params": {"role": "documenter", "prompt": "Generate API documentation for {{project_name}}: {{source_code}}"},
+                    "depends_on": "analyze_structure",
+                    "outputs": ["api_docs"],
+                },
+                {
+                    "id": "generate_usage_guide",
+                    "type": "claude_code",
+                    "params": {"role": "documenter", "prompt": "Write a usage guide for {{project_name}} based on: {{structure_analysis}}"},
+                    "depends_on": "analyze_structure",
+                    "outputs": ["usage_guide"],
+                },
+                {
+                    "id": "generate_architecture_doc",
+                    "type": "claude_code",
+                    "params": {"role": "architect", "prompt": "Document the architecture of {{project_name}}: {{structure_analysis}}"},
+                    "depends_on": "analyze_structure",
+                    "outputs": ["architecture_doc"],
+                },
+            ],
+        },
+    },
+    "data_analysis": {
+        "name": "Data Analysis Pipeline",
+        "icon": "📊",
+        "description": "Analyze data and generate visualizations with report",
+        "workflow": {
+            "name": "Data Analysis Pipeline",
+            "version": "1.0",
+            "description": "Load, analyze, visualize data and generate an executive summary report.",
+            "token_budget": 120000,
+            "timeout_seconds": 5400,
+            "inputs": {
+                "data_source": {"type": "string", "required": True, "description": "Path or description of data source"},
+                "analysis_goals": {"type": "string", "required": True, "description": "What insights are you looking for?"},
+            },
+            "outputs": ["analysis", "visualizations", "report"],
+            "steps": [
+                {
+                    "id": "load_and_explore",
+                    "type": "claude_code",
+                    "params": {"role": "data_engineer", "prompt": "Load and explore data from: {{data_source}}. Goals: {{analysis_goals}}"},
+                    "outputs": ["data_summary"],
+                },
+                {
+                    "id": "analyze",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Perform statistical analysis on: {{data_summary}} to answer: {{analysis_goals}}"},
+                    "depends_on": "load_and_explore",
+                    "outputs": ["analysis"],
+                },
+                {
+                    "id": "visualize",
+                    "type": "claude_code",
+                    "params": {"role": "visualizer", "prompt": "Create visualizations for: {{analysis}}"},
+                    "depends_on": "analyze",
+                    "outputs": ["visualizations"],
+                },
+                {
+                    "id": "report",
+                    "type": "claude_code",
+                    "params": {"role": "reporter", "prompt": "Generate executive summary from: {{analysis}} and {{visualizations}}"},
+                    "depends_on": ["analyze", "visualize"],
+                    "outputs": ["report"],
+                },
+            ],
+        },
+    },
+    "bug_fix": {
+        "name": "Bug Fix Workflow",
+        "icon": "🐛",
+        "description": "Diagnose, fix, and verify bug resolution",
+        "workflow": {
+            "name": "Bug Fix Workflow",
+            "version": "1.0",
+            "description": "Systematic bug diagnosis, fix implementation, and verification.",
+            "token_budget": 80000,
+            "timeout_seconds": 3600,
+            "inputs": {
+                "bug_report": {"type": "string", "required": True, "description": "Description of the bug"},
+                "relevant_code": {"type": "string", "required": False, "description": "Code where bug might be located"},
+            },
+            "outputs": ["diagnosis", "fix", "verification"],
+            "steps": [
+                {
+                    "id": "diagnose",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Diagnose the root cause of: {{bug_report}}. Context: {{relevant_code}}"},
+                    "outputs": ["diagnosis"],
+                },
+                {
+                    "id": "fix",
+                    "type": "claude_code",
+                    "params": {"role": "builder", "prompt": "Implement a fix based on diagnosis: {{diagnosis}}"},
+                    "depends_on": "diagnose",
+                    "outputs": ["fix"],
+                },
+                {
+                    "id": "test_fix",
+                    "type": "claude_code",
+                    "params": {"role": "tester", "prompt": "Write tests to verify the fix works: {{fix}}"},
+                    "depends_on": "fix",
+                    "outputs": ["tests"],
+                },
+                {
+                    "id": "verify",
+                    "type": "claude_code",
+                    "params": {"role": "reviewer", "prompt": "Verify fix is complete and doesn't introduce regressions: {{fix}} {{tests}}"},
+                    "depends_on": "test_fix",
+                    "outputs": ["verification"],
+                },
+            ],
+        },
+    },
+    "shell_pipeline": {
+        "name": "Shell Command Pipeline",
+        "icon": "💻",
+        "description": "Execute shell commands with AI-assisted analysis",
+        "workflow": {
+            "name": "Shell Command Pipeline",
+            "version": "1.0",
+            "description": "Run shell commands and analyze the output with AI.",
+            "token_budget": 50000,
+            "timeout_seconds": 1800,
+            "inputs": {
+                "command": {"type": "string", "required": True, "description": "Shell command to execute"},
+                "analysis_prompt": {"type": "string", "required": False, "description": "What to analyze in the output"},
+            },
+            "outputs": ["command_output", "analysis"],
+            "steps": [
+                {
+                    "id": "run_command",
+                    "type": "shell",
+                    "params": {"command": "{{command}}", "allow_failure": False},
+                    "outputs": ["command_output"],
+                },
+                {
+                    "id": "analyze_output",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Analyze this command output: {{command_output}}. {{analysis_prompt}}"},
+                    "depends_on": "run_command",
+                    "outputs": ["analysis"],
+                },
+            ],
+        },
+    },
+}
+
+
+def _get_workflow_templates() -> dict:
+    """Get all available workflow templates."""
+    return WORKFLOW_TEMPLATES
+
 
 def _init_session_state():
     """Initialize session state for the workflow builder."""
@@ -1556,6 +1819,42 @@ def _render_saved_workflows():
                         st.error("Failed to delete")
 
 
+def _render_templates_section():
+    """Render workflow templates selection section."""
+    st.markdown("### Templates")
+    st.caption("Start with a pre-built workflow pattern")
+
+    templates = _get_workflow_templates()
+
+    for template_id, template in templates.items():
+        with st.expander(f"{template['icon']} **{template['name']}**", expanded=False):
+            st.markdown(template["description"])
+
+            workflow = template["workflow"]
+            st.markdown(f"**Steps:** {len(workflow['steps'])}")
+
+            # Show step preview
+            step_names = [s["id"] for s in workflow["steps"]]
+            st.caption(" → ".join(step_names))
+
+            # Show required inputs
+            inputs = workflow.get("inputs", {})
+            required = [k for k, v in inputs.items() if v.get("required")]
+            if required:
+                st.caption(f"**Required inputs:** {', '.join(required)}")
+
+            if st.button(
+                "Use Template",
+                key=f"template_{template_id}",
+                use_container_width=True,
+                type="primary",
+            ):
+                _load_yaml_to_state(workflow)
+                _mark_dirty()
+                st.success(f"Loaded template: {template['name']}")
+                st.rerun()
+
+
 def render_workflow_builder():
     """Main entry point for the visual workflow builder."""
     st.title("🎨 Visual Workflow Builder")
@@ -1620,18 +1919,21 @@ def render_workflow_builder():
     sidebar, main = st.columns([1, 3])
 
     with sidebar:
-        tab1, tab2, tab3, tab4 = st.tabs(["Nodes", "Settings", "Saved", "Import"])
+        tab1, tab2, tab3, tab4, tab5 = st.tabs(["Templates", "Nodes", "Settings", "Saved", "Import"])
 
         with tab1:
-            _render_node_palette()
+            _render_templates_section()
 
         with tab2:
-            _render_workflow_settings()
+            _render_node_palette()
 
         with tab3:
-            _render_saved_workflows()
+            _render_workflow_settings()
 
         with tab4:
+            _render_saved_workflows()
+
+        with tab5:
             _render_import_section()
 
     with main:
