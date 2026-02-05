@@ -11,6 +11,7 @@ import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlparse
 from urllib.request import urlretrieve
 
 from .loader import load_plugin_from_file
@@ -256,7 +257,7 @@ class PluginInstaller:
         try:
             self.registry.unregister(request.name)
         except Exception:
-            pass
+            pass  # Plugin may not be registered yet
 
         # Download and install new version
         plugin_path = None
@@ -506,8 +507,14 @@ class PluginInstaller:
         if not repo_url:
             return None, None
 
+        # Validate GitHub URL using proper URL parsing
+        parsed = urlparse(repo_url)
+        if parsed.hostname not in ("github.com", "raw.githubusercontent.com"):
+            logger.warning(f"Invalid GitHub URL host: {parsed.hostname}")
+            return None, None
+
         # Convert to raw URL if needed
-        if "github.com" in repo_url and "/blob/" not in repo_url:
+        if parsed.hostname == "github.com" and "/blob/" not in repo_url:
             # Assume main branch, plugin.py
             raw_url = (
                 repo_url.replace("github.com", "raw.githubusercontent.com")

@@ -376,8 +376,6 @@ class SupervisorAgent:
         # Look for JSON block in response
         try:
             # Find JSON between ```json and ```
-            import re
-
             json_match = re.search(r"```json\s*(.*?)\s*```", response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)

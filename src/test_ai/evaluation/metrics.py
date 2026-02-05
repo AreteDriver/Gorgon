@@ -559,7 +559,7 @@ class CompositeMetric(EvalMetric):
                 total_score += score * weight
                 total_weight += weight
             except Exception:
-                pass
+                pass  # Skip failed metrics and continue with others
 
         if total_weight == 0:
             return 0.0

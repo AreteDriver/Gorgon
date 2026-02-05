@@ -417,7 +417,7 @@ class OllamaProvider(Provider):
                     "details": data.get("details"),
                 }
         except Exception:
-            pass
+            pass  # Model details optional - fall back to basic info
 
         return {"model": model, "provider": self.name}
 

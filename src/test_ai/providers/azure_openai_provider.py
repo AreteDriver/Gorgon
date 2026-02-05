@@ -110,7 +110,7 @@ class AzureOpenAIProvider(Provider):
                         "AZURE_OPENAI_DEPLOYMENT"
                     )
             except Exception:
-                pass
+                pass  # Config loading optional - fall back to env vars below
 
         if not self.config.api_key:
             raise ProviderNotConfiguredError("Azure OpenAI API key not configured")

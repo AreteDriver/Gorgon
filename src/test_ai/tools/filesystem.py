@@ -319,7 +319,7 @@ class FilesystemTools:
                     if not self.validator.is_excluded(rel_path):
                         visible_entries.append(entry)
                 except ValueError:
-                    pass
+                    pass  # Path not relative to root - skip entry
 
             for i, entry in enumerate(visible_entries):
                 is_last = i == len(visible_entries) - 1
@@ -371,7 +371,7 @@ class FilesystemTools:
                 if not self.validator.is_excluded(rel_path) and path.is_file():
                     results.append(rel_path)
             except ValueError:
-                pass
+                pass  # Path not relative to root - skip
 
             if len(results) >= self.max_results:
                 break

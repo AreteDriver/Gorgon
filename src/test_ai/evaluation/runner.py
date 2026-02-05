@@ -360,7 +360,7 @@ class EvalRunner:
         """
         if parallel_suites:
             with ThreadPoolExecutor(max_workers=self.max_workers) as executor:
-                results = list(executor.map(lambda s: self.run(s), suites))
+                results = list(executor.map(self.run, suites))
             return results
 
         return [self.run(suite) for suite in suites]

@@ -550,7 +550,7 @@ class PluginMarketplace:
             try:
                 metadata = PluginMetadata.model_validate_json(row[10])
             except Exception:
-                pass
+                pass  # Metadata parsing optional - continue with None
 
         return PluginRelease(
             id=row[0],
