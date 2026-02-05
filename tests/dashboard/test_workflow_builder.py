@@ -1,6 +1,8 @@
 """Tests for the visual workflow builder."""
 
 import pytest
+from pathlib import Path
+from unittest.mock import patch, MagicMock
 
 from test_ai.dashboard.workflow_builder import (
     NODE_TYPE_CONFIG,
@@ -8,6 +10,13 @@ from test_ai.dashboard.workflow_builder import (
     _generate_node_id,
     _build_yaml_from_state,
     _load_yaml_to_state,
+    _get_workflows_dir,
+    _get_builder_state_path,
+    _save_builder_state,
+    _load_builder_state,
+    _list_saved_workflows,
+    _new_workflow,
+    _mark_dirty,
 )
 
 
@@ -275,6 +284,9 @@ def mock_session_state(monkeypatch):
             self.builder_inputs = {}
             self.builder_outputs = []
             self.selected_node = None
+            # Persistence state
+            self.builder_current_file = None
+            self.builder_dirty = False
 
     mock_state = MockSessionState()
 
@@ -284,3 +296,111 @@ def mock_session_state(monkeypatch):
     monkeypatch.setattr(st, "session_state", mock_state)
 
     return mock_state
+
+
+class TestPersistence:
+    """Test workflow persistence functions."""
+
+    def test_get_workflows_dir_fallback(self, monkeypatch):
+        """Should fall back to local workflows dir on error."""
+        # Mock get_settings to raise an exception
+        monkeypatch.setattr(
+            "test_ai.dashboard.workflow_builder.get_settings",
+            MagicMock(side_effect=Exception("No settings")),
+        )
+        result = _get_workflows_dir()
+        assert result == Path("workflows")
+
+    def test_get_builder_state_path(self):
+        """Should generate correct state path."""
+        with patch(
+            "test_ai.dashboard.workflow_builder._get_workflows_dir"
+        ) as mock_dir:
+            mock_dir.return_value = Path("/tmp/test_workflows")
+            result = _get_builder_state_path("Test Workflow!")
+            assert result == Path("/tmp/test_workflows/.builder_state/test_workflow_.json")
+
+    def test_save_and_load_builder_state(self, mock_session_state, tmp_path):
+        """Should save and load builder state correctly."""
+        # Setup mock session state
+        mock_session_state.builder_nodes = [
+            {"id": "node-1", "type": "claude_code", "position": {"x": 100, "y": 200}}
+        ]
+        mock_session_state.builder_edges = [
+            {"id": "edge-1", "source": "node-1", "target": "node-2"}
+        ]
+        mock_session_state.builder_metadata = {"name": "Test", "version": "1.0"}
+        mock_session_state.builder_inputs = {"input1": {"type": "string"}}
+        mock_session_state.builder_outputs = ["output1"]
+
+        with patch(
+            "test_ai.dashboard.workflow_builder._get_workflows_dir"
+        ) as mock_dir:
+            mock_dir.return_value = tmp_path
+
+            # Save state
+            _save_builder_state("Test Workflow")
+
+            # Reset state
+            mock_session_state.builder_nodes = []
+            mock_session_state.builder_edges = []
+
+            # Load state
+            result = _load_builder_state("Test Workflow")
+
+            assert result is True
+            assert len(mock_session_state.builder_nodes) == 1
+            assert mock_session_state.builder_nodes[0]["id"] == "node-1"
+            assert len(mock_session_state.builder_edges) == 1
+
+    def test_load_builder_state_not_found(self, mock_session_state, tmp_path):
+        """Should return False if state file doesn't exist."""
+        with patch(
+            "test_ai.dashboard.workflow_builder._get_workflows_dir"
+        ) as mock_dir:
+            mock_dir.return_value = tmp_path
+
+            result = _load_builder_state("NonExistent")
+            assert result is False
+
+    def test_list_saved_workflows(self, tmp_path):
+        """Should list saved workflows with metadata."""
+        # Create test workflow files
+        wf1 = tmp_path / "workflow1.yaml"
+        wf1.write_text("name: Workflow One\nversion: '1.0'\ndescription: First\nsteps: []")
+
+        wf2 = tmp_path / "workflow2.yaml"
+        wf2.write_text("name: Workflow Two\nversion: '2.0'\nsteps:\n  - id: step1\n    type: shell")
+
+        with patch(
+            "test_ai.dashboard.workflow_builder._get_workflows_dir"
+        ) as mock_dir:
+            mock_dir.return_value = tmp_path
+
+            workflows = _list_saved_workflows()
+
+            assert len(workflows) == 2
+            names = {wf["name"] for wf in workflows}
+            assert "Workflow One" in names
+            assert "Workflow Two" in names
+
+    def test_new_workflow(self, mock_session_state):
+        """Should reset all state to defaults."""
+        # Set up non-default state
+        mock_session_state.builder_nodes = [{"id": "node1"}]
+        mock_session_state.builder_current_file = Path("/tmp/test.yaml")
+        mock_session_state.builder_dirty = True
+
+        _new_workflow()
+
+        assert mock_session_state.builder_nodes == []
+        assert mock_session_state.builder_edges == []
+        assert mock_session_state.builder_current_file is None
+        assert mock_session_state.builder_dirty is False
+        assert mock_session_state.builder_metadata["name"] == "New Workflow"
+
+    def test_mark_dirty(self, mock_session_state):
+        """Should mark workflow as having unsaved changes."""
+        assert mock_session_state.builder_dirty is False
+        _mark_dirty()
+        assert mock_session_state.builder_dirty is True
