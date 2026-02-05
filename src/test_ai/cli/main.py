@@ -2859,7 +2859,7 @@ def calendar_busy(
                     f"  {start_dt.strftime('%a %m/%d %I:%M %p')} - "
                     f"{end_dt.strftime('%I:%M %p')}"
                 )
-            except Exception:
+            except ValueError:
                 console.print(f"  {start} - {end_p}")
 
 
