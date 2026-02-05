@@ -371,8 +371,14 @@ class DiscordBot(MessagingBot):
                             message_id=int(reply_to_id),
                             channel_id=int(chat_id),
                         )
-                    except Exception:
-                        pass
+                    except Exception as exc:
+                        logger.debug(
+                            "Failed to build Discord reply reference "
+                            "for chat_id=%s, reply_to_id=%s: %r",
+                            chat_id,
+                            reply_to_id,
+                            exc,
+                        )
 
                 msg = await channel.send(
                     content=chunk,
