@@ -34,6 +34,7 @@ try:
 except ImportError:
     NEW_COMPONENTS_AVAILABLE = False
 
+
 def _get_workflow_builder_renderer():
     """Get the workflow builder renderer, importing lazily."""
     try:
