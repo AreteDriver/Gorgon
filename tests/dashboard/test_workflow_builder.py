@@ -7,6 +7,7 @@ from unittest.mock import patch, MagicMock
 from test_ai.dashboard.workflow_builder import (
     NODE_TYPE_CONFIG,
     AGENT_ROLES,
+    WORKFLOW_TEMPLATES,
     _generate_node_id,
     _build_yaml_from_state,
     _load_yaml_to_state,

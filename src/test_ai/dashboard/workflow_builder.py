@@ -9,6 +9,7 @@ from __future__ import annotations
 import json
 import logging
 import re
+from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -111,6 +112,269 @@ AGENT_ROLES = [
     "reporter",
     "data_engineer",
 ]
+
+# Pre-built workflow templates
+WORKFLOW_TEMPLATES = {
+    "feature_development": {
+        "name": "Feature Development",
+        "icon": "🚀",
+        "description": "Plan, build, test, and review a new feature",
+        "workflow": {
+            "name": "Feature Development",
+            "version": "1.0",
+            "description": "End-to-end feature development workflow with planning, implementation, testing, and code review.",
+            "token_budget": 150000,
+            "timeout_seconds": 7200,
+            "inputs": {
+                "feature_request": {"type": "string", "required": True, "description": "Description of the feature to implement"},
+                "codebase_context": {"type": "string", "required": False, "description": "Relevant codebase information"},
+            },
+            "outputs": ["plan", "code", "tests", "review"],
+            "steps": [
+                {
+                    "id": "plan",
+                    "type": "claude_code",
+                    "params": {"role": "planner", "prompt": "Create a detailed implementation plan for: {{feature_request}}"},
+                    "outputs": ["plan"],
+                },
+                {
+                    "id": "build",
+                    "type": "claude_code",
+                    "params": {"role": "builder", "prompt": "Implement the feature based on this plan: {{plan}}"},
+                    "depends_on": "plan",
+                    "outputs": ["code"],
+                },
+                {
+                    "id": "test",
+                    "type": "claude_code",
+                    "params": {"role": "tester", "prompt": "Write comprehensive tests for: {{code}}"},
+                    "depends_on": "build",
+                    "outputs": ["tests"],
+                },
+                {
+                    "id": "review",
+                    "type": "claude_code",
+                    "params": {"role": "reviewer", "prompt": "Review the code and tests for quality and security: {{code}} {{tests}}"},
+                    "depends_on": "test",
+                    "outputs": ["review"],
+                },
+            ],
+        },
+    },
+    "code_review": {
+        "name": "Code Review",
+        "icon": "🔍",
+        "description": "Analyze code for bugs, security issues, and improvements",
+        "workflow": {
+            "name": "Code Review",
+            "version": "1.0",
+            "description": "Comprehensive code review with security analysis and improvement suggestions.",
+            "token_budget": 80000,
+            "timeout_seconds": 3600,
+            "inputs": {
+                "code": {"type": "string", "required": True, "description": "Code to review"},
+                "focus_areas": {"type": "string", "required": False, "description": "Specific areas to focus on"},
+            },
+            "outputs": ["analysis", "security_report", "suggestions"],
+            "steps": [
+                {
+                    "id": "analyze",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Analyze this code for correctness, patterns, and architecture: {{code}}"},
+                    "outputs": ["analysis"],
+                },
+                {
+                    "id": "security",
+                    "type": "claude_code",
+                    "params": {"role": "reviewer", "prompt": "Review for security vulnerabilities (OWASP Top 10, injection, etc.): {{code}}"},
+                    "outputs": ["security_report"],
+                },
+                {
+                    "id": "suggest",
+                    "type": "claude_code",
+                    "params": {"role": "architect", "prompt": "Based on analysis: {{analysis}} and security review: {{security_report}}, suggest improvements."},
+                    "depends_on": ["analyze", "security"],
+                    "outputs": ["suggestions"],
+                },
+            ],
+        },
+    },
+    "documentation": {
+        "name": "Documentation Generator",
+        "icon": "📚",
+        "description": "Generate comprehensive documentation from code",
+        "workflow": {
+            "name": "Documentation Generator",
+            "version": "1.0",
+            "description": "Automatically generate API docs, usage guides, and architecture documentation.",
+            "token_budget": 100000,
+            "timeout_seconds": 5400,
+            "inputs": {
+                "source_code": {"type": "string", "required": True, "description": "Source code to document"},
+                "project_name": {"type": "string", "required": True, "description": "Name of the project"},
+            },
+            "outputs": ["api_docs", "usage_guide", "architecture_doc"],
+            "steps": [
+                {
+                    "id": "analyze_structure",
+                    "type": "claude_code",
+                    "params": {"role": "architect", "prompt": "Analyze the structure and architecture of: {{source_code}}"},
+                    "outputs": ["structure_analysis"],
+                },
+                {
+                    "id": "generate_api_docs",
+                    "type": "claude_code",
+                    "params": {"role": "documenter", "prompt": "Generate API documentation for {{project_name}}: {{source_code}}"},
+                    "depends_on": "analyze_structure",
+                    "outputs": ["api_docs"],
+                },
+                {
+                    "id": "generate_usage_guide",
+                    "type": "claude_code",
+                    "params": {"role": "documenter", "prompt": "Write a usage guide for {{project_name}} based on: {{structure_analysis}}"},
+                    "depends_on": "analyze_structure",
+                    "outputs": ["usage_guide"],
+                },
+                {
+                    "id": "generate_architecture_doc",
+                    "type": "claude_code",
+                    "params": {"role": "architect", "prompt": "Document the architecture of {{project_name}}: {{structure_analysis}}"},
+                    "depends_on": "analyze_structure",
+                    "outputs": ["architecture_doc"],
+                },
+            ],
+        },
+    },
+    "data_analysis": {
+        "name": "Data Analysis Pipeline",
+        "icon": "📊",
+        "description": "Analyze data and generate visualizations with report",
+        "workflow": {
+            "name": "Data Analysis Pipeline",
+            "version": "1.0",
+            "description": "Load, analyze, visualize data and generate an executive summary report.",
+            "token_budget": 120000,
+            "timeout_seconds": 5400,
+            "inputs": {
+                "data_source": {"type": "string", "required": True, "description": "Path or description of data source"},
+                "analysis_goals": {"type": "string", "required": True, "description": "What insights are you looking for?"},
+            },
+            "outputs": ["analysis", "visualizations", "report"],
+            "steps": [
+                {
+                    "id": "load_and_explore",
+                    "type": "claude_code",
+                    "params": {"role": "data_engineer", "prompt": "Load and explore data from: {{data_source}}. Goals: {{analysis_goals}}"},
+                    "outputs": ["data_summary"],
+                },
+                {
+                    "id": "analyze",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Perform statistical analysis on: {{data_summary}} to answer: {{analysis_goals}}"},
+                    "depends_on": "load_and_explore",
+                    "outputs": ["analysis"],
+                },
+                {
+                    "id": "visualize",
+                    "type": "claude_code",
+                    "params": {"role": "visualizer", "prompt": "Create visualizations for: {{analysis}}"},
+                    "depends_on": "analyze",
+                    "outputs": ["visualizations"],
+                },
+                {
+                    "id": "report",
+                    "type": "claude_code",
+                    "params": {"role": "reporter", "prompt": "Generate executive summary from: {{analysis}} and {{visualizations}}"},
+                    "depends_on": ["analyze", "visualize"],
+                    "outputs": ["report"],
+                },
+            ],
+        },
+    },
+    "bug_fix": {
+        "name": "Bug Fix Workflow",
+        "icon": "🐛",
+        "description": "Diagnose, fix, and verify bug resolution",
+        "workflow": {
+            "name": "Bug Fix Workflow",
+            "version": "1.0",
+            "description": "Systematic bug diagnosis, fix implementation, and verification.",
+            "token_budget": 80000,
+            "timeout_seconds": 3600,
+            "inputs": {
+                "bug_report": {"type": "string", "required": True, "description": "Description of the bug"},
+                "relevant_code": {"type": "string", "required": False, "description": "Code where bug might be located"},
+            },
+            "outputs": ["diagnosis", "fix", "verification"],
+            "steps": [
+                {
+                    "id": "diagnose",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Diagnose the root cause of: {{bug_report}}. Context: {{relevant_code}}"},
+                    "outputs": ["diagnosis"],
+                },
+                {
+                    "id": "fix",
+                    "type": "claude_code",
+                    "params": {"role": "builder", "prompt": "Implement a fix based on diagnosis: {{diagnosis}}"},
+                    "depends_on": "diagnose",
+                    "outputs": ["fix"],
+                },
+                {
+                    "id": "test_fix",
+                    "type": "claude_code",
+                    "params": {"role": "tester", "prompt": "Write tests to verify the fix works: {{fix}}"},
+                    "depends_on": "fix",
+                    "outputs": ["tests"],
+                },
+                {
+                    "id": "verify",
+                    "type": "claude_code",
+                    "params": {"role": "reviewer", "prompt": "Verify fix is complete and doesn't introduce regressions: {{fix}} {{tests}}"},
+                    "depends_on": "test_fix",
+                    "outputs": ["verification"],
+                },
+            ],
+        },
+    },
+    "shell_pipeline": {
+        "name": "Shell Command Pipeline",
+        "icon": "💻",
+        "description": "Execute shell commands with AI-assisted analysis",
+        "workflow": {
+            "name": "Shell Command Pipeline",
+            "version": "1.0",
+            "description": "Run shell commands and analyze the output with AI.",
+            "token_budget": 50000,
+            "timeout_seconds": 1800,
+            "inputs": {
+                "command": {"type": "string", "required": True, "description": "Shell command to execute"},
+                "analysis_prompt": {"type": "string", "required": False, "description": "What to analyze in the output"},
+            },
+            "outputs": ["command_output", "analysis"],
+            "steps": [
+                {
+                    "id": "run_command",
+                    "type": "shell",
+                    "params": {"command": "{{command}}", "allow_failure": False},
+                    "outputs": ["command_output"],
+                },
+                {
+                    "id": "analyze_output",
+                    "type": "claude_code",
+                    "params": {"role": "analyst", "prompt": "Analyze this command output: {{command_output}}. {{analysis_prompt}}"},
+                    "depends_on": "run_command",
+                    "outputs": ["analysis"],
+                },
+            ],
+        },
+    },
+}
+
+
+def _get_workflow_templates() -> dict:
+    """Get all available workflow templates."""
+    return WORKFLOW_TEMPLATES
 
 
 def _init_session_state():
@@ -415,8 +679,23 @@ def _render_node_palette():
         st.divider()
 
 
+def _get_node_execution_status(node_id: str) -> tuple[str, str]:
+    """Get execution status and color for a node."""
+    status_info = st.session_state.builder_execution_step_status.get(node_id, {})
+    status = status_info.get("status", "")
+
+    status_colors = {
+        "pending": ("#f59e0b", "⏳"),
+        "running": ("#3b82f6", "🔄"),
+        "completed": ("#10b981", "✅"),
+        "failed": ("#ef4444", "❌"),
+        "skipped": ("#6b7280", "⏭️"),
+    }
+    return status_colors.get(status, ("", ""))
+
+
 def _render_node_card(node: dict) -> None:
-    """Render a single node card."""
+    """Render a single node card with enhanced visuals."""
     node_id = node["id"]
     node_type = node["type"]
     config = NODE_TYPE_CONFIG.get(
@@ -424,30 +703,133 @@ def _render_node_card(node: dict) -> None:
     )
     is_selected = st.session_state.selected_node == node_id
 
-    border_style = (
-        "3px solid #007bff" if is_selected else f"2px solid {config['color']}"
-    )
+    # Get execution status
+    status_color, status_icon = _get_node_execution_status(node_id)
 
-    # Get dependencies
+    # Selection styling
+    if is_selected:
+        border_style = "3px solid #007bff"
+        box_shadow = "0 4px 12px rgba(0, 123, 255, 0.3)"
+        transform = "scale(1.02)"
+    else:
+        border_style = f"2px solid {config['color']}50"
+        box_shadow = "0 2px 8px rgba(0, 0, 0, 0.1)"
+        transform = "scale(1)"
+
+    # Get node details
     deps = node["data"].get("depends_on", [])
-    deps_str = f" ← {', '.join(deps)}" if deps else ""
+    outputs = node["data"].get("outputs", [])
+    params = node["data"].get("params", {})
+    role = params.get("role", "")
 
-    # Node card HTML
+    # Build dependency badge
+    deps_html = ""
+    if deps:
+        deps_html = f"""
+            <div style="
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                background: #f3f4f6;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                color: #6b7280;
+                margin-top: 6px;
+            ">
+                <span>⬅</span> {', '.join(deps)}
+            </div>
+        """
+
+    # Build outputs badge
+    outputs_html = ""
+    if outputs:
+        outputs_html = f"""
+            <div style="
+                display: inline-flex;
+                align-items: center;
+                gap: 4px;
+                background: {config['color']}15;
+                padding: 2px 8px;
+                border-radius: 12px;
+                font-size: 10px;
+                color: {config['color']};
+                margin-top: 6px;
+                margin-left: 4px;
+            ">
+                <span>📤</span> {', '.join(outputs)}
+            </div>
+        """
+
+    # Build role badge
+    role_html = ""
+    if role:
+        role_html = f"""
+            <span style="
+                background: {config['color']}20;
+                color: {config['color']};
+                padding: 2px 8px;
+                border-radius: 10px;
+                font-size: 10px;
+                font-weight: 600;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            ">{role}</span>
+        """
+
+    # Build status indicator
+    status_html = ""
+    if status_color:
+        status_html = f"""
+            <div style="
+                position: absolute;
+                top: -6px;
+                right: -6px;
+                background: {status_color};
+                color: white;
+                width: 24px;
+                height: 24px;
+                border-radius: 50%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                box-shadow: 0 2px 4px rgba(0,0,0,0.2);
+            ">{status_icon}</div>
+        """
+
+    # Node card HTML with enhanced styling
     st.markdown(
         f"""
         <div style="
+            position: relative;
             border: {border_style};
-            border-radius: 12px;
-            padding: 12px;
-            margin: 8px 0;
-            background: linear-gradient(135deg, {config["color"]}20, {config["color"]}10);
-            cursor: pointer;
+            border-radius: 16px;
+            padding: 16px;
+            margin: 10px 0;
+            background: linear-gradient(145deg, white, {config["color"]}08);
+            box-shadow: {box_shadow};
+            transform: {transform};
+            transition: all 0.2s ease;
         ">
-            <div style="display: flex; align-items: center; gap: 8px;">
-                <span style="font-size: 28px;">{config["icon"]}</span>
-                <div>
-                    <div style="font-weight: bold; font-size: 14px;">{node_id}</div>
-                    <div style="font-size: 11px; color: #666;">{config["label"]}{deps_str}</div>
+            {status_html}
+            <div style="display: flex; align-items: flex-start; gap: 12px;">
+                <div style="
+                    font-size: 32px;
+                    background: {config['color']}15;
+                    padding: 8px;
+                    border-radius: 12px;
+                    line-height: 1;
+                ">{config["icon"]}</div>
+                <div style="flex: 1; min-width: 0;">
+                    <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                        <span style="font-weight: 700; font-size: 15px; color: #1f2937;">{node_id}</span>
+                        {role_html}
+                    </div>
+                    <div style="font-size: 12px; color: #6b7280; margin-top: 2px;">{config["label"]}</div>
+                    <div style="margin-top: 4px;">
+                        {deps_html}{outputs_html}
+                    </div>
                 </div>
             </div>
         </div>
@@ -455,28 +837,57 @@ def _render_node_card(node: dict) -> None:
         unsafe_allow_html=True,
     )
 
-    # Selection and delete buttons
+    # Selection and delete buttons with better styling
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("Edit", key=f"select_{node_id}", use_container_width=True):
+        if st.button("✏️ Edit", key=f"select_{node_id}", use_container_width=True):
             st.session_state.selected_node = node_id
             st.rerun()
     with col2:
-        if st.button("Delete", key=f"delete_{node_id}", use_container_width=True):
+        if st.button("🗑️ Delete", key=f"delete_{node_id}", use_container_width=True):
             _delete_node(node_id)
             st.rerun()
 
 
 def _render_canvas():
     """Render the workflow canvas with nodes."""
-    st.markdown("### Workflow Canvas")
+    st.markdown("### 🎯 Workflow Canvas")
 
     nodes = st.session_state.builder_nodes
 
     if not nodes:
-        st.info(
-            "Add nodes from the palette on the left to start building your workflow."
-        )
+        st.markdown("""
+            <div style="
+                text-align: center;
+                padding: 48px 24px;
+                background: linear-gradient(135deg, #f0f9ff, #e0f2fe);
+                border-radius: 20px;
+                border: 2px dashed #7dd3fc;
+                margin: 16px 0;
+            ">
+                <div style="font-size: 56px; margin-bottom: 16px;">🚀</div>
+                <div style="font-size: 20px; font-weight: 700; color: #0369a1; margin-bottom: 8px;">
+                    Start Building Your Workflow
+                </div>
+                <div style="font-size: 14px; color: #0284c7; max-width: 400px; margin: 0 auto;">
+                    Choose a <strong>Template</strong> to get started quickly, or add individual <strong>Nodes</strong> from the sidebar
+                </div>
+                <div style="
+                    display: flex;
+                    justify-content: center;
+                    gap: 24px;
+                    margin-top: 24px;
+                    font-size: 13px;
+                    color: #6b7280;
+                ">
+                    <span>📋 Templates</span>
+                    <span>•</span>
+                    <span>🤖 AI Agents</span>
+                    <span>•</span>
+                    <span>💻 Shell Commands</span>
+                </div>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
     # Render nodes in columns
@@ -487,9 +898,9 @@ def _render_canvas():
         with cols[i % num_cols]:
             _render_node_card(node)
 
-    # Connection builder
+    # Connection builder with improved styling
     st.markdown("---")
-    st.markdown("#### Connections")
+    st.markdown("#### 🔗 Connections")
 
     if len(nodes) >= 2:
         col1, col2, col3 = st.columns([2, 2, 1])
@@ -504,7 +915,7 @@ def _render_canvas():
             target = st.selectbox("To", target_options, key="conn_target")
         with col3:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("Connect", use_container_width=True):
+            if st.button("🔗 Connect", use_container_width=True, type="primary"):
                 if source and target:
                     _add_edge(source, target)
                     # Also update depends_on
@@ -516,16 +927,45 @@ def _render_canvas():
                                 node["data"]["depends_on"] = deps
                     st.rerun()
 
-    # Show existing connections
+    # Show existing connections with improved styling
     edges = st.session_state.builder_edges
     if edges:
-        st.markdown("**Current Connections:**")
+        st.markdown("""
+            <div style="
+                background: #f9fafb;
+                border-radius: 12px;
+                padding: 12px;
+                margin-top: 12px;
+            ">
+                <div style="font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">
+                    Active Connections
+                </div>
+        """, unsafe_allow_html=True)
+
         for edge in edges:
             col1, col2 = st.columns([4, 1])
             with col1:
-                st.markdown(f"`{edge['source']}` → `{edge['target']}`")
+                source_node = next((n for n in nodes if n["id"] == edge["source"]), None)
+                target_node = next((n for n in nodes if n["id"] == edge["target"]), None)
+                source_config = NODE_TYPE_CONFIG.get(source_node["type"], {}) if source_node else {}
+                target_config = NODE_TYPE_CONFIG.get(target_node["type"], {}) if target_node else {}
+
+                st.markdown(f"""
+                    <div style="
+                        display: flex;
+                        align-items: center;
+                        gap: 8px;
+                        padding: 6px 0;
+                    ">
+                        <span style="font-size: 16px;">{source_config.get('icon', '📦')}</span>
+                        <span style="font-weight: 500;">{edge['source']}</span>
+                        <span style="color: #9ca3af;">→</span>
+                        <span style="font-size: 16px;">{target_config.get('icon', '📦')}</span>
+                        <span style="font-weight: 500;">{edge['target']}</span>
+                    </div>
+                """, unsafe_allow_html=True)
             with col2:
-                if st.button("Remove", key=f"del_edge_{edge['id']}"):
+                if st.button("✕", key=f"del_edge_{edge['id']}", help="Remove connection"):
                     _delete_edge(edge["id"])
                     # Also update depends_on
                     for node in st.session_state.builder_nodes:
@@ -535,6 +975,8 @@ def _render_canvas():
                                 deps.remove(edge["source"])
                                 node["data"]["depends_on"] = deps
                     st.rerun()
+
+        st.markdown("</div>", unsafe_allow_html=True)
 
 
 def _render_node_config():
@@ -1102,14 +1544,28 @@ def _render_import_section():
 
 
 def _render_visual_graph():
-    """Render a visual representation of the workflow graph."""
+    """Render a visual representation of the workflow graph with enhanced styling."""
     nodes = st.session_state.builder_nodes
     edges = st.session_state.builder_edges
 
     if not nodes:
+        st.markdown("""
+            <div style="
+                text-align: center;
+                padding: 60px 20px;
+                color: #9ca3af;
+                background: linear-gradient(135deg, #f9fafb, #f3f4f6);
+                border-radius: 16px;
+                border: 2px dashed #d1d5db;
+            ">
+                <div style="font-size: 48px; margin-bottom: 16px;">🔗</div>
+                <div style="font-size: 18px; font-weight: 600;">No workflow steps yet</div>
+                <div style="font-size: 14px; margin-top: 8px;">Add nodes from the Templates or Nodes tab</div>
+            </div>
+        """, unsafe_allow_html=True)
         return
 
-    st.markdown("### Visual Flow")
+    st.markdown("### 🔀 Visual Flow")
 
     # Build adjacency for topological display
     node_map = {n["id"]: n for n in nodes}
@@ -1152,43 +1608,220 @@ def _render_visual_graph():
             level_groups[level] = []
         level_groups[level].append(node_id)
 
-    # Render level by level
+    # Calculate if this is a parallel workflow
+    max_parallel = max(len(group) for group in level_groups.values())
+    is_parallel = max_parallel > 1
+
+    # Render level by level with enhanced visuals
+    total_levels = len(level_groups)
     for level in sorted(level_groups.keys()):
         node_ids = level_groups[level]
+        is_parallel_level = len(node_ids) > 1
         cols = st.columns(max(len(node_ids), 1))
+
+        # Show parallel indicator
+        if is_parallel_level:
+            st.markdown("""
+                <div style="
+                    text-align: center;
+                    font-size: 11px;
+                    color: #3b82f6;
+                    background: #eff6ff;
+                    padding: 4px 12px;
+                    border-radius: 12px;
+                    display: inline-block;
+                    margin: 0 auto 8px auto;
+                    width: fit-content;
+                ">
+                    🔀 Parallel Execution
+                </div>
+            """, unsafe_allow_html=True)
 
         for i, node_id in enumerate(node_ids):
             node = node_map[node_id]
             config = NODE_TYPE_CONFIG.get(node["type"], {"icon": "📦", "color": "#666"})
+
+            # Get execution status for visual indicator
+            status_color, status_icon = _get_node_execution_status(node_id)
+
+            # Get role if available
+            params = node["data"].get("params", {})
+            role = params.get("role", "")
+            role_badge = f'<div style="font-size: 9px; color: {config["color"]}; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">{role}</div>' if role else ""
+
+            # Status ring styling
+            status_ring = ""
+            if status_color:
+                status_ring = f"box-shadow: 0 0 0 3px {status_color}40, 0 4px 12px rgba(0,0,0,0.15);"
 
             with cols[i]:
                 st.markdown(
                     f"""
                     <div style="
                         text-align: center;
-                        padding: 12px;
+                        padding: 16px 12px;
                         border: 2px solid {config["color"]};
-                        border-radius: 8px;
-                        background: {config["color"]}15;
+                        border-radius: 16px;
+                        background: linear-gradient(145deg, white, {config["color"]}10);
                         margin: 4px;
+                        {status_ring}
+                        transition: all 0.2s ease;
                     ">
-                        <div style="font-size: 24px;">{config["icon"]}</div>
-                        <div style="font-size: 12px; font-weight: bold;">{node_id}</div>
+                        <div style="
+                            font-size: 32px;
+                            background: {config['color']}15;
+                            width: 56px;
+                            height: 56px;
+                            border-radius: 14px;
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            margin: 0 auto 8px auto;
+                            position: relative;
+                        ">
+                            {config["icon"]}
+                            {f'<span style="position: absolute; top: -4px; right: -4px; font-size: 14px;">{status_icon}</span>' if status_icon else ''}
+                        </div>
+                        <div style="font-size: 13px; font-weight: 700; color: #1f2937;">{node_id}</div>
+                        <div style="font-size: 11px; color: #6b7280;">{config["label"]}</div>
+                        {role_badge}
                     </div>
                     """,
                     unsafe_allow_html=True,
                 )
 
-        # Draw arrows if not last level
+        # Draw connection arrows if not last level
         if level < max(level_groups.keys()):
-            st.markdown(
+            next_level_count = len(level_groups.get(level + 1, []))
+            current_count = len(node_ids)
+
+            # Choose arrow style based on branching
+            if current_count == 1 and next_level_count > 1:
+                # Fan out
+                arrow_html = """
+                    <div style="text-align: center; padding: 8px 0;">
+                        <div style="font-size: 16px; color: #3b82f6;">↙️ ↓ ↘️</div>
+                    </div>
                 """
-                <div style="text-align: center; font-size: 20px; color: #999;">
-                    ↓
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
+            elif current_count > 1 and next_level_count == 1:
+                # Fan in
+                arrow_html = """
+                    <div style="text-align: center; padding: 8px 0;">
+                        <div style="font-size: 16px; color: #8b5cf6;">↘️ ↓ ↙️</div>
+                    </div>
+                """
+            else:
+                # Regular flow
+                arrow_html = """
+                    <div style="text-align: center; padding: 8px 0;">
+                        <div style="
+                            width: 2px;
+                            height: 20px;
+                            background: linear-gradient(to bottom, #d1d5db, #9ca3af);
+                            margin: 0 auto;
+                            border-radius: 1px;
+                        "></div>
+                        <div style="
+                            width: 0;
+                            height: 0;
+                            border-left: 6px solid transparent;
+                            border-right: 6px solid transparent;
+                            border-top: 8px solid #9ca3af;
+                            margin: 0 auto;
+                        "></div>
+                    </div>
+                """
+            st.markdown(arrow_html, unsafe_allow_html=True)
+
+    # Show workflow summary
+    st.markdown(f"""
+        <div style="
+            margin-top: 20px;
+            padding: 12px 16px;
+            background: #f9fafb;
+            border-radius: 12px;
+            display: flex;
+            justify-content: center;
+            gap: 24px;
+            font-size: 13px;
+            color: #6b7280;
+        ">
+            <span>📊 <strong>{len(nodes)}</strong> steps</span>
+            <span>🔗 <strong>{len(edges)}</strong> connections</span>
+            <span>📐 <strong>{total_levels}</strong> levels</span>
+            {'<span>🔀 <strong>parallel</strong></span>' if is_parallel else '<span>📏 <strong>sequential</strong></span>'}
+        </div>
+    """, unsafe_allow_html=True)
+
+
+def _render_saved_workflows():
+    """Render saved workflows management section."""
+    st.markdown("### Saved Workflows")
+
+    workflows = _list_saved_workflows()
+
+    if not workflows:
+        st.info("No saved workflows yet. Create one and save it!")
+        return
+
+    for wf in workflows:
+        with st.expander(f"**{wf['name']}** v{wf['version']}", expanded=False):
+            st.caption(wf["description"] or "No description")
+            st.markdown(f"Steps: {wf['steps']}")
+
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("Load", key=f"load_{wf['path']}", use_container_width=True):
+                    if _load_workflow_from_file(wf["path"]):
+                        st.success(f"Loaded {wf['name']}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to load")
+            with col2:
+                if st.button(
+                    "Delete", key=f"del_{wf['path']}", use_container_width=True
+                ):
+                    if _delete_workflow(wf["path"]):
+                        st.success(f"Deleted {wf['name']}")
+                        st.rerun()
+                    else:
+                        st.error("Failed to delete")
+
+
+def _render_templates_section():
+    """Render workflow templates selection section."""
+    st.markdown("### Templates")
+    st.caption("Start with a pre-built workflow pattern")
+
+    templates = _get_workflow_templates()
+
+    for template_id, template in templates.items():
+        with st.expander(f"{template['icon']} **{template['name']}**", expanded=False):
+            st.markdown(template["description"])
+
+            workflow = template["workflow"]
+            st.markdown(f"**Steps:** {len(workflow['steps'])}")
+
+            # Show step preview
+            step_names = [s["id"] for s in workflow["steps"]]
+            st.caption(" → ".join(step_names))
+
+            # Show required inputs
+            inputs = workflow.get("inputs", {})
+            required = [k for k, v in inputs.items() if v.get("required")]
+            if required:
+                st.caption(f"**Required inputs:** {', '.join(required)}")
+
+            if st.button(
+                "Use Template",
+                key=f"template_{template_id}",
+                use_container_width=True,
+                type="primary",
+            ):
+                _load_yaml_to_state(workflow)
+                _mark_dirty()
+                st.success(f"Loaded template: {template['name']}")
+                st.rerun()
 
 
 def _render_saved_workflows():
@@ -1292,10 +1925,10 @@ def render_workflow_builder():
         tab1, tab2, tab3, tab4 = st.tabs(["Nodes", "Settings", "Saved", "Import"])
 
         with tab1:
-            _render_node_palette()
+            _render_templates_section()
 
         with tab2:
-            _render_workflow_settings()
+            _render_node_palette()
 
         with tab3:
             _render_saved_workflows()
@@ -1304,7 +1937,7 @@ def render_workflow_builder():
             _render_import_section()
 
     with main:
-        tab1, tab2, tab3 = st.tabs(["Canvas", "Visual", "YAML"])
+        tab1, tab2, tab3, tab4 = st.tabs(["Canvas", "Visual", "YAML", "Execute"])
 
         with tab1:
             _render_canvas()
@@ -1316,3 +1949,6 @@ def render_workflow_builder():
 
         with tab3:
             _render_yaml_preview()
+
+        with tab4:
+            _render_execute_tab()
