@@ -86,6 +86,21 @@ class CompletionResponse:
     timestamp: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     metadata: dict = field(default_factory=dict)
 
+    def to_dict(self) -> dict:
+        """Convert to dictionary."""
+        return {
+            "content": self.content,
+            "model": self.model,
+            "provider": self.provider,
+            "tokens_used": self.tokens_used,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "finish_reason": self.finish_reason,
+            "latency_ms": self.latency_ms,
+            "timestamp": self.timestamp.isoformat(),
+            "metadata": self.metadata,
+        }
+
 
 @dataclass
 class StreamChunk:
