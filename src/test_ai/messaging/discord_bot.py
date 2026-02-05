@@ -78,8 +78,7 @@ class DiscordBot(MessagingBot):
         """
         if not DISCORD_AVAILABLE:
             raise ImportError(
-                "discord.py is not installed. "
-                "Install it with: pip install discord.py"
+                "discord.py is not installed. Install it with: pip install discord.py"
             )
 
         super().__init__(name, allowed_users, admin_users)
@@ -238,7 +237,9 @@ class DiscordBot(MessagingBot):
             metadata={
                 "discriminator": discord_user.discriminator,
                 "bot": discord_user.bot,
-                "avatar_url": str(discord_user.avatar.url) if discord_user.avatar else None,
+                "avatar_url": str(discord_user.avatar.url)
+                if discord_user.avatar
+                else None,
             },
         )
 
@@ -267,13 +268,15 @@ class DiscordBot(MessagingBot):
         # Process attachments
         attachments = []
         for att in message.attachments:
-            attachments.append({
-                "type": "file",
-                "filename": att.filename,
-                "url": att.url,
-                "size": att.size,
-                "content_type": att.content_type,
-            })
+            attachments.append(
+                {
+                    "type": "file",
+                    "filename": att.filename,
+                    "url": att.url,
+                    "size": att.size,
+                    "content_type": att.content_type,
+                }
+            )
 
         return BotMessage(
             id=str(message.id),
@@ -318,7 +321,9 @@ class DiscordBot(MessagingBot):
         message = self._create_bot_message(ctx.message, ctx.message.content)
 
         if self._command_handler:
-            response = await self._command_handler.handle_command(message, command, args)
+            response = await self._command_handler.handle_command(
+                message, command, args
+            )
             if response:
                 await self.send_message(
                     str(ctx.channel.id),

@@ -160,9 +160,7 @@ class TelegramBot(MessagingBot):
         )
 
         # Photo handler
-        self._app.add_handler(
-            TGMessageHandler(filters.PHOTO, self._handle_photo)
-        )
+        self._app.add_handler(TGMessageHandler(filters.PHOTO, self._handle_photo))
 
         # Document handler
         self._app.add_handler(
@@ -170,9 +168,7 @@ class TelegramBot(MessagingBot):
         )
 
         # Voice message handler
-        self._app.add_handler(
-            TGMessageHandler(filters.VOICE, self._handle_voice)
-        )
+        self._app.add_handler(TGMessageHandler(filters.VOICE, self._handle_voice))
 
     def _create_bot_user(self, tg_user: Any) -> BotUser:
         """Create BotUser from Telegram user object.
@@ -266,15 +262,17 @@ class TelegramBot(MessagingBot):
         photo = update.message.photo[-1]
         file = await photo.get_file()
 
-        attachments = [{
-            "type": "photo",
-            "file_id": photo.file_id,
-            "file_unique_id": photo.file_unique_id,
-            "file_path": file.file_path,
-            "width": photo.width,
-            "height": photo.height,
-            "file_size": photo.file_size,
-        }]
+        attachments = [
+            {
+                "type": "photo",
+                "file_id": photo.file_id,
+                "file_unique_id": photo.file_unique_id,
+                "file_path": file.file_path,
+                "width": photo.width,
+                "height": photo.height,
+                "file_size": photo.file_size,
+            }
+        ]
 
         content = update.message.caption or "[Photo]"
         message = self._create_bot_message(update, content, attachments)
@@ -297,15 +295,17 @@ class TelegramBot(MessagingBot):
         doc = update.message.document
         file = await doc.get_file()
 
-        attachments = [{
-            "type": "document",
-            "file_id": doc.file_id,
-            "file_unique_id": doc.file_unique_id,
-            "file_path": file.file_path,
-            "file_name": doc.file_name,
-            "mime_type": doc.mime_type,
-            "file_size": doc.file_size,
-        }]
+        attachments = [
+            {
+                "type": "document",
+                "file_id": doc.file_id,
+                "file_unique_id": doc.file_unique_id,
+                "file_path": file.file_path,
+                "file_name": doc.file_name,
+                "mime_type": doc.mime_type,
+                "file_size": doc.file_size,
+            }
+        ]
 
         content = update.message.caption or f"[Document: {doc.file_name}]"
         message = self._create_bot_message(update, content, attachments)
@@ -328,15 +328,17 @@ class TelegramBot(MessagingBot):
         voice = update.message.voice
         file = await voice.get_file()
 
-        attachments = [{
-            "type": "voice",
-            "file_id": voice.file_id,
-            "file_unique_id": voice.file_unique_id,
-            "file_path": file.file_path,
-            "duration": voice.duration,
-            "mime_type": voice.mime_type,
-            "file_size": voice.file_size,
-        }]
+        attachments = [
+            {
+                "type": "voice",
+                "file_id": voice.file_id,
+                "file_unique_id": voice.file_unique_id,
+                "file_path": file.file_path,
+                "duration": voice.duration,
+                "mime_type": voice.mime_type,
+                "file_size": voice.file_size,
+            }
+        ]
 
         content = "[Voice message]"
         message = self._create_bot_message(update, content, attachments)
@@ -362,7 +364,9 @@ class TelegramBot(MessagingBot):
 
         if self._command_handler:
             args = context.args or []
-            response = await self._command_handler.handle_command(message, command, args)
+            response = await self._command_handler.handle_command(
+                message, command, args
+            )
             if response:
                 await self.send_message(
                     str(update.message.chat_id),
@@ -446,8 +450,12 @@ class TelegramBot(MessagingBot):
                 msg = await self._app.bot.send_message(
                     chat_id=int(chat_id),
                     text=chunk,
-                    parse_mode=self.parse_mode if kwargs.get("parse_mode", True) else None,
-                    reply_to_message_id=int(reply_to_id) if reply_to_id and not messages_sent else None,
+                    parse_mode=self.parse_mode
+                    if kwargs.get("parse_mode", True)
+                    else None,
+                    reply_to_message_id=int(reply_to_id)
+                    if reply_to_id and not messages_sent
+                    else None,
                     disable_notification=kwargs.get("disable_notification", False),
                 )
                 messages_sent.append(str(msg.message_id))

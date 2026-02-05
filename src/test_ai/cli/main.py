@@ -2253,8 +2253,16 @@ def bot_telegram(
         raise typer.Exit(1)
 
     # Parse user lists
-    allowed = [u.strip() for u in allowed_users.split(",") if u.strip()] if allowed_users else None
-    admins = [u.strip() for u in admin_users.split(",") if u.strip()] if admin_users else None
+    allowed = (
+        [u.strip() for u in allowed_users.split(",") if u.strip()]
+        if allowed_users
+        else None
+    )
+    admins = (
+        [u.strip() for u in admin_users.split(",") if u.strip()]
+        if admin_users
+        else None
+    )
 
     console.print(
         Panel(
@@ -2373,9 +2381,21 @@ def bot_discord(
         raise typer.Exit(1)
 
     # Parse user/guild lists
-    allowed = [u.strip() for u in allowed_users.split(",") if u.strip()] if allowed_users else None
-    admins = [u.strip() for u in admin_users.split(",") if u.strip()] if admin_users else None
-    guilds = [g.strip() for g in allowed_guilds.split(",") if g.strip()] if allowed_guilds else None
+    allowed = (
+        [u.strip() for u in allowed_users.split(",") if u.strip()]
+        if allowed_users
+        else None
+    )
+    admins = (
+        [u.strip() for u in admin_users.split(",") if u.strip()]
+        if admin_users
+        else None
+    )
+    guilds = (
+        [g.strip() for g in allowed_guilds.split(",") if g.strip()]
+        if allowed_guilds
+        else None
+    )
 
     console.print(
         Panel(
@@ -2477,7 +2497,9 @@ def bot_status():
         except ImportError:
             console.print(f"  [dim]○[/dim] {name} (not installed)")
 
-    console.print("\n[dim]Install messaging deps: pip install 'gorgon[messaging]'[/dim]")
+    console.print(
+        "\n[dim]Install messaging deps: pip install 'gorgon[messaging]'[/dim]"
+    )
 
 
 @bot_app.command("setup")
@@ -2874,9 +2896,13 @@ app.add_typer(browser_app, name="browser")
 @browser_app.command("navigate")
 def browser_navigate(
     url: str = typer.Argument(..., help="URL to navigate to"),
-    screenshot: bool = typer.Option(False, "--screenshot", "-s", help="Take screenshot"),
+    screenshot: bool = typer.Option(
+        False, "--screenshot", "-s", help="Take screenshot"
+    ),
     extract: bool = typer.Option(False, "--extract", "-e", help="Extract page content"),
-    headless: bool = typer.Option(True, "--headless/--no-headless", help="Run headless"),
+    headless: bool = typer.Option(
+        True, "--headless/--no-headless", help="Run headless"
+    ),
 ):
     """Navigate to a URL and optionally extract content.
 
@@ -2917,13 +2943,17 @@ def browser_navigate(
                     text = data.get("text", "")[:1000]
                     console.print(text)
                     if data.get("links"):
-                        console.print(f"\n[bold]Links:[/bold] {len(data['links'])} found")
+                        console.print(
+                            f"\n[bold]Links:[/bold] {len(data['links'])} found"
+                        )
 
             if screenshot:
                 console.print("\n[cyan]Taking screenshot...[/cyan]")
                 ss_result = await browser.screenshot()
                 if ss_result.success:
-                    console.print(f"[green]Screenshot saved:[/green] {ss_result.screenshot_path}")
+                    console.print(
+                        f"[green]Screenshot saved:[/green] {ss_result.screenshot_path}"
+                    )
 
     try:
         asyncio.run(run())
@@ -2968,7 +2998,9 @@ def browser_screenshot(
             ss_result = await browser.screenshot(path=path, full_page=full_page)
 
             if ss_result.success:
-                console.print(f"[green]Screenshot saved:[/green] {ss_result.screenshot_path}")
+                console.print(
+                    f"[green]Screenshot saved:[/green] {ss_result.screenshot_path}"
+                )
             else:
                 console.print(f"[red]Screenshot failed:[/red] {ss_result.error}")
                 raise typer.Exit(1)
@@ -2983,7 +3015,9 @@ def browser_screenshot(
 @browser_app.command("extract")
 def browser_extract(
     url: str = typer.Argument(..., help="URL to extract content from"),
-    selector: str = typer.Option(None, "--selector", "-s", help="CSS selector to extract"),
+    selector: str = typer.Option(
+        None, "--selector", "-s", help="CSS selector to extract"
+    ),
     links: bool = typer.Option(True, "--links/--no-links", help="Extract links"),
     tables: bool = typer.Option(True, "--tables/--no-tables", help="Extract tables"),
     json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),

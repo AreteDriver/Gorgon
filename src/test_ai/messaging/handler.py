@@ -168,10 +168,12 @@ class MessageHandler:
         # Format history for the supervisor
         history = []
         for msg in messages[:-1]:  # Exclude the message we just added
-            history.append({
-                "role": msg.role.value,
-                "content": msg.content,
-            })
+            history.append(
+                {
+                    "role": msg.role.value,
+                    "content": msg.content,
+                }
+            )
 
         # Build context about the platform
         context = {
@@ -320,7 +322,9 @@ class MessageHandler:
         lines = [f"Last {len(messages)} messages:\n"]
         for msg in messages:
             role = "You" if msg.role.value == "user" else "Gorgon"
-            content = msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+            content = (
+                msg.content[:100] + "..." if len(msg.content) > 100 else msg.content
+            )
             lines.append(f"[{role}] {content}")
 
         return "\n".join(lines)

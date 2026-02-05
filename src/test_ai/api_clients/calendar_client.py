@@ -99,7 +99,9 @@ class CalendarEvent:
         # Parse start time
         start = None
         if "dateTime" in start_data:
-            start = datetime.fromisoformat(start_data["dateTime"].replace("Z", "+00:00"))
+            start = datetime.fromisoformat(
+                start_data["dateTime"].replace("Z", "+00:00")
+            )
         elif "date" in start_data:
             start = datetime.strptime(start_data["date"], "%Y-%m-%d").replace(
                 tzinfo=timezone.utc
@@ -621,9 +623,7 @@ class CalendarClient:
     ) -> CalendarEvent:
         """Quick add with retry logic."""
         result = (
-            self.service.events()
-            .quickAdd(calendarId=calendar_id, text=text)
-            .execute()
+            self.service.events().quickAdd(calendarId=calendar_id, text=text).execute()
         )
         logger.info(f"Quick added event: {result.get('id')}")
         return CalendarEvent.from_api_response(result)

@@ -2352,9 +2352,7 @@ class WorkflowExecutor:
 
         client = GitHubClient()
         if not client.is_configured():
-            raise RuntimeError(
-                "GitHub client not configured. Check GITHUB_TOKEN."
-            )
+            raise RuntimeError("GitHub client not configured. Check GITHUB_TOKEN.")
 
         if action == "create_issue":
             title = step.params.get("title", "")
@@ -2443,9 +2441,7 @@ class WorkflowExecutor:
 
         client = NotionClientWrapper()
         if not client.is_configured():
-            raise RuntimeError(
-                "Notion client not configured. Check NOTION_TOKEN."
-            )
+            raise RuntimeError("Notion client not configured. Check NOTION_TOKEN.")
 
         if action == "query_database":
             database_id = step.params.get("database_id", "")
@@ -2562,9 +2558,7 @@ class WorkflowExecutor:
 
         client = GmailClient()
         if not client.is_configured():
-            raise RuntimeError(
-                "Gmail client not configured. Check credentials."
-            )
+            raise RuntimeError("Gmail client not configured. Check credentials.")
 
         if not client.authenticate():
             raise RuntimeError("Gmail authentication failed.")
@@ -2640,13 +2634,12 @@ class WorkflowExecutor:
 
         # Get Slack token from settings
         from test_ai.config import get_settings
+
         settings = get_settings()
         token = settings.slack_token if hasattr(settings, "slack_token") else None
 
         if not token:
-            raise RuntimeError(
-                "Slack client not configured. Check SLACK_TOKEN."
-            )
+            raise RuntimeError("Slack client not configured. Check SLACK_TOKEN.")
 
         client = SlackClient(token)
         if not client.is_configured():
@@ -2662,7 +2655,9 @@ class WorkflowExecutor:
                     text = text.replace(f"${{{key}}}", value)
 
             message_type = MessageType(msg_type)
-            result = client.send_message(channel, text, message_type, thread_ts=thread_ts)
+            result = client.send_message(
+                channel, text, message_type, thread_ts=thread_ts
+            )
             return {
                 "action": action,
                 "channel": channel,
@@ -2863,10 +2858,14 @@ class WorkflowExecutor:
                 "result": {
                     "id": result.id,
                     "summary": result.summary,
-                    "start": result.start.isoformat() if result and result.start else None,
+                    "start": result.start.isoformat()
+                    if result and result.start
+                    else None,
                     "end": result.end.isoformat() if result and result.end else None,
                     "location": result.location if result else None,
-                } if result else None,
+                }
+                if result
+                else None,
             }
 
         elif action == "delete_event":
@@ -2905,7 +2904,9 @@ class WorkflowExecutor:
                 "result": {
                     "id": result.id if result else None,
                     "summary": result.summary if result else None,
-                } if result else None,
+                }
+                if result
+                else None,
             }
 
         else:
