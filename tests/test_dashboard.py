@@ -35,10 +35,26 @@ def _create_expander(label, **kwargs):
     return _create_context_manager()
 
 
+# Modules to clear between tests to ensure fresh imports with mocks
+_DASHBOARD_MODULES = [
+    "test_ai.dashboard",
+    "test_ai.dashboard.app",
+    "test_ai.dashboard.monitoring_pages",
+    "test_ai.dashboard.cost_dashboard",
+    "test_ai.dashboard.workflow_visualizer",
+    "test_ai.dashboard.workflow_builder",
+]
+
+
 # Create mock streamlit module before importing dashboard
 @pytest.fixture(autouse=True)
 def mock_streamlit():
     """Mock streamlit module for all tests."""
+    # Clear any cached dashboard modules to ensure fresh imports with mock
+    for mod_name in list(sys.modules.keys()):
+        if mod_name in _DASHBOARD_MODULES or mod_name.startswith("test_ai.dashboard."):
+            del sys.modules[mod_name]
+
     mock_st = MagicMock()
 
     # Create a dict-like object that also supports attribute access
