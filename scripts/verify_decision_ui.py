@@ -14,15 +14,21 @@ async def get_token():
     """Get auth token via curl."""
     result = subprocess.run(
         [
-            "curl", "-s", "-X", "POST",
+            "curl",
+            "-s",
+            "-X",
+            "POST",
             "http://localhost:8000/v1/auth/login",
-            "-H", "Content-Type: application/json",
-            "-d", '{"user_id": "demo", "password": "demo"}'
+            "-H",
+            "Content-Type: application/json",
+            "-d",
+            '{"user_id": "demo", "password": "demo"}',
         ],
         capture_output=True,
-        text=True
+        text=True,
     )
     import json
+
     try:
         data = json.loads(result.stdout)
         return data.get("access_token")
@@ -59,13 +65,15 @@ async def verify_decision_support():
         await page.screenshot(path=SCREENSHOTS_DIR / "01_decision_page.png")
 
         print("4. Filling form...")
-        await page.wait_for_selector('textarea', timeout=5000)
-        await page.locator('textarea').first.fill(
+        await page.wait_for_selector("textarea", timeout=5000)
+        await page.locator("textarea").first.fill(
             "Should we use PostgreSQL or MongoDB for our user management microservice?"
         )
-        textareas = page.locator('textarea')
+        textareas = page.locator("textarea")
         if await textareas.count() > 1:
-            await textareas.nth(1).fill("Building a user management service with complex relationships")
+            await textareas.nth(1).fill(
+                "Building a user management service with complex relationships"
+            )
         await page.screenshot(path=SCREENSHOTS_DIR / "02_form_filled.png")
 
         print("5. Clicking Get Recommendation...")
@@ -75,7 +83,7 @@ async def verify_decision_support():
         await page.screenshot(path=SCREENSHOTS_DIR / "03_after_click.png")
 
         # Check for loading state (more flexible matching)
-        analyzing = await page.locator('text=/Analyzing/i').count() > 0
+        analyzing = await page.locator("text=/Analyzing/i").count() > 0
         analyzing_decision = await page.locator('text="Analyzing Decision"').count() > 0
         print(f"   Loading state: {analyzing or analyzing_decision}")
 
@@ -84,10 +92,14 @@ async def verify_decision_support():
             try:
                 await page.wait_for_selector('text="Analysis Complete"', timeout=240000)
                 print("   SUCCESS!")
-                await page.screenshot(path=SCREENSHOTS_DIR / "04_completed.png", full_page=True)
+                await page.screenshot(
+                    path=SCREENSHOTS_DIR / "04_completed.png", full_page=True
+                )
             except Exception:
                 print("   Timeout - capturing current state...")
-                await page.screenshot(path=SCREENSHOTS_DIR / "04_timeout.png", full_page=True)
+                await page.screenshot(
+                    path=SCREENSHOTS_DIR / "04_timeout.png", full_page=True
+                )
         else:
             print("6. No loading state detected")
             await page.screenshot(path=SCREENSHOTS_DIR / "04_no_loading.png")
@@ -96,7 +108,12 @@ async def verify_decision_support():
         print("\n7. Final state:")
         await page.screenshot(path=SCREENSHOTS_DIR / "05_final.png", full_page=True)
 
-        has_recommendation = await page.locator('h3:has-text("Recommendation"), [class*="CardTitle"]:has-text("Recommendation")').count() > 0
+        has_recommendation = (
+            await page.locator(
+                'h3:has-text("Recommendation"), [class*="CardTitle"]:has-text("Recommendation")'
+            ).count()
+            > 0
+        )
         has_analysis = await page.locator('text="Analysis Complete"').count() > 0
         has_metrics = await page.locator('text="Tokens Used"').count() > 0
 
