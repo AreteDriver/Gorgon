@@ -69,7 +69,7 @@ class BrowserConfig:
     geolocation: dict | None = None
     permissions: list[str] = field(default_factory=list)
     blocked_urls: list[str] = field(default_factory=list)
-    screenshots_dir: str = "/tmp/gorgon_screenshots"
+    screenshots_dir: str = str(Path(tempfile.gettempdir()) / "gorgon_screenshots")
 
     # Security settings
     disable_javascript: bool = False
