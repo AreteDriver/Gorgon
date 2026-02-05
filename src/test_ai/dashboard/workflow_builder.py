@@ -6,16 +6,22 @@ and allows users to create, edit, and export YAML workflow definitions.
 
 from __future__ import annotations
 
+import json
+import logging
+import re
 from pathlib import Path
 
 import streamlit as st
 import yaml
 
+from test_ai.config import get_settings
 from test_ai.workflow.loader import (
     validate_workflow,
     VALID_OPERATORS,
     VALID_ON_FAILURE,
 )
+
+logger = logging.getLogger(__name__)
 
 
 # Node type configurations
@@ -831,8 +837,18 @@ def _render_yaml_preview():
                 workflows_dir = Path("workflows")
                 workflows_dir.mkdir(exist_ok=True)
 
-                filename = f"{workflow['name'].lower().replace(' ', '-')}.yaml"
+                # Sanitize filename to prevent path traversal
+                safe_name = re.sub(r"[^a-zA-Z0-9_-]", "-", workflow["name"].lower())
+                safe_name = safe_name.strip("-")[:50]  # Limit length
+                if not safe_name:
+                    safe_name = "workflow"
+                filename = f"{safe_name}.yaml"
                 filepath = workflows_dir / filename
+
+                # Ensure filepath stays within workflows_dir
+                if not filepath.resolve().is_relative_to(workflows_dir.resolve()):
+                    st.error("Invalid workflow name")
+                    return
 
                 with open(filepath, "w") as f:
                     yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
