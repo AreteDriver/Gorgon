@@ -317,7 +317,7 @@ class TestPersistence:
             mock_dir.return_value = Path("/tmp/test_workflows")
             result = _get_builder_state_path("Test Workflow!")
             assert result == Path(
-                "/tmp/test_workflows/.builder_state/test_workflow_.json"
+                "/tmp/test_workflows/.builder_state/test_workflow.json"
             )
 
     def test_save_and_load_builder_state(self, mock_session_state, tmp_path):
