@@ -3,13 +3,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
-
 HISTORY_DIR = Path.home() / ".gorgon" / "history"
+
+# Restrictive permissions for the history directory and session files.
+_DIR_MODE = 0o700  # rwx------
+_FILE_MODE = 0o600  # rw-------
 
 
 class TUISession:
@@ -79,11 +83,22 @@ class TUISession:
         }
 
     def save(self) -> Path:
-        """Save session to JSON file."""
+        """Save session to JSON file with restrictive permissions."""
         self.updated_at = datetime.now(timezone.utc).isoformat()
         HISTORY_DIR.mkdir(parents=True, exist_ok=True)
+        # Ensure the directory is only accessible by the owner.
+        try:
+            os.chmod(HISTORY_DIR, _DIR_MODE)
+        except OSError:
+            pass  # Best-effort: chmod may fail on non-POSIX filesystems
+
         path = self.filepath
         path.write_text(json.dumps(self.to_dict(), indent=2))
+        # Restrict the file so only the owner can read/write it.
+        try:
+            os.chmod(path, _FILE_MODE)
+        except OSError:
+            pass  # Best-effort: chmod may fail on non-POSIX filesystems
         return path
 
     @classmethod
