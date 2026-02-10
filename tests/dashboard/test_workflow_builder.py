@@ -7,7 +7,6 @@ from unittest.mock import patch, MagicMock
 from test_ai.dashboard.workflow_builder import (
     NODE_TYPE_CONFIG,
     AGENT_ROLES,
-    WORKFLOW_TEMPLATES,
     _generate_node_id,
     _build_yaml_from_state,
     _load_yaml_to_state,
@@ -314,12 +313,12 @@ class TestPersistence:
 
     def test_get_builder_state_path(self):
         """Should generate correct state path."""
-        with patch(
-            "test_ai.dashboard.workflow_builder._get_workflows_dir"
-        ) as mock_dir:
+        with patch("test_ai.dashboard.workflow_builder._get_workflows_dir") as mock_dir:
             mock_dir.return_value = Path("/tmp/test_workflows")
             result = _get_builder_state_path("Test Workflow!")
-            assert result == Path("/tmp/test_workflows/.builder_state/test_workflow_.json")
+            assert result == Path(
+                "/tmp/test_workflows/.builder_state/test_workflow_.json"
+            )
 
     def test_save_and_load_builder_state(self, mock_session_state, tmp_path):
         """Should save and load builder state correctly."""
@@ -334,9 +333,7 @@ class TestPersistence:
         mock_session_state.builder_inputs = {"input1": {"type": "string"}}
         mock_session_state.builder_outputs = ["output1"]
 
-        with patch(
-            "test_ai.dashboard.workflow_builder._get_workflows_dir"
-        ) as mock_dir:
+        with patch("test_ai.dashboard.workflow_builder._get_workflows_dir") as mock_dir:
             mock_dir.return_value = tmp_path
 
             # Save state
@@ -356,9 +353,7 @@ class TestPersistence:
 
     def test_load_builder_state_not_found(self, mock_session_state, tmp_path):
         """Should return False if state file doesn't exist."""
-        with patch(
-            "test_ai.dashboard.workflow_builder._get_workflows_dir"
-        ) as mock_dir:
+        with patch("test_ai.dashboard.workflow_builder._get_workflows_dir") as mock_dir:
             mock_dir.return_value = tmp_path
 
             result = _load_builder_state("NonExistent")
@@ -368,14 +363,16 @@ class TestPersistence:
         """Should list saved workflows with metadata."""
         # Create test workflow files
         wf1 = tmp_path / "workflow1.yaml"
-        wf1.write_text("name: Workflow One\nversion: '1.0'\ndescription: First\nsteps: []")
+        wf1.write_text(
+            "name: Workflow One\nversion: '1.0'\ndescription: First\nsteps: []"
+        )
 
         wf2 = tmp_path / "workflow2.yaml"
-        wf2.write_text("name: Workflow Two\nversion: '2.0'\nsteps:\n  - id: step1\n    type: shell")
+        wf2.write_text(
+            "name: Workflow Two\nversion: '2.0'\nsteps:\n  - id: step1\n    type: shell"
+        )
 
-        with patch(
-            "test_ai.dashboard.workflow_builder._get_workflows_dir"
-        ) as mock_dir:
+        with patch("test_ai.dashboard.workflow_builder._get_workflows_dir") as mock_dir:
             mock_dir.return_value = tmp_path
 
             workflows = _list_saved_workflows()

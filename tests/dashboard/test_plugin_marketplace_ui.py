@@ -1,7 +1,6 @@
 """Tests for the plugin marketplace UI."""
 
 import pytest
-from datetime import datetime
 
 from test_ai.dashboard.plugin_marketplace import (
     CATEGORY_CONFIG,
@@ -41,12 +40,22 @@ class TestSamplePlugins:
     def test_sample_plugin_structure(self):
         """Each sample plugin should have required fields."""
         required_fields = [
-            "id", "name", "display_name", "description", "author",
-            "category", "tags", "downloads", "rating", "latest_version"
+            "id",
+            "name",
+            "display_name",
+            "description",
+            "author",
+            "category",
+            "tags",
+            "downloads",
+            "rating",
+            "latest_version",
         ]
         for plugin in SAMPLE_PLUGINS:
             for field in required_fields:
-                assert field in plugin, f"Plugin {plugin.get('name', '?')} missing {field}"
+                assert field in plugin, (
+                    f"Plugin {plugin.get('name', '?')} missing {field}"
+                )
 
     def test_sample_plugins_have_valid_categories(self):
         """All sample plugins should have valid categories."""
@@ -104,9 +113,7 @@ class TestInstallationHelpers:
 
     def test_is_installed_true(self, mock_session_state):
         """Should return True for installed plugins."""
-        mock_session_state.installed_plugins = {
-            "test-plugin": {"version": "1.0.0"}
-        }
+        mock_session_state.installed_plugins = {"test-plugin": {"version": "1.0.0"}}
         assert _is_installed("test-plugin") is True
 
     def test_is_installed_false(self, mock_session_state):
@@ -116,9 +123,7 @@ class TestInstallationHelpers:
 
     def test_get_installed_version(self, mock_session_state):
         """Should return installed version."""
-        mock_session_state.installed_plugins = {
-            "test-plugin": {"version": "2.1.0"}
-        }
+        mock_session_state.installed_plugins = {"test-plugin": {"version": "2.1.0"}}
         assert _get_installed_version("test-plugin") == "2.1.0"
 
     def test_get_installed_version_not_installed(self, mock_session_state):
@@ -167,6 +172,7 @@ def mock_session_state(monkeypatch):
     mock_state = MockSessionState()
 
     import streamlit as st
+
     monkeypatch.setattr(st, "session_state", mock_state)
 
     return mock_state

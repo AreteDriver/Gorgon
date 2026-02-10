@@ -9,7 +9,6 @@ from __future__ import annotations
 import json
 import logging
 import re
-from datetime import datetime
 from pathlib import Path
 
 import streamlit as st
@@ -126,35 +125,55 @@ WORKFLOW_TEMPLATES = {
             "token_budget": 150000,
             "timeout_seconds": 7200,
             "inputs": {
-                "feature_request": {"type": "string", "required": True, "description": "Description of the feature to implement"},
-                "codebase_context": {"type": "string", "required": False, "description": "Relevant codebase information"},
+                "feature_request": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Description of the feature to implement",
+                },
+                "codebase_context": {
+                    "type": "string",
+                    "required": False,
+                    "description": "Relevant codebase information",
+                },
             },
             "outputs": ["plan", "code", "tests", "review"],
             "steps": [
                 {
                     "id": "plan",
                     "type": "claude_code",
-                    "params": {"role": "planner", "prompt": "Create a detailed implementation plan for: {{feature_request}}"},
+                    "params": {
+                        "role": "planner",
+                        "prompt": "Create a detailed implementation plan for: {{feature_request}}",
+                    },
                     "outputs": ["plan"],
                 },
                 {
                     "id": "build",
                     "type": "claude_code",
-                    "params": {"role": "builder", "prompt": "Implement the feature based on this plan: {{plan}}"},
+                    "params": {
+                        "role": "builder",
+                        "prompt": "Implement the feature based on this plan: {{plan}}",
+                    },
                     "depends_on": "plan",
                     "outputs": ["code"],
                 },
                 {
                     "id": "test",
                     "type": "claude_code",
-                    "params": {"role": "tester", "prompt": "Write comprehensive tests for: {{code}}"},
+                    "params": {
+                        "role": "tester",
+                        "prompt": "Write comprehensive tests for: {{code}}",
+                    },
                     "depends_on": "build",
                     "outputs": ["tests"],
                 },
                 {
                     "id": "review",
                     "type": "claude_code",
-                    "params": {"role": "reviewer", "prompt": "Review the code and tests for quality and security: {{code}} {{tests}}"},
+                    "params": {
+                        "role": "reviewer",
+                        "prompt": "Review the code and tests for quality and security: {{code}} {{tests}}",
+                    },
                     "depends_on": "test",
                     "outputs": ["review"],
                 },
@@ -172,27 +191,44 @@ WORKFLOW_TEMPLATES = {
             "token_budget": 80000,
             "timeout_seconds": 3600,
             "inputs": {
-                "code": {"type": "string", "required": True, "description": "Code to review"},
-                "focus_areas": {"type": "string", "required": False, "description": "Specific areas to focus on"},
+                "code": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Code to review",
+                },
+                "focus_areas": {
+                    "type": "string",
+                    "required": False,
+                    "description": "Specific areas to focus on",
+                },
             },
             "outputs": ["analysis", "security_report", "suggestions"],
             "steps": [
                 {
                     "id": "analyze",
                     "type": "claude_code",
-                    "params": {"role": "analyst", "prompt": "Analyze this code for correctness, patterns, and architecture: {{code}}"},
+                    "params": {
+                        "role": "analyst",
+                        "prompt": "Analyze this code for correctness, patterns, and architecture: {{code}}",
+                    },
                     "outputs": ["analysis"],
                 },
                 {
                     "id": "security",
                     "type": "claude_code",
-                    "params": {"role": "reviewer", "prompt": "Review for security vulnerabilities (OWASP Top 10, injection, etc.): {{code}}"},
+                    "params": {
+                        "role": "reviewer",
+                        "prompt": "Review for security vulnerabilities (OWASP Top 10, injection, etc.): {{code}}",
+                    },
                     "outputs": ["security_report"],
                 },
                 {
                     "id": "suggest",
                     "type": "claude_code",
-                    "params": {"role": "architect", "prompt": "Based on analysis: {{analysis}} and security review: {{security_report}}, suggest improvements."},
+                    "params": {
+                        "role": "architect",
+                        "prompt": "Based on analysis: {{analysis}} and security review: {{security_report}}, suggest improvements.",
+                    },
                     "depends_on": ["analyze", "security"],
                     "outputs": ["suggestions"],
                 },
@@ -210,35 +246,55 @@ WORKFLOW_TEMPLATES = {
             "token_budget": 100000,
             "timeout_seconds": 5400,
             "inputs": {
-                "source_code": {"type": "string", "required": True, "description": "Source code to document"},
-                "project_name": {"type": "string", "required": True, "description": "Name of the project"},
+                "source_code": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Source code to document",
+                },
+                "project_name": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Name of the project",
+                },
             },
             "outputs": ["api_docs", "usage_guide", "architecture_doc"],
             "steps": [
                 {
                     "id": "analyze_structure",
                     "type": "claude_code",
-                    "params": {"role": "architect", "prompt": "Analyze the structure and architecture of: {{source_code}}"},
+                    "params": {
+                        "role": "architect",
+                        "prompt": "Analyze the structure and architecture of: {{source_code}}",
+                    },
                     "outputs": ["structure_analysis"],
                 },
                 {
                     "id": "generate_api_docs",
                     "type": "claude_code",
-                    "params": {"role": "documenter", "prompt": "Generate API documentation for {{project_name}}: {{source_code}}"},
+                    "params": {
+                        "role": "documenter",
+                        "prompt": "Generate API documentation for {{project_name}}: {{source_code}}",
+                    },
                     "depends_on": "analyze_structure",
                     "outputs": ["api_docs"],
                 },
                 {
                     "id": "generate_usage_guide",
                     "type": "claude_code",
-                    "params": {"role": "documenter", "prompt": "Write a usage guide for {{project_name}} based on: {{structure_analysis}}"},
+                    "params": {
+                        "role": "documenter",
+                        "prompt": "Write a usage guide for {{project_name}} based on: {{structure_analysis}}",
+                    },
                     "depends_on": "analyze_structure",
                     "outputs": ["usage_guide"],
                 },
                 {
                     "id": "generate_architecture_doc",
                     "type": "claude_code",
-                    "params": {"role": "architect", "prompt": "Document the architecture of {{project_name}}: {{structure_analysis}}"},
+                    "params": {
+                        "role": "architect",
+                        "prompt": "Document the architecture of {{project_name}}: {{structure_analysis}}",
+                    },
                     "depends_on": "analyze_structure",
                     "outputs": ["architecture_doc"],
                 },
@@ -256,35 +312,55 @@ WORKFLOW_TEMPLATES = {
             "token_budget": 120000,
             "timeout_seconds": 5400,
             "inputs": {
-                "data_source": {"type": "string", "required": True, "description": "Path or description of data source"},
-                "analysis_goals": {"type": "string", "required": True, "description": "What insights are you looking for?"},
+                "data_source": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Path or description of data source",
+                },
+                "analysis_goals": {
+                    "type": "string",
+                    "required": True,
+                    "description": "What insights are you looking for?",
+                },
             },
             "outputs": ["analysis", "visualizations", "report"],
             "steps": [
                 {
                     "id": "load_and_explore",
                     "type": "claude_code",
-                    "params": {"role": "data_engineer", "prompt": "Load and explore data from: {{data_source}}. Goals: {{analysis_goals}}"},
+                    "params": {
+                        "role": "data_engineer",
+                        "prompt": "Load and explore data from: {{data_source}}. Goals: {{analysis_goals}}",
+                    },
                     "outputs": ["data_summary"],
                 },
                 {
                     "id": "analyze",
                     "type": "claude_code",
-                    "params": {"role": "analyst", "prompt": "Perform statistical analysis on: {{data_summary}} to answer: {{analysis_goals}}"},
+                    "params": {
+                        "role": "analyst",
+                        "prompt": "Perform statistical analysis on: {{data_summary}} to answer: {{analysis_goals}}",
+                    },
                     "depends_on": "load_and_explore",
                     "outputs": ["analysis"],
                 },
                 {
                     "id": "visualize",
                     "type": "claude_code",
-                    "params": {"role": "visualizer", "prompt": "Create visualizations for: {{analysis}}"},
+                    "params": {
+                        "role": "visualizer",
+                        "prompt": "Create visualizations for: {{analysis}}",
+                    },
                     "depends_on": "analyze",
                     "outputs": ["visualizations"],
                 },
                 {
                     "id": "report",
                     "type": "claude_code",
-                    "params": {"role": "reporter", "prompt": "Generate executive summary from: {{analysis}} and {{visualizations}}"},
+                    "params": {
+                        "role": "reporter",
+                        "prompt": "Generate executive summary from: {{analysis}} and {{visualizations}}",
+                    },
                     "depends_on": ["analyze", "visualize"],
                     "outputs": ["report"],
                 },
@@ -302,35 +378,55 @@ WORKFLOW_TEMPLATES = {
             "token_budget": 80000,
             "timeout_seconds": 3600,
             "inputs": {
-                "bug_report": {"type": "string", "required": True, "description": "Description of the bug"},
-                "relevant_code": {"type": "string", "required": False, "description": "Code where bug might be located"},
+                "bug_report": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Description of the bug",
+                },
+                "relevant_code": {
+                    "type": "string",
+                    "required": False,
+                    "description": "Code where bug might be located",
+                },
             },
             "outputs": ["diagnosis", "fix", "verification"],
             "steps": [
                 {
                     "id": "diagnose",
                     "type": "claude_code",
-                    "params": {"role": "analyst", "prompt": "Diagnose the root cause of: {{bug_report}}. Context: {{relevant_code}}"},
+                    "params": {
+                        "role": "analyst",
+                        "prompt": "Diagnose the root cause of: {{bug_report}}. Context: {{relevant_code}}",
+                    },
                     "outputs": ["diagnosis"],
                 },
                 {
                     "id": "fix",
                     "type": "claude_code",
-                    "params": {"role": "builder", "prompt": "Implement a fix based on diagnosis: {{diagnosis}}"},
+                    "params": {
+                        "role": "builder",
+                        "prompt": "Implement a fix based on diagnosis: {{diagnosis}}",
+                    },
                     "depends_on": "diagnose",
                     "outputs": ["fix"],
                 },
                 {
                     "id": "test_fix",
                     "type": "claude_code",
-                    "params": {"role": "tester", "prompt": "Write tests to verify the fix works: {{fix}}"},
+                    "params": {
+                        "role": "tester",
+                        "prompt": "Write tests to verify the fix works: {{fix}}",
+                    },
                     "depends_on": "fix",
                     "outputs": ["tests"],
                 },
                 {
                     "id": "verify",
                     "type": "claude_code",
-                    "params": {"role": "reviewer", "prompt": "Verify fix is complete and doesn't introduce regressions: {{fix}} {{tests}}"},
+                    "params": {
+                        "role": "reviewer",
+                        "prompt": "Verify fix is complete and doesn't introduce regressions: {{fix}} {{tests}}",
+                    },
                     "depends_on": "test_fix",
                     "outputs": ["verification"],
                 },
@@ -348,8 +444,16 @@ WORKFLOW_TEMPLATES = {
             "token_budget": 50000,
             "timeout_seconds": 1800,
             "inputs": {
-                "command": {"type": "string", "required": True, "description": "Shell command to execute"},
-                "analysis_prompt": {"type": "string", "required": False, "description": "What to analyze in the output"},
+                "command": {
+                    "type": "string",
+                    "required": True,
+                    "description": "Shell command to execute",
+                },
+                "analysis_prompt": {
+                    "type": "string",
+                    "required": False,
+                    "description": "What to analyze in the output",
+                },
             },
             "outputs": ["command_output", "analysis"],
             "steps": [
@@ -362,7 +466,10 @@ WORKFLOW_TEMPLATES = {
                 {
                     "id": "analyze_output",
                     "type": "claude_code",
-                    "params": {"role": "analyst", "prompt": "Analyze this command output: {{command_output}}. {{analysis_prompt}}"},
+                    "params": {
+                        "role": "analyst",
+                        "prompt": "Analyze this command output: {{command_output}}. {{analysis_prompt}}",
+                    },
                     "depends_on": "run_command",
                     "outputs": ["analysis"],
                 },
@@ -476,22 +583,26 @@ def _list_saved_workflows() -> list[dict]:
         try:
             with open(yaml_path) as f:
                 data = yaml.safe_load(f)
-            workflows.append({
-                "path": yaml_path,
-                "name": data.get("name", yaml_path.stem),
-                "version": data.get("version", "?"),
-                "description": data.get("description", ""),
-                "steps": len(data.get("steps", [])),
-            })
+            workflows.append(
+                {
+                    "path": yaml_path,
+                    "name": data.get("name", yaml_path.stem),
+                    "version": data.get("version", "?"),
+                    "description": data.get("description", ""),
+                    "steps": len(data.get("steps", [])),
+                }
+            )
         except Exception as e:
             logger.warning(f"Failed to load workflow {yaml_path}: {e}")
-            workflows.append({
-                "path": yaml_path,
-                "name": yaml_path.stem,
-                "version": "?",
-                "description": f"Error: {e}",
-                "steps": 0,
-            })
+            workflows.append(
+                {
+                    "path": yaml_path,
+                    "name": yaml_path.stem,
+                    "version": "?",
+                    "description": f"Error: {e}",
+                    "steps": 0,
+                }
+            )
     return workflows
 
 
@@ -737,7 +848,7 @@ def _render_node_card(node: dict) -> None:
                 color: #6b7280;
                 margin-top: 6px;
             ">
-                <span>⬅</span> {', '.join(deps)}
+                <span>⬅</span> {", ".join(deps)}
             </div>
         """
 
@@ -749,15 +860,15 @@ def _render_node_card(node: dict) -> None:
                 display: inline-flex;
                 align-items: center;
                 gap: 4px;
-                background: {config['color']}15;
+                background: {config["color"]}15;
                 padding: 2px 8px;
                 border-radius: 12px;
                 font-size: 10px;
-                color: {config['color']};
+                color: {config["color"]};
                 margin-top: 6px;
                 margin-left: 4px;
             ">
-                <span>📤</span> {', '.join(outputs)}
+                <span>📤</span> {", ".join(outputs)}
             </div>
         """
 
@@ -766,8 +877,8 @@ def _render_node_card(node: dict) -> None:
     if role:
         role_html = f"""
             <span style="
-                background: {config['color']}20;
-                color: {config['color']};
+                background: {config["color"]}20;
+                color: {config["color"]};
                 padding: 2px 8px;
                 border-radius: 10px;
                 font-size: 10px;
@@ -816,7 +927,7 @@ def _render_node_card(node: dict) -> None:
             <div style="display: flex; align-items: flex-start; gap: 12px;">
                 <div style="
                     font-size: 32px;
-                    background: {config['color']}15;
+                    background: {config["color"]}15;
                     padding: 8px;
                     border-radius: 12px;
                     line-height: 1;
@@ -856,7 +967,8 @@ def _render_canvas():
     nodes = st.session_state.builder_nodes
 
     if not nodes:
-        st.markdown("""
+        st.markdown(
+            """
             <div style="
                 text-align: center;
                 padding: 48px 24px;
@@ -887,7 +999,9 @@ def _render_canvas():
                     <span>💻 Shell Commands</span>
                 </div>
             </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
         return
 
     # Render nodes in columns
@@ -930,7 +1044,8 @@ def _render_canvas():
     # Show existing connections with improved styling
     edges = st.session_state.builder_edges
     if edges:
-        st.markdown("""
+        st.markdown(
+            """
             <div style="
                 background: #f9fafb;
                 border-radius: 12px;
@@ -940,32 +1055,47 @@ def _render_canvas():
                 <div style="font-size: 12px; font-weight: 600; color: #6b7280; margin-bottom: 8px;">
                     Active Connections
                 </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
 
         for edge in edges:
             col1, col2 = st.columns([4, 1])
             with col1:
-                source_node = next((n for n in nodes if n["id"] == edge["source"]), None)
-                target_node = next((n for n in nodes if n["id"] == edge["target"]), None)
-                source_config = NODE_TYPE_CONFIG.get(source_node["type"], {}) if source_node else {}
-                target_config = NODE_TYPE_CONFIG.get(target_node["type"], {}) if target_node else {}
+                source_node = next(
+                    (n for n in nodes if n["id"] == edge["source"]), None
+                )
+                target_node = next(
+                    (n for n in nodes if n["id"] == edge["target"]), None
+                )
+                source_config = (
+                    NODE_TYPE_CONFIG.get(source_node["type"], {}) if source_node else {}
+                )
+                target_config = (
+                    NODE_TYPE_CONFIG.get(target_node["type"], {}) if target_node else {}
+                )
 
-                st.markdown(f"""
+                st.markdown(
+                    f"""
                     <div style="
                         display: flex;
                         align-items: center;
                         gap: 8px;
                         padding: 6px 0;
                     ">
-                        <span style="font-size: 16px;">{source_config.get('icon', '📦')}</span>
-                        <span style="font-weight: 500;">{edge['source']}</span>
+                        <span style="font-size: 16px;">{source_config.get("icon", "📦")}</span>
+                        <span style="font-weight: 500;">{edge["source"]}</span>
                         <span style="color: #9ca3af;">→</span>
-                        <span style="font-size: 16px;">{target_config.get('icon', '📦')}</span>
-                        <span style="font-weight: 500;">{edge['target']}</span>
+                        <span style="font-size: 16px;">{target_config.get("icon", "📦")}</span>
+                        <span style="font-weight: 500;">{edge["target"]}</span>
                     </div>
-                """, unsafe_allow_html=True)
+                """,
+                    unsafe_allow_html=True,
+                )
             with col2:
-                if st.button("✕", key=f"del_edge_{edge['id']}", help="Remove connection"):
+                if st.button(
+                    "✕", key=f"del_edge_{edge['id']}", help="Remove connection"
+                ):
                     _delete_edge(edge["id"])
                     # Also update depends_on
                     for node in st.session_state.builder_nodes:
@@ -1549,7 +1679,8 @@ def _render_visual_graph():
     edges = st.session_state.builder_edges
 
     if not nodes:
-        st.markdown("""
+        st.markdown(
+            """
             <div style="
                 text-align: center;
                 padding: 60px 20px;
@@ -1562,7 +1693,9 @@ def _render_visual_graph():
                 <div style="font-size: 18px; font-weight: 600;">No workflow steps yet</div>
                 <div style="font-size: 14px; margin-top: 8px;">Add nodes from the Templates or Nodes tab</div>
             </div>
-        """, unsafe_allow_html=True)
+        """,
+            unsafe_allow_html=True,
+        )
         return
 
     st.markdown("### 🔀 Visual Flow")
@@ -1621,7 +1754,8 @@ def _render_visual_graph():
 
         # Show parallel indicator
         if is_parallel_level:
-            st.markdown("""
+            st.markdown(
+                """
                 <div style="
                     text-align: center;
                     font-size: 11px;
@@ -1635,7 +1769,9 @@ def _render_visual_graph():
                 ">
                     🔀 Parallel Execution
                 </div>
-            """, unsafe_allow_html=True)
+            """,
+                unsafe_allow_html=True,
+            )
 
         for i, node_id in enumerate(node_ids):
             node = node_map[node_id]
@@ -1647,7 +1783,11 @@ def _render_visual_graph():
             # Get role if available
             params = node["data"].get("params", {})
             role = params.get("role", "")
-            role_badge = f'<div style="font-size: 9px; color: {config["color"]}; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">{role}</div>' if role else ""
+            role_badge = (
+                f'<div style="font-size: 9px; color: {config["color"]}; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 2px;">{role}</div>'
+                if role
+                else ""
+            )
 
             # Status ring styling
             status_ring = ""
@@ -1669,7 +1809,7 @@ def _render_visual_graph():
                     ">
                         <div style="
                             font-size: 32px;
-                            background: {config['color']}15;
+                            background: {config["color"]}15;
                             width: 56px;
                             height: 56px;
                             border-radius: 14px;
@@ -1680,7 +1820,7 @@ def _render_visual_graph():
                             position: relative;
                         ">
                             {config["icon"]}
-                            {f'<span style="position: absolute; top: -4px; right: -4px; font-size: 14px;">{status_icon}</span>' if status_icon else ''}
+                            {f'<span style="position: absolute; top: -4px; right: -4px; font-size: 14px;">{status_icon}</span>' if status_icon else ""}
                         </div>
                         <div style="font-size: 13px; font-weight: 700; color: #1f2937;">{node_id}</div>
                         <div style="font-size: 11px; color: #6b7280;">{config["label"]}</div>
@@ -1734,7 +1874,8 @@ def _render_visual_graph():
             st.markdown(arrow_html, unsafe_allow_html=True)
 
     # Show workflow summary
-    st.markdown(f"""
+    st.markdown(
+        f"""
         <div style="
             margin-top: 20px;
             padding: 12px 16px;
@@ -1749,9 +1890,11 @@ def _render_visual_graph():
             <span>📊 <strong>{len(nodes)}</strong> steps</span>
             <span>🔗 <strong>{len(edges)}</strong> connections</span>
             <span>📐 <strong>{total_levels}</strong> levels</span>
-            {'<span>🔀 <strong>parallel</strong></span>' if is_parallel else '<span>📏 <strong>sequential</strong></span>'}
+            {"<span>🔀 <strong>parallel</strong></span>" if is_parallel else "<span>📏 <strong>sequential</strong></span>"}
         </div>
-    """, unsafe_allow_html=True)
+    """,
+        unsafe_allow_html=True,
+    )
 
 
 def _render_saved_workflows():
@@ -1771,7 +1914,9 @@ def _render_saved_workflows():
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Load", key=f"load_{wf['path']}", use_container_width=True):
+                if st.button(
+                    "Load", key=f"load_{wf['path']}", use_container_width=True
+                ):
                     if _load_workflow_from_file(wf["path"]):
                         st.success(f"Loaded {wf['name']}")
                         st.rerun()
@@ -1841,7 +1986,9 @@ def _render_saved_workflows():
 
             col1, col2 = st.columns(2)
             with col1:
-                if st.button("Load", key=f"load_{wf['path']}", use_container_width=True):
+                if st.button(
+                    "Load", key=f"load_{wf['path']}", use_container_width=True
+                ):
                     if _load_workflow_from_file(wf["path"]):
                         st.success(f"Loaded {wf['name']}")
                         st.rerun()
@@ -1856,6 +2003,53 @@ def _render_saved_workflows():
                         st.rerun()
                     else:
                         st.error("Failed to delete")
+
+
+def _render_execute_preview():
+    """Render execution preview with validation and step summary."""
+    workflow = _build_yaml_from_state()
+    errors = validate_workflow(workflow)
+
+    st.markdown("### Execution Preview")
+
+    if errors:
+        st.error(
+            f"**{len(errors)} validation error(s) must be fixed before execution:**"
+        )
+        for error in errors:
+            st.markdown(f"- {error}")
+        return
+
+    st.success("Workflow is valid and ready to execute.")
+
+    # Step execution order
+    steps = workflow.get("steps", [])
+    if steps:
+        st.markdown("#### Execution Order")
+        for i, step in enumerate(steps, 1):
+            deps = step.get("depends_on", [])
+            if isinstance(deps, str):
+                deps = [deps]
+            dep_str = f" (after: {', '.join(deps)})" if deps else ""
+            condition = step.get("condition")
+            cond_str = (
+                f" | condition: `{condition['field']} {condition.get('operator', '==')} {condition.get('value', '')}`"
+                if condition
+                else ""
+            )
+            on_failure = step.get("on_failure", "abort")
+            fail_str = f" | on_failure: {on_failure}" if on_failure != "abort" else ""
+            st.markdown(
+                f"**{i}.** `{step['id']}` ({step['type']}){dep_str}{cond_str}{fail_str}"
+            )
+
+    # Variables
+    variables = workflow.get("variables", {})
+    if variables:
+        st.markdown("#### Variables")
+        st.json(variables)
+
+    st.info("Save the workflow, then execute it from the **Execute** page.")
 
 
 def render_workflow_builder():
@@ -1951,4 +2145,4 @@ def render_workflow_builder():
             _render_yaml_preview()
 
         with tab4:
-            _render_execute_tab()
+            _render_execute_preview()
