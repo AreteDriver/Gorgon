@@ -530,7 +530,12 @@ def _get_builder_state_path(workflow_name: str) -> Path:
     builder_dir = workflows_dir / ".builder_state"
     builder_dir.mkdir(parents=True, exist_ok=True)
     safe_name = re.sub(r"[^\w\-]", "_", workflow_name.lower())
-    return builder_dir / f"{safe_name}.json"
+    safe_name = safe_name.strip("_")[:50] or "state"
+    result = builder_dir / f"{safe_name}.json"
+    # Guard against path traversal
+    if not result.resolve().is_relative_to(builder_dir.resolve()):
+        raise ValueError("Invalid workflow name")
+    return result
 
 
 def _save_builder_state(workflow_name: str) -> None:
@@ -544,11 +549,11 @@ def _save_builder_state(workflow_name: str) -> None:
         "outputs": st.session_state.builder_outputs,
     }
     try:
-        with open(state_path, "w") as f:
+        with open(state_path, "w") as f:  # noqa: PTH123
             json.dump(state, f, indent=2)
-        logger.debug(f"Saved builder state to {state_path}")
+        logger.debug("Saved builder state to %s", state_path.name)
     except Exception as e:
-        logger.error(f"Failed to save builder state: {e}")
+        logger.error("Failed to save builder state: %s", e)
 
 
 def _load_builder_state(workflow_name: str) -> bool:
@@ -558,7 +563,7 @@ def _load_builder_state(workflow_name: str) -> bool:
         return False
 
     try:
-        with open(state_path) as f:
+        with open(state_path) as f:  # noqa: PTH123
             state = json.load(f)
         st.session_state.builder_nodes = state.get("nodes", [])
         st.session_state.builder_edges = state.get("edges", [])
@@ -566,7 +571,7 @@ def _load_builder_state(workflow_name: str) -> bool:
         st.session_state.builder_inputs = state.get("inputs", {})
         st.session_state.builder_outputs = state.get("outputs", [])
         st.session_state.selected_node = None
-        logger.debug(f"Loaded builder state from {state_path}")
+        logger.debug("Loaded builder state from %s", state_path.name)
         return True
     except Exception as e:
         logger.error(f"Failed to load builder state: {e}")
@@ -626,16 +631,16 @@ def _save_workflow_yaml(filepath: Path | None = None) -> Path | None:
             return None
 
     try:
-        with open(filepath, "w") as f:
+        with open(filepath, "w") as f:  # noqa: PTH123
             yaml.dump(workflow, f, default_flow_style=False, sort_keys=False)
         # Also save builder state for positions
         _save_builder_state(workflow["name"])
         st.session_state.builder_current_file = filepath
         st.session_state.builder_dirty = False
-        logger.info(f"Saved workflow to {filepath}")
+        logger.info("Saved workflow to %s", filepath.name)
         return filepath
     except Exception as e:
-        logger.error(f"Failed to save workflow: {e}")
+        logger.error("Failed to save workflow: %s", e)
         return None
 
 
