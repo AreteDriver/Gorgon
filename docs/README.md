@@ -2,8 +2,6 @@
 
 Welcome to the Gorgon documentation! This directory contains comprehensive guides and references for using and developing Gorgon.
 
-> **Note**: This documentation is under active development. Links marked with 📝 are planned for future releases.
-
 ## 📚 Documentation Index
 
 ### Getting Started
@@ -14,30 +12,30 @@ Welcome to the Gorgon documentation! This directory contains comprehensive guide
 ### User Guides
 - **[Creating Workflows](creating-workflows.md)** - Build your first workflow
 - **[Filesystem Tools](filesystem-tools.md)** - Local project access for chat agents
-- 📝 **Prompt Templates** _(coming soon)_ - Working with prompts
-- 📝 **Using the Dashboard** _(coming soon)_ - Navigate the web interface
+- **[Prompt Templates](prompt-templates.md)** - Working with prompts
+- **[Using the Dashboard](dashboard-guide.md)** - Navigate the web interface
 - **[Using the API](api-reference.md)** - Programmatic access
 
 ### Integration Guides
-- 📝 **OpenAI Integration** _(coming soon)_ - AI-powered automation
-- 📝 **GitHub Integration** _(coming soon)_ - Repository automation
-- 📝 **Notion Integration** _(coming soon)_ - Knowledge management
-- 📝 **Gmail Integration** _(coming soon)_ - Email automation
+- **[OpenAI Integration](integrations/openai.md)** - AI-powered automation
+- **[GitHub Integration](integrations/github.md)** - Repository automation
+- **[Notion Integration](integrations/notion.md)** - Knowledge management
+- **[Gmail Integration](integrations/gmail.md)** - Email automation
 
 ### Developer Guides
 - **[Architecture Overview](../ARCHITECTURE.md)** - System architecture
 - **[API Reference](api-reference.md)** - Complete API documentation
 - **[Contributing Guide](../CONTRIBUTING.md)** - How to contribute
-- 📝 **Development Setup** _(coming soon)_ - Setting up dev environment
+- **[Development Setup](development.md)** - Setting up dev environment
 
 ### Advanced Topics
 - **[Parallel Agent Execution](PARALLEL_EXECUTION.md)** - Multi-agent parallelism with rate limiting
 - **[Claude Code Integration](claude-code-integration.md)** - Using Claude Code in workflows
 - **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Production deployment
 - **[Enterprise Patterns](ENTERPRISE_PATTERNS.md)** - Scaling for enterprise
-- 📝 **Security Best Practices** _(coming soon)_ - Securing your deployment
-- 📝 **Performance Tuning** _(coming soon)_ - Optimization strategies
-- 📝 **Troubleshooting** _(coming soon)_ - Common issues and solutions
+- **[Security Best Practices](security.md)** - Securing your deployment
+- **[Performance Tuning](performance.md)** - Optimization strategies
+- **[Troubleshooting](troubleshooting.md)** - Common issues and solutions
 
 ## 🎯 Quick Links
 
