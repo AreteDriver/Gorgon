@@ -75,6 +75,15 @@ def main(
     pass
 
 
+@app.command()
+def tui():
+    """Launch the Gorgon TUI - unified AI terminal interface."""
+    from test_ai.tui.app import GorgonApp
+
+    tui_app = GorgonApp()
+    tui_app.run()
+
+
 def get_workflow_engine():
     """Lazy import workflow engine to avoid startup cost."""
     try:

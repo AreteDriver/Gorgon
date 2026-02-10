@@ -32,6 +32,7 @@ pyyaml = "^6.0.0"
 jsonschema = "^4.23.0"
 slowapi = "^0.1.9"
 cryptography = "^45.0.0"
+textual = "^2.1.0"
 psycopg2-binary = {version = "^2.9.0", optional = true}
 python-telegram-bot = {version = "^21.0", optional = true}
 discord-py = {version = "^2.3.0", optional = true}
