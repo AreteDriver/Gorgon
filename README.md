@@ -14,7 +14,15 @@
 
 ---
 
-## What's New in v0.2.0
+## What's New in v1.0.0
+
+🎨 **Visual Workflow Builder** — Drag-and-drop workflow creation with canvas, visual graph, and YAML export
+
+🧩 **Plugin Marketplace** — Discover, install, and manage workflow plugins with multi-source support
+
+📊 **Agent Evaluation Framework** — Benchmark and compare agent performance across tasks
+
+💬 **Messaging Bots** — Telegram, Discord, and Slack integration for workflow triggers
 
 🗣️ **Chat Interface** — Conversational AI with session persistence and agent attribution
 
@@ -492,4 +500,4 @@ MIT License — see [LICENSE](LICENSE)
 
 **Author**: ARETE
 **Status**: Active Development
-**Version**: 0.2.0
+**Version**: 1.0.0
