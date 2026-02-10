@@ -302,9 +302,7 @@ class GorgonApp(App):
                 elif chunk_type == "agent":
                     cs.chat_display.add_agent_message(chunk_agent, chunk_content)
                 elif chunk_type == "tool_result":
-                    cs.chat_display.add_system_message(
-                        f"[tool] {chunk_content[:200]}"
-                    )
+                    cs.chat_display.add_system_message(f"[tool] {chunk_content[:200]}")
                 elif chunk_type == "done":
                     break
 

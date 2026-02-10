@@ -230,7 +230,7 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
         # Support "confirm:<path>" to bypass sensitive-file warning
         force = False
         if raw.startswith("confirm:"):
-            raw = raw[len("confirm:"):]
+            raw = raw[len("confirm:") :]
             force = True
 
         path = Path(raw).expanduser().resolve()

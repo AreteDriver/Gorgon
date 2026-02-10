@@ -70,9 +70,7 @@ class ChatDisplay(RichLog):
         """
         self._is_streaming = False
         if full_content:
-            self._message_buffer.append(
-                {"role": "assistant", "content": full_content}
-            )
+            self._message_buffer.append({"role": "assistant", "content": full_content})
         self._rebuild_display()
 
     def _rebuild_display(self) -> None:
@@ -93,9 +91,7 @@ class ChatDisplay(RichLog):
                 self.write(Text(f"\n[error] {content}", style="bold red"))
             elif role == "agent":
                 agent_name = msg.get("agent", "agent")
-                self.write(
-                    Text(f"\n[{agent_name}]", style="bold magenta")
-                )
+                self.write(Text(f"\n[{agent_name}]", style="bold magenta"))
                 self.write(Markdown(content))
 
     def add_agent_message(self, role: str, content: str) -> None:
