@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 from collections.abc import AsyncGenerator
+from dataclasses import dataclass, field
 
 from test_ai.providers.base import (
     CompletionRequest,
@@ -15,11 +16,20 @@ from test_ai.providers.base import (
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class StreamResult:
+    """Accumulated metadata from a streaming response."""
+
+    input_tokens: int = 0
+    output_tokens: int = 0
+
+
 async def stream_completion(
     provider: Provider,
     messages: list[dict[str, str]],
     system_prompt: str | None = None,
     model: str | None = None,
+    result: StreamResult | None = None,
 ) -> AsyncGenerator[str, None]:
     """Unified streaming interface for any provider.
 
@@ -29,11 +39,21 @@ async def stream_completion(
     - Ollama: native httpx streaming via complete_stream_async()
     - Fallback: complete_async() yielding single chunk
 
+    Args:
+        provider: AI provider instance.
+        messages: Conversation messages.
+        system_prompt: Optional system prompt override.
+        model: Optional model override.
+        result: Optional StreamResult to populate with token usage.
+
     Yields:
         Text chunks as strings.
     """
-    if not provider._initialized:
+    # Ensure provider is initialized (idempotent)
+    try:
         provider.initialize()
+    except Exception:
+        pass  # Already initialized — providers raise or no-op
 
     # Extract system prompt from messages if not provided
     if system_prompt is None:
@@ -47,29 +67,38 @@ async def stream_completion(
     # Filter out system messages for the message list
     filtered = [m for m in messages if m.get("role") != "system"]
 
+    if result is None:
+        result = StreamResult()
+
     # Route to best streaming method per provider type
     try:
         if provider.provider_type == ProviderType.ANTHROPIC:
             async for chunk in _stream_anthropic(
-                provider, filtered, system_prompt, model
+                provider, filtered, system_prompt, model, result
             ):
                 yield chunk
         elif provider.provider_type == ProviderType.OPENAI:
-            async for chunk in _stream_openai(provider, filtered, system_prompt, model):
+            async for chunk in _stream_openai(
+                provider, filtered, system_prompt, model, result
+            ):
                 yield chunk
         elif provider.provider_type == ProviderType.OLLAMA:
-            async for chunk in _stream_ollama(provider, filtered, system_prompt, model):
+            async for chunk in _stream_ollama(
+                provider, filtered, system_prompt, model, result
+            ):
                 yield chunk
         else:
             async for chunk in _stream_fallback(
-                provider, filtered, system_prompt, model
+                provider, filtered, system_prompt, model, result
             ):
                 yield chunk
     except ProviderError:
         raise
     except Exception as e:
         logger.warning(f"Streaming failed, falling back to non-streaming: {e}")
-        async for chunk in _stream_fallback(provider, filtered, system_prompt, model):
+        async for chunk in _stream_fallback(
+            provider, filtered, system_prompt, model, result
+        ):
             yield chunk
 
 
@@ -78,6 +107,7 @@ async def _stream_anthropic(
     messages: list[dict[str, str]],
     system_prompt: str | None,
     model: str | None,
+    result: StreamResult,
 ) -> AsyncGenerator[str, None]:
     """Stream via Anthropic's native messages.stream() API."""
     client = getattr(provider, "_async_client", None)
@@ -92,6 +122,11 @@ async def _stream_anthropic(
     ) as stream:
         async for text in stream.text_stream:
             yield text
+        # Capture token usage from final message
+        response = await stream.get_final_message()
+        if response and response.usage:
+            result.input_tokens = response.usage.input_tokens
+            result.output_tokens = response.usage.output_tokens
 
 
 async def _stream_openai(
@@ -99,6 +134,7 @@ async def _stream_openai(
     messages: list[dict[str, str]],
     system_prompt: str | None,
     model: str | None,
+    result: StreamResult,
 ) -> AsyncGenerator[str, None]:
     """Stream via OpenAI's native streaming API."""
     client = getattr(provider, "_async_client", None)
@@ -115,10 +151,15 @@ async def _stream_openai(
         messages=api_messages,
         max_tokens=4096,
         stream=True,
+        stream_options={"include_usage": True},
     )
     async for chunk in stream:
         if chunk.choices and chunk.choices[0].delta.content:
             yield chunk.choices[0].delta.content
+        # OpenAI sends usage in the final chunk when stream_options.include_usage=True
+        if hasattr(chunk, "usage") and chunk.usage:
+            result.input_tokens = chunk.usage.prompt_tokens or 0
+            result.output_tokens = chunk.usage.completion_tokens or 0
 
 
 async def _stream_ollama(
@@ -126,6 +167,7 @@ async def _stream_ollama(
     messages: list[dict[str, str]],
     system_prompt: str | None,
     model: str | None,
+    result: StreamResult,
 ) -> AsyncGenerator[str, None]:
     """Stream via Ollama's complete_stream_async (httpx streaming)."""
     request = CompletionRequest(
@@ -137,6 +179,10 @@ async def _stream_ollama(
     async for chunk in provider.complete_stream_async(request):
         if chunk.content:
             yield chunk.content
+        # Capture usage from chunk metadata if available
+        if hasattr(chunk, "usage") and chunk.usage:
+            result.input_tokens = getattr(chunk.usage, "input_tokens", 0)
+            result.output_tokens = getattr(chunk.usage, "output_tokens", 0)
 
 
 async def _stream_fallback(
@@ -144,6 +190,7 @@ async def _stream_fallback(
     messages: list[dict[str, str]],
     system_prompt: str | None,
     model: str | None,
+    result: StreamResult,
 ) -> AsyncGenerator[str, None]:
     """Fallback: single async completion yielded as one chunk."""
     request = CompletionRequest(
@@ -153,4 +200,7 @@ async def _stream_fallback(
         messages=messages,
     )
     response = await provider.complete_async(request)
+    if hasattr(response, "usage") and response.usage:
+        result.input_tokens = getattr(response.usage, "input_tokens", 0)
+        result.output_tokens = getattr(response.usage, "output_tokens", 0)
     yield response.content

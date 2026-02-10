@@ -3,13 +3,92 @@
 from __future__ import annotations
 
 import logging
+import platform
+import shutil
+import subprocess
 from collections.abc import Callable, Coroutine
+from pathlib import Path, PurePath
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     from test_ai.tui.app import GorgonApp
 
 logger = logging.getLogger(__name__)
+
+# File-name patterns that likely contain secrets — checked before attaching.
+_SENSITIVE_PATTERNS: list[str] = [
+    ".env",
+    ".env.*",
+    "*.pem",
+    "*.key",
+    "*.p12",
+    "*.pfx",
+    "*.jks",
+    "*credentials*",
+    "*secret*",
+    "id_rsa",
+    "id_ed25519",
+    "id_ecdsa",
+    "id_dsa",
+    "known_hosts",
+    "authorized_keys",
+]
+
+_SENSITIVE_DIRS: set[str] = {".ssh", ".aws", ".azure", ".gcp", ".gnupg"}
+
+
+def _is_sensitive_path(path: Path) -> bool:
+    """Return True if *path* looks like it contains secrets."""
+    name_lower = path.name.lower()
+    for pattern in _SENSITIVE_PATTERNS:
+        if PurePath(name_lower).match(pattern):
+            return True
+    for part in path.parts:
+        if part.lower() in _SENSITIVE_DIRS:
+            return True
+    return False
+
+
+def _clipboard_copy(text: str) -> str:
+    """Copy *text* to the system clipboard.  Cross-platform."""
+    system = platform.system()
+    if system == "Darwin":
+        cmd = ["pbcopy"]
+    elif system == "Windows":
+        cmd = ["clip"]
+    else:
+        # Linux / BSD — prefer xclip, fall back to xsel
+        xclip = shutil.which("xclip")
+        if xclip:
+            cmd = [xclip, "-selection", "clipboard"]
+        else:
+            xsel = shutil.which("xsel")
+            if xsel:
+                cmd = [xsel, "--clipboard", "--input"]
+            else:
+                return (
+                    "No clipboard utility found. "
+                    "Install xclip (apt install xclip) or xsel."
+                )
+
+    try:
+        proc = subprocess.run(
+            cmd,
+            input=text.encode(),
+            timeout=5,
+            capture_output=True,
+        )
+        if proc.returncode == 0:
+            return "Last response copied to clipboard."
+        logger.debug("Clipboard tool stderr: %s", proc.stderr.decode(errors="replace"))
+        return f"Copy failed ({cmd[0]} returned {proc.returncode})."
+    except subprocess.TimeoutExpired:
+        return f"Copy failed ({cmd[0]} timed out)."
+    except FileNotFoundError:
+        return f"{cmd[0]} not found."
+    except Exception as e:
+        logger.error("Clipboard copy failed: %s", e)
+        return f"Copy failed: {type(e).__name__}"
 
 
 class CommandRegistry:
@@ -51,6 +130,9 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
     """Create and populate the command registry with all handlers."""
     registry = CommandRegistry(app)
 
+    # Keep a set of paths the user has explicitly confirmed as OK.
+    _confirmed_sensitive: set[str] = set()
+
     async def cmd_help(_args: str) -> str:
         return registry.get_help()
 
@@ -74,12 +156,12 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
             app._provider_manager.set_default(args.strip())
             provider = app._provider_manager.get_default()
             if provider:
-                screen = app.screen
-                if hasattr(screen, "sidebar"):
-                    screen.sidebar.provider_name = provider.name
-                    screen.sidebar.model_name = provider.default_model
-                    screen.status_bar.provider_name = provider.name
-                    screen.status_bar.model_name = provider.default_model
+                cs = app._get_chat_screen()
+                if cs:
+                    cs.sidebar.provider_name = provider.name
+                    cs.sidebar.model_name = provider.default_model
+                    cs.status_bar.provider_name = provider.name
+                    cs.status_bar.model_name = provider.default_model
                 return f"Switched to {provider.name} ({provider.default_model})"
             return "Switch failed."
         except Exception as e:
@@ -94,10 +176,10 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
         if not provider:
             return "No default provider."
         provider.config.default_model = args.strip()
-        screen = app.screen
-        if hasattr(screen, "sidebar"):
-            screen.sidebar.model_name = args.strip()
-            screen.status_bar.model_name = args.strip()
+        cs = app._get_chat_screen()
+        if cs:
+            cs.sidebar.model_name = args.strip()
+            cs.status_bar.model_name = args.strip()
         return f"Model set to {args.strip()}"
 
     async def cmd_models(_args: str) -> str:
@@ -128,9 +210,9 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
         return f"System prompt set ({len(args)} chars)"
 
     async def cmd_tokens(_args: str) -> str:
-        screen = app.screen
-        if hasattr(screen, "sidebar"):
-            sb = screen.sidebar
+        cs = app._get_chat_screen()
+        if cs:
+            sb = cs.sidebar
             return (
                 f"Token usage:\n"
                 f"  Input:  {sb.input_tokens:,}\n"
@@ -142,22 +224,41 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
     async def cmd_file(args: str) -> str:
         if not args:
             return "Usage: /file <path>"
-        from pathlib import Path
 
-        path = Path(args.strip()).expanduser().resolve()
+        raw = args.strip()
+
+        # Support "confirm:<path>" to bypass sensitive-file warning
+        force = False
+        if raw.startswith("confirm:"):
+            raw = raw[len("confirm:"):]
+            force = True
+
+        path = Path(raw).expanduser().resolve()
         if not path.exists():
             return f"File not found: {path}"
         if not path.is_file():
             return f"Not a file: {path}"
-        screen = app.screen
-        if hasattr(screen, "sidebar"):
-            screen.sidebar.add_file(str(path))
+
+        # Warn about sensitive files (keys, .env, credentials, etc.)
+        if not force and str(path) not in _confirmed_sensitive:
+            if _is_sensitive_path(path):
+                _confirmed_sensitive.add(str(path))
+                return (
+                    f"Warning: '{path.name}' looks like a sensitive file "
+                    f"(credentials, keys, env vars).\n"
+                    f"Its contents will be sent to an external AI API.\n"
+                    f"To proceed anyway: /file confirm:{path}"
+                )
+
+        cs = app._get_chat_screen()
+        if cs:
+            cs.sidebar.add_file(str(path))
         return f"Added: {path}"
 
     async def cmd_files(_args: str) -> str:
-        screen = app.screen
-        if hasattr(screen, "sidebar"):
-            files = screen.sidebar.files
+        cs = app._get_chat_screen()
+        if cs:
+            files = cs.sidebar.files
             if not files:
                 return "No files attached."
             return "Attached files:\n" + "\n".join(f"  {f}" for f in files)
@@ -166,18 +267,21 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
     async def cmd_unfile(args: str) -> str:
         if not args:
             return "Usage: /unfile <path|all>"
-        screen = app.screen
-        if not hasattr(screen, "sidebar"):
+        cs = app._get_chat_screen()
+        if not cs:
             return "No sidebar."
         if args.strip() == "all":
-            screen.sidebar.clear_files()
+            cs.sidebar.clear_files()
             return "All files removed."
-        screen.sidebar.remove_file(args.strip())
+        cs.sidebar.remove_file(args.strip())
         return f"Removed: {args.strip()}"
 
     async def cmd_agent(args: str) -> str:
         if not args:
-            return f"Agent mode: {app._agent_mode}\nUsage: /agent <off|auto|planner|builder|tester|reviewer|architect|documenter|analyst>"
+            return (
+                f"Agent mode: {app._agent_mode}\n"
+                "Usage: /agent <off|auto|planner|builder|tester|reviewer|architect|documenter|analyst>"
+            )
         mode = args.strip().lower()
         valid = {
             "off",
@@ -194,9 +298,9 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
             return f"Invalid mode: {mode}. Options: {', '.join(sorted(valid))}"
         app._agent_mode = mode
         app._supervisor = None  # Reset supervisor for mode change
-        screen = app.screen
-        if hasattr(screen, "sidebar"):
-            screen.sidebar.agent_mode = mode
+        cs = app._get_chat_screen()
+        if cs:
+            cs.sidebar.agent_mode = mode
         return f"Agent mode: {mode}"
 
     async def cmd_save(args: str) -> str:
@@ -229,10 +333,8 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
         sessions = TUISession.list_sessions()
         if not sessions:
             return "No saved sessions."
-        lines = ["Saved sessions:"]
-        for i, s in enumerate(sessions[-10:]):
-            lines.append(f"  {i}: {s.name}")
-        lines.append("\nUse /load <number> to load a session.")
+
+        # If a numeric index was given, load that session directly.
         if _args.strip().isdigit():
             idx = int(_args.strip())
             recent = sessions[-10:]
@@ -241,16 +343,23 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
                 app._session = session
                 app._messages = session.messages
                 app._system_prompt = session.system_prompt
-                screen = app.screen
-                if hasattr(screen, "chat_display"):
-                    screen.chat_display.clear()
+                cs = app._get_chat_screen()
+                if cs:
+                    cs.chat_display.clear()
+                    cs.chat_display._message_buffer.clear()
                     for msg in session.messages:
                         if msg["role"] == "user":
-                            screen.chat_display.add_user_message(msg["content"])
+                            cs.chat_display.add_user_message(msg["content"])
                         elif msg["role"] == "assistant":
-                            screen.chat_display.add_assistant_message(msg["content"])
+                            cs.chat_display.add_assistant_message(msg["content"])
                 return f"Loaded: {recent[idx].name}"
             return f"Invalid index: {idx}"
+
+        # Otherwise list recent sessions.
+        lines = ["Saved sessions:"]
+        for i, s in enumerate(sessions[-10:]):
+            lines.append(f"  {i}: {s.name}")
+        lines.append("\nUse /load <number> to load a session.")
         return "\n".join(lines)
 
     async def cmd_history(_args: str) -> str:
@@ -283,21 +392,7 @@ def create_command_registry(app: GorgonApp) -> CommandRegistry:
                 break
         if not last_assistant:
             return "No assistant response to copy."
-        try:
-            import subprocess
-
-            proc = subprocess.run(
-                ["xclip", "-selection", "clipboard"],
-                input=last_assistant.encode(),
-                timeout=5,
-            )
-            if proc.returncode == 0:
-                return "Last response copied to clipboard."
-            return "Copy failed (xclip error)."
-        except FileNotFoundError:
-            return "xclip not found. Install: sudo apt install xclip"
-        except Exception as e:
-            return f"Copy failed: {e}"
+        return _clipboard_copy(last_assistant)
 
     # Register all commands
     registry.register("help", cmd_help, "Show available commands")

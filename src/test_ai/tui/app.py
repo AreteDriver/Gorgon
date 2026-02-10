@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -16,6 +17,27 @@ from test_ai.tui.widgets.input_bar import InputBar
 logger = logging.getLogger(__name__)
 
 CSS_PATH = Path(__file__).parent / "styles.tcss"
+
+# Patterns that look like API keys / secrets — used to scrub error messages
+_SECRET_PATTERNS = [
+    re.compile(r"sk-[A-Za-z0-9\-_]{20,}"),  # OpenAI / Anthropic
+    re.compile(r"ghp_[A-Za-z0-9]{36,}"),  # GitHub PAT
+    re.compile(r"gho_[A-Za-z0-9]{36,}"),  # GitHub OAuth
+    re.compile(r"secret_[A-Za-z0-9]{20,}"),  # Notion
+    re.compile(r"Bearer\s+[A-Za-z0-9\-_.]{20,}", re.IGNORECASE),
+]
+
+# Maximum file size to read into memory for context (1 MB)
+_MAX_FILE_READ_BYTES = 1_000_000
+# Maximum characters to include per file in the prompt
+_MAX_FILE_CONTEXT_CHARS = 10_000
+
+
+def _sanitize_error(msg: str) -> str:
+    """Strip potential secrets from an error string before displaying."""
+    for pat in _SECRET_PATTERNS:
+        msg = pat.sub("***", msg)
+    return msg
 
 
 class GorgonApp(App):
@@ -49,6 +71,19 @@ class GorgonApp(App):
         self._agent_mode: str = "off"
         self._supervisor = None
 
+    # ------------------------------------------------------------------
+    # Helpers
+    # ------------------------------------------------------------------
+
+    def _get_chat_screen(self) -> ChatScreen | None:
+        """Return current screen if it is the ChatScreen, else None."""
+        screen = self.screen
+        return screen if isinstance(screen, ChatScreen) else None
+
+    # ------------------------------------------------------------------
+    # Lifecycle
+    # ------------------------------------------------------------------
+
     def on_mount(self) -> None:
         self.push_screen(ChatScreen(name="chat"))
         self._init_providers()
@@ -61,26 +96,28 @@ class GorgonApp(App):
             self._provider_manager = create_provider_manager()
             provider = self._provider_manager.get_default()
             if provider:
-                screen = self.screen
-                if isinstance(screen, ChatScreen):
-                    screen.sidebar.provider_name = provider.name
-                    screen.sidebar.model_name = provider.default_model
-                    screen.status_bar.provider_name = provider.name
-                    screen.status_bar.model_name = provider.default_model
-                    screen.chat_display.add_system_message(
+                cs = self._get_chat_screen()
+                if cs:
+                    cs.sidebar.provider_name = provider.name
+                    cs.sidebar.model_name = provider.default_model
+                    cs.status_bar.provider_name = provider.name
+                    cs.status_bar.model_name = provider.default_model
+                    cs.chat_display.add_system_message(
                         f"Connected to {provider.name} ({provider.default_model}). Type a message or /help."
                     )
             else:
-                screen = self.screen
-                if isinstance(screen, ChatScreen):
-                    screen.chat_display.add_error_message(
+                cs = self._get_chat_screen()
+                if cs:
+                    cs.chat_display.add_error_message(
                         "No providers configured. Set API keys in .env"
                     )
         except Exception as e:
             logger.error(f"Failed to init providers: {e}")
-            screen = self.screen
-            if isinstance(screen, ChatScreen):
-                screen.chat_display.add_error_message(f"Provider init failed: {e}")
+            cs = self._get_chat_screen()
+            if cs:
+                cs.chat_display.add_error_message(
+                    f"Provider init failed: {_sanitize_error(str(e))}"
+                )
 
     def _init_commands(self) -> None:
         """Lazy-init the command registry."""
@@ -88,6 +125,10 @@ class GorgonApp(App):
             from test_ai.tui.commands import create_command_registry
 
             self._command_registry = create_command_registry(self)
+
+    # ------------------------------------------------------------------
+    # Input handling
+    # ------------------------------------------------------------------
 
     async def on_input_bar_submitted(self, event: InputBar.Submitted) -> None:
         """Handle user input submission."""
@@ -101,8 +142,8 @@ class GorgonApp(App):
     async def _handle_command(self, text: str) -> None:
         """Parse and execute a slash command."""
         self._init_commands()
-        screen = self.screen
-        if not isinstance(screen, ChatScreen):
+        cs = self._get_chat_screen()
+        if not cs:
             return
 
         parts = text[1:].split(None, 1)
@@ -111,25 +152,25 @@ class GorgonApp(App):
 
         result = await self._command_registry.execute(cmd_name, cmd_args)
         if result:
-            screen.chat_display.add_system_message(result)
+            cs.chat_display.add_system_message(result)
 
     async def _handle_chat_message(self, content: str) -> None:
         """Send a chat message and stream the response."""
-        screen = self.screen
-        if not isinstance(screen, ChatScreen):
+        cs = self._get_chat_screen()
+        if not cs:
             return
 
         if not self._provider_manager:
-            screen.chat_display.add_error_message("No providers configured.")
+            cs.chat_display.add_error_message("No providers configured.")
             return
 
         provider = self._provider_manager.get_default()
         if not provider:
-            screen.chat_display.add_error_message("No default provider set.")
+            cs.chat_display.add_error_message("No default provider set.")
             return
 
         # Show user message
-        screen.chat_display.add_user_message(content)
+        cs.chat_display.add_user_message(content)
         self._messages.append(
             {
                 "role": "user",
@@ -139,47 +180,58 @@ class GorgonApp(App):
         )
 
         # Check if we should use agent mode
-        if self._agent_mode != "off" and self._agent_mode != "none":
-            await self._handle_agent_message(content, screen)
+        if self._agent_mode not in ("off", "none"):
+            await self._handle_agent_message(content, cs)
             return
 
         # Stream response
         self._cancel_event.clear()
         self._is_streaming = True
-        screen.status_bar.is_streaming = True
-        screen.chat_display.begin_assistant_stream()
+        cs.status_bar.is_streaming = True
+        cs.chat_display.begin_assistant_stream()
 
         full_response = ""
         try:
-            from test_ai.tui.streaming import stream_completion
+            from test_ai.tui.streaming import StreamResult, stream_completion
 
-            # Build messages for the API
-            api_messages = []
+            # Build a single system prompt (avoids injecting multiple system messages)
+            system_parts: list[str] = []
             if self._system_prompt:
-                api_messages.append({"role": "system", "content": self._system_prompt})
+                system_parts.append(self._system_prompt)
 
-            # Add file context
             file_context = self._build_file_context()
             if file_context:
-                api_messages.append({"role": "system", "content": file_context})
+                system_parts.append(file_context)
 
-            for msg in self._messages:
-                api_messages.append({"role": msg["role"], "content": msg["content"]})
+            combined_system = "\n\n".join(system_parts) if system_parts else None
 
-            async for chunk in stream_completion(provider, api_messages):
+            # Build conversation messages (user/assistant only)
+            api_messages = [
+                {"role": msg["role"], "content": msg["content"]}
+                for msg in self._messages
+            ]
+
+            result = StreamResult()
+            async for chunk in stream_completion(
+                provider, api_messages, system_prompt=combined_system, result=result
+            ):
                 if self._cancel_event.is_set():
-                    screen.chat_display.append_stream_chunk("\n[cancelled]")
+                    cs.chat_display.append_stream_chunk("\n[cancelled]")
                     break
                 full_response += chunk
-                screen.chat_display.append_stream_chunk(chunk)
+                cs.chat_display.append_stream_chunk(chunk)
+
+            # Update token counts in sidebar
+            if result.input_tokens or result.output_tokens:
+                cs.sidebar.add_tokens(result.input_tokens, result.output_tokens)
 
         except Exception as e:
             logger.error(f"Streaming error: {e}")
-            screen.chat_display.add_error_message(str(e))
+            cs.chat_display.add_error_message(_sanitize_error(str(e)))
         finally:
             self._is_streaming = False
-            screen.status_bar.is_streaming = False
-            screen.chat_display.end_assistant_stream(full_response)
+            cs.status_bar.is_streaming = False
+            cs.chat_display.end_assistant_stream(full_response)
 
         if full_response:
             self._messages.append(
@@ -198,24 +250,25 @@ class GorgonApp(App):
                 except Exception as e:
                     logger.debug(f"Auto-save failed: {e}")
 
-    async def _handle_agent_message(self, content: str, screen: ChatScreen) -> None:
+    async def _handle_agent_message(self, content: str, cs: ChatScreen) -> None:
         """Handle a message in agent mode via SupervisorAgent."""
         if self._supervisor is None:
             try:
+                from test_ai.agents.provider_wrapper import AgentProvider
                 from test_ai.agents.supervisor import SupervisorAgent
 
                 provider = self._provider_manager.get_default()
-                from test_ai.agents.provider_wrapper import AgentProvider
-
                 agent_provider = AgentProvider(provider)
                 self._supervisor = SupervisorAgent(provider=agent_provider)
             except Exception as e:
-                screen.chat_display.add_error_message(f"Agent init failed: {e}")
+                cs.chat_display.add_error_message(
+                    f"Agent init failed: {_sanitize_error(str(e))}"
+                )
                 return
 
         self._cancel_event.clear()
         self._is_streaming = True
-        screen.status_bar.is_streaming = True
+        cs.status_bar.is_streaming = True
 
         full_response = ""
         try:
@@ -243,13 +296,13 @@ class GorgonApp(App):
 
                 if chunk_type == "text" and chunk_content:
                     if not full_response:
-                        screen.chat_display.begin_assistant_stream()
+                        cs.chat_display.begin_assistant_stream()
                     full_response += chunk_content
-                    screen.chat_display.append_stream_chunk(chunk_content)
+                    cs.chat_display.append_stream_chunk(chunk_content)
                 elif chunk_type == "agent":
-                    screen.chat_display.add_agent_message(chunk_agent, chunk_content)
+                    cs.chat_display.add_agent_message(chunk_agent, chunk_content)
                 elif chunk_type == "tool_result":
-                    screen.chat_display.add_system_message(
+                    cs.chat_display.add_system_message(
                         f"[tool] {chunk_content[:200]}"
                     )
                 elif chunk_type == "done":
@@ -257,12 +310,12 @@ class GorgonApp(App):
 
         except Exception as e:
             logger.error(f"Agent error: {e}")
-            screen.chat_display.add_error_message(str(e))
+            cs.chat_display.add_error_message(_sanitize_error(str(e)))
         finally:
             self._is_streaming = False
-            screen.status_bar.is_streaming = False
+            cs.status_bar.is_streaming = False
             if full_response:
-                screen.chat_display.end_assistant_stream(full_response)
+                cs.chat_display.end_assistant_stream(full_response)
 
         if full_response:
             self._messages.append(
@@ -274,53 +327,71 @@ class GorgonApp(App):
             )
 
     def _build_file_context(self) -> str:
-        """Build file context string from attached files."""
-        screen = self.screen
-        if not isinstance(screen, ChatScreen):
+        """Build file context string from attached files.
+
+        Checks file size *before* reading to avoid loading huge files
+        into memory.
+        """
+        cs = self._get_chat_screen()
+        if not cs:
             return ""
 
-        files = screen.sidebar.files
+        files = cs.sidebar.files
         if not files:
             return ""
 
-        parts = []
-        for path in files:
+        parts: list[str] = []
+        for fpath in files:
             try:
-                content = Path(path).read_text(errors="replace")
-                if len(content) > 10_000:
-                    content = content[:10_000] + "\n... (truncated)"
-                parts.append(f"--- File: {path} ---\n{content}")
+                p = Path(fpath)
+                # Pre-check size to avoid OOM on huge files
+                size = p.stat().st_size
+                if size > _MAX_FILE_READ_BYTES:
+                    parts.append(
+                        f"--- File: {fpath} ---\n"
+                        f"[Skipped: file too large ({size:,} bytes, limit {_MAX_FILE_READ_BYTES:,})]"
+                    )
+                    continue
+
+                content = p.read_text(errors="replace")
+                if len(content) > _MAX_FILE_CONTEXT_CHARS:
+                    content = content[:_MAX_FILE_CONTEXT_CHARS] + "\n... (truncated)"
+                parts.append(f"--- File: {fpath} ---\n{content}")
             except Exception as e:
-                parts.append(f"--- File: {path} ---\n[Error reading: {e}]")
+                parts.append(f"--- File: {fpath} ---\n[Error reading: {e}]")
 
         return "\n\n".join(parts)
 
+    # ------------------------------------------------------------------
+    # Actions
+    # ------------------------------------------------------------------
+
     def action_toggle_sidebar(self) -> None:
         """Toggle sidebar visibility."""
-        screen = self.screen
-        if isinstance(screen, ChatScreen):
-            sidebar = screen.sidebar
-            sidebar.display = not sidebar.display
+        cs = self._get_chat_screen()
+        if cs:
+            cs.sidebar.display = not cs.sidebar.display
 
     def action_clear_chat(self) -> None:
         """Clear chat display and messages."""
-        screen = self.screen
-        if isinstance(screen, ChatScreen):
-            screen.chat_display.clear()
+        cs = self._get_chat_screen()
+        if cs:
+            cs.chat_display.clear()
+            cs.chat_display._message_buffer.clear()
             self._messages.clear()
-            screen.sidebar.input_tokens = 0
-            screen.sidebar.output_tokens = 0
-            screen.chat_display.add_system_message("Chat cleared.")
+            cs.sidebar.input_tokens = 0
+            cs.sidebar.output_tokens = 0
+            cs.chat_display.add_system_message("Chat cleared.")
 
     def action_new_session(self) -> None:
         """Start a new session."""
         self.action_clear_chat()
         self._session = None
         self._system_prompt = None
-        screen = self.screen
-        if isinstance(screen, ChatScreen):
-            screen.sidebar.clear_files()
-            screen.chat_display.add_system_message("New session started.")
+        cs = self._get_chat_screen()
+        if cs:
+            cs.sidebar.clear_files()
+            cs.chat_display.add_system_message("New session started.")
 
     def action_cancel_generation(self) -> None:
         """Cancel ongoing generation."""
