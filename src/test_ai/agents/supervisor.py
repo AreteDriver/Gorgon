@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from test_ai.providers.base import BaseProvider
     from test_ai.chat.models import ChatMessage, ChatMode, ChatSession
     from test_ai.state.backends import DatabaseBackend
+    from test_ai.agents.convergence import DelegationConvergenceChecker
 
 logger = logging.getLogger(__name__)
 
@@ -159,6 +160,7 @@ class SupervisorAgent:
         mode: "ChatMode | None" = None,
         session: "ChatSession | None" = None,
         backend: "DatabaseBackend | None" = None,
+        convergence_checker: "DelegationConvergenceChecker | None" = None,
     ):
         """Initialize the Supervisor agent.
 
@@ -167,11 +169,13 @@ class SupervisorAgent:
             mode: Operating mode (assistant or self_improve).
             session: Chat session for filesystem access context.
             backend: Database backend for proposal storage.
+            convergence_checker: Optional Convergent coherence checker.
         """
         self.provider = provider
         self.mode = mode
         self.session = session
         self.backend = backend
+        self._convergence_checker = convergence_checker
         self._active_delegations: list[AgentDelegation] = []
         self._filesystem_tools = None
         self._proposal_manager = None
@@ -410,6 +414,21 @@ class SupervisorAgent:
             Dict mapping agent names to their results.
         """
         results = {}
+
+        # Check delegations for coherence before parallel execution
+        if self._convergence_checker and self._convergence_checker.enabled:
+            convergence = self._convergence_checker.check_delegations(delegations)
+            if convergence.has_conflicts:
+                logger.warning(f"Convergence conflicts: {convergence.conflicts}")
+            if convergence.dropped_agents:
+                delegations = [
+                    d
+                    for d in delegations
+                    if d.get("agent") not in convergence.dropped_agents
+                ]
+                logger.info(
+                    f"Dropped {len(convergence.dropped_agents)} redundant delegations"
+                )
 
         # Group by dependency (for now, run all in parallel)
         tasks = []
