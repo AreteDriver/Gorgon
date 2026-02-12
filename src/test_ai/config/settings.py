@@ -246,6 +246,8 @@ class Settings(BaseSettings):
     def verify_credentials(self, username: str, password: str) -> bool:
         """Verify username and password against configured credentials.
 
+        Supports bcrypt hashes (preferred) and legacy SHA-256 hashes.
+
         Args:
             username: The username to verify
             password: The plaintext password to verify
@@ -253,13 +255,26 @@ class Settings(BaseSettings):
         Returns:
             True if credentials are valid, False otherwise
         """
-        from hashlib import sha256
-
         # Check configured credentials first
         credentials = self.get_credentials_map()
         if username in credentials:
-            password_hash = sha256(password.encode()).hexdigest()
-            return secrets.compare_digest(credentials[username], password_hash)
+            stored = credentials[username]
+            # bcrypt hashes start with $2b$ or $2a$
+            if stored.startswith(("$2b$", "$2a$")):
+                import bcrypt
+
+                return bcrypt.checkpw(password.encode(), stored.encode())
+            else:
+                # Legacy SHA-256 (deprecated — migrate to bcrypt)
+                from hashlib import sha256
+
+                logger.warning(
+                    "Legacy SHA-256 credentials detected for user %s"
+                    " — migrate to bcrypt",
+                    username,
+                )
+                password_hash = sha256(password.encode()).hexdigest()
+                return secrets.compare_digest(stored, password_hash)
 
         # Fall back to demo auth if allowed
         if self.allow_demo_auth and password == "demo":

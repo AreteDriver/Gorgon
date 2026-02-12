@@ -26,7 +26,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from test_ai.auth import create_access_token, verify_token
 from test_ai.config import get_settings, configure_logging
@@ -485,7 +485,7 @@ v1_router = APIRouter(prefix="/v1", tags=["v1"])
 class LoginRequest(BaseModel):
     """Login request."""
 
-    user_id: str
+    user_id: str = Field(..., max_length=128, pattern=r"^[\w@.\-]+$")
     password: str
 
 
@@ -538,9 +538,9 @@ def login(request: Request, login_request: LoginRequest):
     1. Configured credentials via API_CREDENTIALS env var
     2. Demo auth (password='demo') if ALLOW_DEMO_AUTH=true (default in dev)
 
-    Configure credentials:
-        API_CREDENTIALS='user1:sha256hash1,user2:sha256hash2'
-        Generate hash: python -c "from hashlib import sha256; print(sha256(b'password').hexdigest())"
+    Configure credentials (bcrypt preferred):
+        API_CREDENTIALS='user1:$2b$12$...,user2:$2b$12$...'
+        Generate hash: python -c "import bcrypt; print(bcrypt.hashpw(b'password', bcrypt.gensalt()).decode())"
     """
     settings = get_settings()
 
@@ -679,15 +679,14 @@ def get_yaml_workflow_definition(
             ],
         }
     except Exception as e:
-        logger.error(f"Failed to load YAML workflow {workflow_id}: {e}")
-        logger.error("Failed to load workflow: %s", e)
+        logger.error("Failed to load YAML workflow %s: %s", workflow_id, e)
         raise internal_error("Failed to load workflow")
 
 
 class YAMLWorkflowExecuteRequest(BaseModel):
     """Request to execute a YAML workflow."""
 
-    workflow_id: str
+    workflow_id: str = Field(..., pattern=r"^[\w\-]+$")
     inputs: Optional[Dict] = None
 
 
@@ -750,8 +749,7 @@ def execute_yaml_workflow(
             "error": result.error,
         }
     except Exception as e:
-        logger.error(f"Failed to execute YAML workflow {body.workflow_id}: {e}")
-        logger.error("Workflow execution failed: %s", e)
+        logger.error("Failed to execute YAML workflow %s: %s", body.workflow_id, e)
         raise internal_error("Workflow execution failed")
 
 
