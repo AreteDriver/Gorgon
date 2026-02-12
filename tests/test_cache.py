@@ -62,38 +62,50 @@ class TestMemoryCache:
         time.sleep(1.1)
         assert cache.get_sync("key") is None
 
-    @pytest.mark.asyncio
-    async def test_async_operations(self, cache):
+    def test_async_operations(self, cache):
         """Async get and set work correctly."""
-        await cache.set("async_key", {"data": 123})
-        result = await cache.get("async_key")
-        assert result == {"data": 123}
 
-    @pytest.mark.asyncio
-    async def test_delete(self, cache):
+        async def _test():
+            await cache.set("async_key", {"data": 123})
+            result = await cache.get("async_key")
+            assert result == {"data": 123}
+
+        asyncio.run(_test())
+
+    def test_delete(self, cache):
         """Delete removes key from cache."""
-        await cache.set("key", "value")
-        assert await cache.exists("key")
 
-        result = await cache.delete("key")
-        assert result is True
-        assert not await cache.exists("key")
+        async def _test():
+            await cache.set("key", "value")
+            assert await cache.exists("key")
 
-    @pytest.mark.asyncio
-    async def test_delete_nonexistent(self, cache):
+            result = await cache.delete("key")
+            assert result is True
+            assert not await cache.exists("key")
+
+        asyncio.run(_test())
+
+    def test_delete_nonexistent(self, cache):
         """Deleting nonexistent key returns False."""
-        result = await cache.delete("nonexistent")
-        assert result is False
 
-    @pytest.mark.asyncio
-    async def test_clear(self, cache):
+        async def _test():
+            result = await cache.delete("nonexistent")
+            assert result is False
+
+        asyncio.run(_test())
+
+    def test_clear(self, cache):
         """Clear removes all entries."""
-        await cache.set("key1", "value1")
-        await cache.set("key2", "value2")
-        assert cache.size == 2
 
-        await cache.clear()
-        assert cache.size == 0
+        async def _test():
+            await cache.set("key1", "value1")
+            await cache.set("key2", "value2")
+            assert cache.size == 2
+
+            await cache.clear()
+            assert cache.size == 0
+
+        asyncio.run(_test())
 
     def test_max_size_eviction(self, cache):
         """Cache evicts oldest when max size reached."""
@@ -286,8 +298,7 @@ class TestAsyncCachedDecorator:
         """Reset cache before each test."""
         reset_cache()
 
-    @pytest.mark.asyncio
-    async def test_caches_async_result(self):
+    def test_caches_async_result(self):
         """Async function result is cached."""
         call_count = 0
 
@@ -298,18 +309,20 @@ class TestAsyncCachedDecorator:
             await asyncio.sleep(0.01)
             return x * 2
 
-        # First call computes
-        result1 = await expensive_async(5)
-        assert result1 == 10
-        assert call_count == 1
+        async def _test():
+            nonlocal call_count
 
-        # Second call uses cache
-        result2 = await expensive_async(5)
-        assert result2 == 10
-        assert call_count == 1
+            result1 = await expensive_async(5)
+            assert result1 == 10
+            assert call_count == 1
 
-    @pytest.mark.asyncio
-    async def test_ttl_expiration(self):
+            result2 = await expensive_async(5)
+            assert result2 == 10
+            assert call_count == 1
+
+        asyncio.run(_test())
+
+    def test_ttl_expiration(self):
         """Cache entry expires after TTL."""
         call_count = 0
 
@@ -319,14 +332,18 @@ class TestAsyncCachedDecorator:
             call_count += 1
             return x
 
-        await func(1)
-        assert call_count == 1
+        async def _test():
+            nonlocal call_count
 
-        # Wait for expiration
-        await asyncio.sleep(1.1)
+            await func(1)
+            assert call_count == 1
 
-        await func(1)
-        assert call_count == 2  # Called again after expiration
+            await asyncio.sleep(1.1)
+
+            await func(1)
+            assert call_count == 2
+
+        asyncio.run(_test())
 
 
 class TestCacheAside:
@@ -336,24 +353,28 @@ class TestCacheAside:
         """Reset cache before each test."""
         reset_cache()
 
-    @pytest.mark.asyncio
-    async def test_basic_usage(self):
+    def test_basic_usage(self):
         """Basic get/set operations work."""
-        cache_aside = CacheAside(prefix="test", ttl=60)
 
-        await cache_aside.set("key", {"value": 123})
-        result = await cache_aside.get("key")
-        assert result == {"value": 123}
+        async def _test():
+            cache_aside = CacheAside(prefix="test", ttl=60)
+            await cache_aside.set("key", {"value": 123})
+            result = await cache_aside.get("key")
+            assert result == {"value": 123}
 
-    @pytest.mark.asyncio
-    async def test_invalidate(self):
+        asyncio.run(_test())
+
+    def test_invalidate(self):
         """Invalidate removes cache entry."""
-        cache_aside = CacheAside(prefix="test")
 
-        await cache_aside.set("key", "value")
-        await cache_aside.invalidate("key")
-        result = await cache_aside.get("key")
-        assert result is None
+        async def _test():
+            cache_aside = CacheAside(prefix="test")
+            await cache_aside.set("key", "value")
+            await cache_aside.invalidate("key")
+            result = await cache_aside.get("key")
+            assert result is None
+
+        asyncio.run(_test())
 
     def test_sync_operations(self):
         """Synchronous operations work."""
@@ -362,3 +383,292 @@ class TestCacheAside:
         cache_aside.set_sync("key", "value")
         result = cache_aside.get_sync("key")
         assert result == "value"
+
+    def test_delete(self):
+        """Delete removes cache entry and returns True."""
+
+        async def _test():
+            cache_aside = CacheAside(prefix="del_test")
+            await cache_aside.set("key", "value")
+            result = await cache_aside.delete("key")
+            assert result is True
+            assert await cache_aside.get("key") is None
+
+        asyncio.run(_test())
+
+    def test_set_with_custom_ttl(self):
+        """Set with explicit TTL overrides default."""
+
+        async def _test():
+            cache_aside = CacheAside(prefix="ttl_test", ttl=3600)
+            await cache_aside.set("key", "value", ttl=1)
+            assert await cache_aside.get("key") == "value"
+
+        asyncio.run(_test())
+
+    def test_make_key(self):
+        """Internal key includes prefix."""
+        cache_aside = CacheAside(prefix="ns")
+        assert cache_aside._make_key("foo") == "ns:foo"
+
+    def test_get_miss(self):
+        """Getting nonexistent key returns None."""
+
+        async def _test():
+            cache_aside = CacheAside(prefix="miss_test")
+            assert await cache_aside.get("nonexistent") is None
+
+        asyncio.run(_test())
+
+
+class TestMemoryCacheAdditional:
+    """Additional edge case tests for MemoryCache."""
+
+    def test_default_ttl_applied(self):
+        """Default TTL is applied when no explicit TTL given."""
+        cache = MemoryCache(default_ttl=1)
+        cache.set_sync("key", "value")
+        assert cache.get_sync("key") == "value"
+        time.sleep(1.1)
+        assert cache.get_sync("key") is None
+
+    def test_explicit_ttl_overrides_default(self):
+        """Explicit TTL overrides default_ttl."""
+        cache = MemoryCache(default_ttl=1)
+        cache.set_sync("key", "value", ttl=3600)
+        time.sleep(1.1)
+        # Should still be alive because explicit ttl is 3600
+        assert cache.get_sync("key") == "value"
+
+    def test_no_ttl_no_default_ttl(self):
+        """Without TTL or default, entries never expire."""
+        cache = MemoryCache()
+        cache.set_sync("key", "value")
+        entry = cache._cache["key"]
+        assert entry.expires_at is None
+
+    def test_update_existing_key(self):
+        """Setting existing key updates value."""
+        cache = MemoryCache(max_size=5)
+        cache.set_sync("key", "old")
+        cache.set_sync("key", "new")
+        assert cache.get_sync("key") == "new"
+        assert cache.size == 1
+
+    def test_update_existing_key_does_not_evict(self):
+        """Updating existing key at capacity does not evict."""
+        cache = MemoryCache(max_size=2)
+        cache.set_sync("a", 1)
+        cache.set_sync("b", 2)
+        cache.set_sync("a", 10)  # update, not new
+        assert cache.size == 2
+        assert cache.get_sync("a") == 10
+        assert cache.get_sync("b") == 2
+
+    def test_exists_for_valid_key(self):
+        """exists returns True for valid, non-expired key."""
+
+        async def _test():
+            cache = MemoryCache()
+            cache.set_sync("key", "value")
+            assert await cache.exists("key") is True
+
+        asyncio.run(_test())
+
+    def test_stats_reset_on_clear(self):
+        """Stats are reset when cache is cleared."""
+        cache = MemoryCache()
+        cache.set_sync("k", "v")
+        cache.get_sync("k")  # hit
+        assert cache.stats.hits == 1
+
+        asyncio.run(cache.clear())
+        assert cache.stats.hits == 0
+        assert cache.stats.misses == 0
+
+    def test_cleanup_expired_removes_all(self):
+        """_cleanup_expired removes all expired entries."""
+        cache = MemoryCache()
+        cache._cache["a"] = CacheEntry(value=1, expires_at=time.time() - 1)
+        cache._cache["b"] = CacheEntry(value=2, expires_at=time.time() - 1)
+        cache._cache["c"] = CacheEntry(value=3, expires_at=time.time() + 3600)
+        cache._cleanup_expired()
+        assert "a" not in cache._cache
+        assert "b" not in cache._cache
+        assert "c" in cache._cache
+
+    def test_evict_oldest_empty_cache(self):
+        """_evict_oldest on empty cache is a no-op."""
+        cache = MemoryCache()
+        cache._evict_oldest()  # Should not raise
+
+
+class TestGetCacheAdditional:
+    """Additional tests for get_cache and _create_cache."""
+
+    def setup_method(self):
+        reset_cache()
+
+    def teardown_method(self):
+        reset_cache()
+
+    def test_redis_url_without_redis_installed(self):
+        """Falls back to MemoryCache when REDIS_URL set but redis not installed."""
+        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379/0"}):
+            with patch("importlib.util.find_spec", return_value=None):
+                reset_cache()
+                cache = get_cache()
+                assert isinstance(cache, MemoryCache)
+
+    def test_reset_cache_clears_singleton(self):
+        """reset_cache allows new instance creation."""
+        c1 = get_cache()
+        reset_cache()
+        c2 = get_cache()
+        assert c1 is not c2
+
+
+class TestCachedDecoratorAdditional:
+    """Additional tests for @cached decorator."""
+
+    def setup_method(self):
+        reset_cache()
+
+    def test_cache_clear_method(self):
+        """cached function has cache_clear method."""
+
+        @cached(prefix="test_clear")
+        def func(x: int) -> int:
+            return x
+
+        func(1)
+        # cache_clear should be callable without error
+        func.cache_clear()
+
+    def test_cache_key_method(self):
+        """cached function has cache_key method."""
+
+        @cached(prefix="test_key")
+        def func(x: int, y: int = 0) -> int:
+            return x + y
+
+        key = func.cache_key(1, y=2)
+        assert "test_key:" in key
+
+    def test_cache_key_without_prefix(self):
+        """cache_key works without prefix."""
+
+        @cached()
+        def func(x: int) -> int:
+            return x
+
+        key = func.cache_key(42)
+        assert "func:" in key
+
+
+class TestAsyncCachedDecoratorAdditional:
+    """Additional tests for @async_cached decorator."""
+
+    def setup_method(self):
+        reset_cache()
+
+    def test_with_prefix(self):
+        """async_cached with prefix namespaces correctly."""
+        call_count = 0
+
+        @async_cached(prefix="async_ns")
+        async def func(x: int) -> int:
+            nonlocal call_count
+            call_count += 1
+            return x * 3
+
+        async def _test():
+            nonlocal call_count
+
+            result = await func(5)
+            assert result == 15
+            assert call_count == 1
+
+            result = await func(5)
+            assert result == 15
+            assert call_count == 1
+
+        asyncio.run(_test())
+
+    def test_skip_cache_on(self):
+        """async_cached skips caching when condition met."""
+        call_count = 0
+
+        @async_cached(skip_cache_on=lambda x: x is None)
+        async def func(x: int):
+            nonlocal call_count
+            call_count += 1
+            return None if x < 0 else x
+
+        async def _test():
+            nonlocal call_count
+            await func(-1)
+            await func(-1)
+            assert call_count == 2
+
+        asyncio.run(_test())
+
+    def test_custom_key_builder(self):
+        """async_cached with custom key builder."""
+
+        @async_cached(key_builder=lambda x: f"async:{x}")
+        async def func(x: int) -> int:
+            return x
+
+        async def _test():
+            result = await func(1)
+            assert result == 1
+            key = func.cache_key(1)
+            assert key == "async:1"
+
+        asyncio.run(_test())
+
+    def test_cache_clear_method(self):
+        """async_cached function has cache_clear method."""
+
+        @async_cached(prefix="async_clear")
+        async def func(x: int) -> int:
+            return x
+
+        async def _test():
+            await func(1)
+            # cache_clear creates a task - should not raise
+            func.cache_clear()
+
+        asyncio.run(_test())
+
+
+class TestMakeCacheKeyAdditional:
+    """Additional tests for make_cache_key utility."""
+
+    def test_mixed_args_and_kwargs(self):
+        """Key with both args and kwargs."""
+        key = make_cache_key("prefix", 42, name="test", flag=True)
+        assert "prefix" in key
+        assert "42" in key
+        assert "name=test" in key
+        assert "flag=True" in key
+
+    def test_complex_kwarg_hashed(self):
+        """Complex kwargs are hashed."""
+        key = make_cache_key(data={"nested": [1, 2, 3]})
+        assert "data=" in key
+        # Should be deterministic
+        key2 = make_cache_key(data={"nested": [1, 2, 3]})
+        assert key == key2
+
+    def test_bool_arg(self):
+        """Boolean args work."""
+        key = make_cache_key(True, False)
+        assert "True" in key
+        assert "False" in key
+
+    def test_empty_args(self):
+        """Empty args produce empty key."""
+        key = make_cache_key()
+        assert key == ""
