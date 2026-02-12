@@ -400,8 +400,8 @@ class TestCheckpointManager:
 
     def test_complete_workflow_different_id(self, manager):
         """Completing different workflow doesn't clear current."""
-        wf1 = manager.start_workflow("WF1", workflow_id="wf1")
-        wf2 = manager.start_workflow("WF2", workflow_id="wf2")
+        _ = manager.start_workflow("WF1", workflow_id="wf1")
+        _ = manager.start_workflow("WF2", workflow_id="wf2")
         manager.complete_workflow(workflow_id="wf1")
         # Current should still be wf2
         assert manager.current_workflow_id == "wf2"
@@ -493,7 +493,7 @@ class TestCheckpointManager:
 
     def test_get_progress_with_failed_stages(self, manager):
         """get_progress separates completed and failed stages."""
-        wf_id = manager.start_workflow("Test")
+        _ = manager.start_workflow("Test")
 
         with manager.stage("step1") as ctx:
             ctx.tokens_used = 10

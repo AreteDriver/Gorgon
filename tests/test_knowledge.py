@@ -11,7 +11,7 @@ Covers:
 import json
 import sys
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -21,7 +21,6 @@ from test_ai.knowledge.base import (
     Entity,
     EntityType,
     GraphQuery,
-    KnowledgeGraph,
     Relation,
     Triple,
 )
@@ -36,6 +35,7 @@ from test_ai.knowledge.memory_graph import MemoryKnowledgeGraph
 # ---------------------------------------------------------------------------
 # Entity
 # ---------------------------------------------------------------------------
+
 
 class TestEntity:
     """Tests for Entity dataclass."""
@@ -159,6 +159,7 @@ class TestEntity:
 # Relation
 # ---------------------------------------------------------------------------
 
+
 class TestRelation:
     """Tests for Relation dataclass."""
 
@@ -194,6 +195,7 @@ class TestRelation:
 # ---------------------------------------------------------------------------
 # Triple
 # ---------------------------------------------------------------------------
+
 
 class TestTriple:
     """Tests for Triple dataclass."""
@@ -239,6 +241,7 @@ class TestTriple:
 # GraphQuery
 # ---------------------------------------------------------------------------
 
+
 class TestGraphQuery:
     """Tests for GraphQuery matching logic."""
 
@@ -262,8 +265,16 @@ class TestGraphQuery:
 
     def test_match_subject_by_entity(self, sample_triple):
         """Query matches subject by Entity object (by id)."""
-        assert GraphQuery(subject=Entity(name="X", id="s1")).matches_triple(sample_triple) is True
-        assert GraphQuery(subject=Entity(name="X", id="other")).matches_triple(sample_triple) is False
+        assert (
+            GraphQuery(subject=Entity(name="X", id="s1")).matches_triple(sample_triple)
+            is True
+        )
+        assert (
+            GraphQuery(subject=Entity(name="X", id="other")).matches_triple(
+                sample_triple
+            )
+            is False
+        )
 
     def test_match_object_by_name(self, sample_triple):
         """Query matches object by string name."""
@@ -272,8 +283,16 @@ class TestGraphQuery:
 
     def test_match_object_by_entity(self, sample_triple):
         """Query matches object by Entity object."""
-        assert GraphQuery(object=Entity(name="X", id="o1")).matches_triple(sample_triple) is True
-        assert GraphQuery(object=Entity(name="X", id="wrong")).matches_triple(sample_triple) is False
+        assert (
+            GraphQuery(object=Entity(name="X", id="o1")).matches_triple(sample_triple)
+            is True
+        )
+        assert (
+            GraphQuery(object=Entity(name="X", id="wrong")).matches_triple(
+                sample_triple
+            )
+            is False
+        )
 
     def test_match_relation_by_string(self, sample_triple):
         """Query matches relation by string (case-insensitive)."""
@@ -288,22 +307,40 @@ class TestGraphQuery:
 
     def test_match_subject_type_enum(self, sample_triple):
         """Query matches subject type with EntityType enum."""
-        assert GraphQuery(subject_type=EntityType.PERSON).matches_triple(sample_triple) is True
-        assert GraphQuery(subject_type=EntityType.LOCATION).matches_triple(sample_triple) is False
+        assert (
+            GraphQuery(subject_type=EntityType.PERSON).matches_triple(sample_triple)
+            is True
+        )
+        assert (
+            GraphQuery(subject_type=EntityType.LOCATION).matches_triple(sample_triple)
+            is False
+        )
 
     def test_match_subject_type_string(self, sample_triple):
         """Query matches subject type with string."""
         assert GraphQuery(subject_type="person").matches_triple(sample_triple) is True
-        assert GraphQuery(subject_type="location").matches_triple(sample_triple) is False
+        assert (
+            GraphQuery(subject_type="location").matches_triple(sample_triple) is False
+        )
 
     def test_match_object_type_enum(self, sample_triple):
         """Query matches object type with EntityType enum."""
-        assert GraphQuery(object_type=EntityType.ORGANIZATION).matches_triple(sample_triple) is True
-        assert GraphQuery(object_type=EntityType.PERSON).matches_triple(sample_triple) is False
+        assert (
+            GraphQuery(object_type=EntityType.ORGANIZATION).matches_triple(
+                sample_triple
+            )
+            is True
+        )
+        assert (
+            GraphQuery(object_type=EntityType.PERSON).matches_triple(sample_triple)
+            is False
+        )
 
     def test_match_object_type_string(self, sample_triple):
         """Query matches object type with string."""
-        assert GraphQuery(object_type="organization").matches_triple(sample_triple) is True
+        assert (
+            GraphQuery(object_type="organization").matches_triple(sample_triple) is True
+        )
 
     def test_match_subject_type_with_string_typed_entity(self):
         """Query matches when entity has a string type (not enum)."""
@@ -326,6 +363,7 @@ class TestGraphQuery:
 # MemoryKnowledgeGraph
 # ---------------------------------------------------------------------------
 
+
 class TestMemoryKnowledgeGraph:
     """Tests for in-memory knowledge graph."""
 
@@ -338,8 +376,20 @@ class TestMemoryKnowledgeGraph:
     def populated_graph(self):
         """Create a graph with sample data."""
         g = MemoryKnowledgeGraph()
-        g.add("Alice", "works_at", "Acme", subject_type=EntityType.PERSON, object_type=EntityType.ORGANIZATION)
-        g.add("Bob", "works_at", "Acme", subject_type=EntityType.PERSON, object_type=EntityType.ORGANIZATION)
+        g.add(
+            "Alice",
+            "works_at",
+            "Acme",
+            subject_type=EntityType.PERSON,
+            object_type=EntityType.ORGANIZATION,
+        )
+        g.add(
+            "Bob",
+            "works_at",
+            "Acme",
+            subject_type=EntityType.PERSON,
+            object_type=EntityType.ORGANIZATION,
+        )
         g.add("Acme", "located_in", "NYC", object_type=EntityType.LOCATION)
         return g
 
@@ -447,7 +497,9 @@ class TestMemoryKnowledgeGraph:
     def test_convenience_add_with_types(self, graph):
         """Convenience add applies entity types."""
         graph.add(
-            "Alice", "works_at", "Acme",
+            "Alice",
+            "works_at",
+            "Acme",
             subject_type=EntityType.PERSON,
             object_type=EntityType.ORGANIZATION,
         )
@@ -513,7 +565,9 @@ class TestMemoryKnowledgeGraph:
 
     def test_query_combined_subject_and_relation(self, populated_graph):
         """Query with subject + relation uses index intersection."""
-        results = populated_graph.query(GraphQuery(subject="Alice", relation="works_at"))
+        results = populated_graph.query(
+            GraphQuery(subject="Alice", relation="works_at")
+        )
         assert len(results) == 1
 
     def test_query_combined_subject_and_object(self, populated_graph):
@@ -780,6 +834,7 @@ class TestMemoryKnowledgeGraph:
 # SimpleEntityExtractor
 # ---------------------------------------------------------------------------
 
+
 class TestSimpleEntityExtractor:
     """Tests for rule-based entity extraction."""
 
@@ -850,6 +905,7 @@ class TestSimpleEntityExtractor:
 # ---------------------------------------------------------------------------
 # CodeEntityExtractor
 # ---------------------------------------------------------------------------
+
 
 class TestCodeEntityExtractor:
     """Tests for code entity extraction."""
@@ -959,6 +1015,7 @@ class TestCodeEntityExtractor:
 # LLMEntityExtractor
 # ---------------------------------------------------------------------------
 
+
 class TestLLMEntityExtractor:
     """Tests for LLM-based extraction (provider mocked)."""
 
@@ -983,10 +1040,16 @@ class TestLLMEntityExtractor:
         """Extracts entities from LLM JSON response."""
         self._mock_response(
             mock_provider,
-            json.dumps([
-                {"name": "Alice", "type": "person", "properties": {"role": "engineer"}},
-                {"name": "Acme", "type": "organization", "properties": {}},
-            ]),
+            json.dumps(
+                [
+                    {
+                        "name": "Alice",
+                        "type": "person",
+                        "properties": {"role": "engineer"},
+                    },
+                    {"name": "Acme", "type": "organization", "properties": {}},
+                ]
+            ),
         )
         entities = extractor.extract_entities("Alice works at Acme.")
         assert len(entities) == 2
@@ -1027,11 +1090,13 @@ class TestLLMEntityExtractor:
         """Items without 'name' key are skipped."""
         self._mock_response(
             mock_provider,
-            json.dumps([
-                {"name": "Valid", "type": "concept"},
-                {"type": "concept"},  # no name
-                "not a dict",
-            ]),
+            json.dumps(
+                [
+                    {"name": "Valid", "type": "concept"},
+                    {"type": "concept"},  # no name
+                    "not a dict",
+                ]
+            ),
         )
         entities = extractor.extract_entities("Test")
         assert len(entities) == 1
@@ -1041,13 +1106,21 @@ class TestLLMEntityExtractor:
         """Extracts relations from LLM JSON response."""
         # First call: entities, second call: relations
         responses = [
-            MagicMock(content=json.dumps([
-                {"name": "Alice", "type": "person"},
-                {"name": "Acme", "type": "organization"},
-            ])),
-            MagicMock(content=json.dumps([
-                {"subject": "Alice", "relation": "works_at", "object": "Acme"},
-            ])),
+            MagicMock(
+                content=json.dumps(
+                    [
+                        {"name": "Alice", "type": "person"},
+                        {"name": "Acme", "type": "organization"},
+                    ]
+                )
+            ),
+            MagicMock(
+                content=json.dumps(
+                    [
+                        {"subject": "Alice", "relation": "works_at", "object": "Acme"},
+                    ]
+                )
+            ),
         ]
         mock_provider.complete.side_effect = responses
 
@@ -1061,9 +1134,11 @@ class TestLLMEntityExtractor:
         """Uses provided entities instead of extracting them."""
         self._mock_response(
             mock_provider,
-            json.dumps([
-                {"subject": "Alice", "relation": "knows", "object": "Bob"},
-            ]),
+            json.dumps(
+                [
+                    {"subject": "Alice", "relation": "knows", "object": "Bob"},
+                ]
+            ),
         )
         entities = [
             Entity(name="Alice", type=EntityType.PERSON),
@@ -1082,9 +1157,11 @@ class TestLLMEntityExtractor:
         """Creates entities for names not in provided list."""
         self._mock_response(
             mock_provider,
-            json.dumps([
-                {"subject": "Alice", "relation": "knows", "object": "Charlie"},
-            ]),
+            json.dumps(
+                [
+                    {"subject": "Alice", "relation": "knows", "object": "Charlie"},
+                ]
+            ),
         )
         entities = [Entity(name="Alice", type=EntityType.PERSON)]
         triples = extractor.extract_relations("Alice knows Charlie.", entities=entities)
@@ -1094,12 +1171,14 @@ class TestLLMEntityExtractor:
         """Skips relation items with missing fields."""
         self._mock_response(
             mock_provider,
-            json.dumps([
-                {"subject": "A", "relation": "r", "object": "B"},  # valid
-                {"subject": "A", "relation": ""},  # missing object + empty relation
-                {"subject": "", "relation": "r", "object": "B"},  # empty subject
-                "not a dict",  # not a dict
-            ]),
+            json.dumps(
+                [
+                    {"subject": "A", "relation": "r", "object": "B"},  # valid
+                    {"subject": "A", "relation": ""},  # missing object + empty relation
+                    {"subject": "", "relation": "r", "object": "B"},  # empty subject
+                    "not a dict",  # not a dict
+                ]
+            ),
         )
         entities = [Entity(name="A"), Entity(name="B")]
         triples = extractor.extract_relations("text", entities=entities)
@@ -1117,13 +1196,21 @@ class TestLLMEntityExtractor:
     def test_extract_knowledge(self, extractor, mock_provider):
         """extract_knowledge returns both entities and triples."""
         responses = [
-            MagicMock(content=json.dumps([
-                {"name": "Alice", "type": "person"},
-                {"name": "Acme", "type": "organization"},
-            ])),
-            MagicMock(content=json.dumps([
-                {"subject": "Alice", "relation": "works_at", "object": "Acme"},
-            ])),
+            MagicMock(
+                content=json.dumps(
+                    [
+                        {"name": "Alice", "type": "person"},
+                        {"name": "Acme", "type": "organization"},
+                    ]
+                )
+            ),
+            MagicMock(
+                content=json.dumps(
+                    [
+                        {"subject": "Alice", "relation": "works_at", "object": "Acme"},
+                    ]
+                )
+            ),
         ]
         mock_provider.complete.side_effect = responses
 

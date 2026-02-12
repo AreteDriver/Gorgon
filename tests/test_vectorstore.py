@@ -12,10 +12,9 @@ Skips: ChromaVectorStore, OpenAIEmbeddings, SentenceTransformerEmbeddings,
        CohereEmbeddings, VoyageEmbeddings (external dependencies)
 """
 
-import json
 import math
 import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
@@ -39,6 +38,7 @@ from test_ai.vectorstore.embeddings import get_embeddings
 # ---------------------------------------------------------------------------
 # Helper: Fake embedding provider for testing
 # ---------------------------------------------------------------------------
+
 
 class FakeEmbeddingProvider(EmbeddingProvider):
     """Deterministic embedding provider for tests.
@@ -76,6 +76,7 @@ class FakeEmbeddingProvider(EmbeddingProvider):
 # ---------------------------------------------------------------------------
 # Math functions
 # ---------------------------------------------------------------------------
+
 
 class TestCosineSimilarity:
     """Tests for cosine_similarity function."""
@@ -142,6 +143,7 @@ class TestEuclideanDistance:
 # Document
 # ---------------------------------------------------------------------------
 
+
 class TestDocument:
     """Tests for Document dataclass."""
 
@@ -198,6 +200,7 @@ class TestDocument:
 # SearchResult
 # ---------------------------------------------------------------------------
 
+
 class TestSearchResult:
     """Tests for SearchResult dataclass."""
 
@@ -228,6 +231,7 @@ class TestSearchResult:
 # ---------------------------------------------------------------------------
 # MemoryVectorStore
 # ---------------------------------------------------------------------------
+
 
 class TestMemoryVectorStore:
     """Tests for in-memory vector store."""
@@ -309,11 +313,13 @@ class TestMemoryVectorStore:
 
     def test_search_returns_results(self, store):
         """Search returns scored results."""
-        store.add([
-            Document(content="Python programming language", id="d1"),
-            Document(content="Java programming language", id="d2"),
-            Document(content="Cooking recipes", id="d3"),
-        ])
+        store.add(
+            [
+                Document(content="Python programming language", id="d1"),
+                Document(content="Java programming language", id="d2"),
+                Document(content="Cooking recipes", id="d3"),
+            ]
+        )
         results = store.search("Python code")
         assert len(results) > 0
         assert isinstance(results[0], SearchResult)
@@ -322,11 +328,13 @@ class TestMemoryVectorStore:
 
     def test_search_sorted_by_similarity(self, store):
         """Results are sorted by similarity (descending)."""
-        store.add([
-            Document(content="Python programming", id="d1"),
-            Document(content="Java programming", id="d2"),
-            Document(content="Cooking food", id="d3"),
-        ])
+        store.add(
+            [
+                Document(content="Python programming", id="d1"),
+                Document(content="Java programming", id="d2"),
+                Document(content="Cooking food", id="d3"),
+            ]
+        )
         results = store.search("Python programming")
         # First result should be most similar
         assert results[0].document.id == "d1"
@@ -343,11 +351,19 @@ class TestMemoryVectorStore:
 
     def test_search_with_metadata_filter(self, store):
         """Search filters by metadata."""
-        store.add([
-            Document(content="Python tutorial", metadata={"category": "tech"}, id="d1"),
-            Document(content="Python cookbook", metadata={"category": "food"}, id="d2"),
-            Document(content="Python snake", metadata={"category": "animals"}, id="d3"),
-        ])
+        store.add(
+            [
+                Document(
+                    content="Python tutorial", metadata={"category": "tech"}, id="d1"
+                ),
+                Document(
+                    content="Python cookbook", metadata={"category": "food"}, id="d2"
+                ),
+                Document(
+                    content="Python snake", metadata={"category": "animals"}, id="d3"
+                ),
+            ]
+        )
         results = store.search("Python", filter={"category": "tech"})
         assert len(results) == 1
         assert results[0].document.id == "d1"
@@ -372,31 +388,38 @@ class TestMemoryVectorStore:
 
     def test_filter_direct_equality(self, store):
         """Direct equality filter works."""
-        store.add([
-            Document(content="A", metadata={"lang": "python"}, id="d1"),
-            Document(content="B", metadata={"lang": "java"}, id="d2"),
-        ])
+        store.add(
+            [
+                Document(content="A", metadata={"lang": "python"}, id="d1"),
+                Document(content="B", metadata={"lang": "java"}, id="d2"),
+            ]
+        )
         results = store.search("test", filter={"lang": "python"})
         assert len(results) == 1
         assert results[0].document.id == "d1"
 
-    @pytest.mark.parametrize("op,op_value,expected_ids", [
-        ("$eq", "python", ["d1"]),
-        ("$ne", "python", ["d2"]),
-        ("$gt", 5, ["d2"]),
-        ("$gte", 10, ["d2"]),
-        ("$lt", 5, ["d1"]),
-        ("$lte", 3, ["d1"]),
-        ("$in", ["python", "rust"], ["d1"]),
-        ("$nin", ["python"], ["d2"]),
-    ])
+    @pytest.mark.parametrize(
+        "op,op_value,expected_ids",
+        [
+            ("$eq", "python", ["d1"]),
+            ("$ne", "python", ["d2"]),
+            ("$gt", 5, ["d2"]),
+            ("$gte", 10, ["d2"]),
+            ("$lt", 5, ["d1"]),
+            ("$lte", 3, ["d1"]),
+            ("$in", ["python", "rust"], ["d1"]),
+            ("$nin", ["python"], ["d2"]),
+        ],
+    )
     def test_filter_operators(self, provider, op, op_value, expected_ids):
         """Metadata filter operators work correctly."""
         store = MemoryVectorStore(embedding_provider=provider)
-        store.add([
-            Document(content="A", metadata={"lang": "python", "score": 3}, id="d1"),
-            Document(content="B", metadata={"lang": "java", "score": 10}, id="d2"),
-        ])
+        store.add(
+            [
+                Document(content="A", metadata={"lang": "python", "score": 3}, id="d1"),
+                Document(content="B", metadata={"lang": "java", "score": 10}, id="d2"),
+            ]
+        )
         # Determine filter key based on op
         if op in ("$gt", "$gte", "$lt", "$lte"):
             filt = {"score": {op: op_value}}
@@ -410,10 +433,12 @@ class TestMemoryVectorStore:
 
     def test_filter_missing_key(self, store):
         """Filter excludes docs missing the filter key."""
-        store.add([
-            Document(content="A", metadata={"lang": "python"}, id="d1"),
-            Document(content="B", metadata={}, id="d2"),
-        ])
+        store.add(
+            [
+                Document(content="A", metadata={"lang": "python"}, id="d1"),
+                Document(content="B", metadata={}, id="d2"),
+            ]
+        )
         results = store.search("test", filter={"lang": "python"})
         assert len(results) == 1
         assert results[0].document.id == "d1"
@@ -422,11 +447,13 @@ class TestMemoryVectorStore:
 
     def test_get_by_ids(self, store):
         """Can retrieve documents by IDs."""
-        store.add([
-            Document(content="A", id="d1"),
-            Document(content="B", id="d2"),
-            Document(content="C", id="d3"),
-        ])
+        store.add(
+            [
+                Document(content="A", id="d1"),
+                Document(content="B", id="d2"),
+                Document(content="C", id="d3"),
+            ]
+        )
         docs = store.get(["d1", "d3"])
         assert len(docs) == 2
         ids = {d.id for d in docs}
@@ -438,10 +465,12 @@ class TestMemoryVectorStore:
 
     def test_delete(self, store):
         """Can delete documents by IDs."""
-        store.add([
-            Document(content="A", id="d1"),
-            Document(content="B", id="d2"),
-        ])
+        store.add(
+            [
+                Document(content="A", id="d1"),
+                Document(content="B", id="d2"),
+            ]
+        )
         deleted = store.delete(["d1"])
         assert deleted == 1
         assert store.count() == 1
@@ -473,9 +502,11 @@ class TestMemoryVectorStore:
         """Store persists to and loads from JSON."""
         path = tmp_path / "store.json"
         s1 = MemoryVectorStore(embedding_provider=provider, persist_path=path)
-        s1.add([
-            Document(content="Hello", metadata={"k": "v"}, id="d1"),
-        ])
+        s1.add(
+            [
+                Document(content="Hello", metadata={"k": "v"}, id="d1"),
+            ]
+        )
         assert path.exists()
 
         s2 = MemoryVectorStore(embedding_provider=provider, persist_path=path)
@@ -564,6 +595,7 @@ class TestMemoryVectorStore:
 # EmbeddingProvider base class
 # ---------------------------------------------------------------------------
 
+
 class TestEmbeddingProviderBase:
     """Tests for EmbeddingProvider ABC methods."""
 
@@ -601,6 +633,7 @@ class TestEmbeddingProviderBase:
 # get_embeddings factory
 # ---------------------------------------------------------------------------
 
+
 class TestGetEmbeddings:
     """Tests for the get_embeddings factory function."""
 
@@ -637,6 +670,7 @@ class TestGetEmbeddings:
 # ---------------------------------------------------------------------------
 # VectorStoreError
 # ---------------------------------------------------------------------------
+
 
 class TestVectorStoreError:
     """Tests for VectorStoreError."""

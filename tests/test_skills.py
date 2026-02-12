@@ -233,9 +233,7 @@ class TestConsensusVerdict:
         assert verdict.reject_count == 1
 
     def test_all_approve(self):
-        votes = [
-            Vote(voter_id=i, decision=VoteDecision.APPROVE) for i in range(3)
-        ]
+        votes = [Vote(voter_id=i, decision=VoteDecision.APPROVE) for i in range(3)]
         verdict = ConsensusVerdict(
             level=ConsensusLevel.UNANIMOUS, approved=True, votes=votes
         )
@@ -243,9 +241,7 @@ class TestConsensusVerdict:
         assert verdict.reject_count == 0
 
     def test_all_reject(self):
-        votes = [
-            Vote(voter_id=i, decision=VoteDecision.REJECT) for i in range(3)
-        ]
+        votes = [Vote(voter_id=i, decision=VoteDecision.REJECT) for i in range(3)]
         verdict = ConsensusVerdict(
             level=ConsensusLevel.UNANIMOUS, approved=False, votes=votes
         )
@@ -352,9 +348,7 @@ class TestGetVoterPrompt:
 
 class TestAggregate:
     def _make_votes(self, decisions):
-        return [
-            Vote(voter_id=i, decision=d) for i, d in enumerate(decisions)
-        ]
+        return [Vote(voter_id=i, decision=d) for i, d in enumerate(decisions)]
 
     # --- ANY level ---
 
@@ -441,9 +435,7 @@ class TestAggregate:
         votes = self._make_votes(
             [VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.APPROVE]
         )
-        verdict = ConsensusVoter._aggregate(
-            ConsensusLevel.UNANIMOUS_PLUS_USER, votes
-        )
+        verdict = ConsensusVoter._aggregate(ConsensusLevel.UNANIMOUS_PLUS_USER, votes)
         assert verdict.approved is True
         assert verdict.requires_user_confirmation is True
 
@@ -451,19 +443,17 @@ class TestAggregate:
         votes = self._make_votes(
             [VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.REJECT]
         )
-        verdict = ConsensusVoter._aggregate(
-            ConsensusLevel.UNANIMOUS_PLUS_USER, votes
-        )
+        verdict = ConsensusVoter._aggregate(ConsensusLevel.UNANIMOUS_PLUS_USER, votes)
         assert verdict.approved is False
-        assert verdict.requires_user_confirmation is False  # Not approved, so no user confirm
+        assert (
+            verdict.requires_user_confirmation is False
+        )  # Not approved, so no user confirm
 
     def test_unanimous_plus_user_level_stored(self):
         votes = self._make_votes(
             [VoteDecision.APPROVE, VoteDecision.APPROVE, VoteDecision.APPROVE]
         )
-        verdict = ConsensusVoter._aggregate(
-            ConsensusLevel.UNANIMOUS_PLUS_USER, votes
-        )
+        verdict = ConsensusVoter._aggregate(ConsensusLevel.UNANIMOUS_PLUS_USER, votes)
         assert verdict.level == ConsensusLevel.UNANIMOUS_PLUS_USER
 
 
@@ -494,7 +484,7 @@ class TestConsensusVoterSync:
         assert len(verdict.votes) == NUM_VOTERS
 
     def test_vote_unanimous_calls_three_voters(self, voter, mock_client):
-        verdict = voter.vote("delete file", ConsensusLevel.UNANIMOUS)
+        _ = voter.vote("delete file", ConsensusLevel.UNANIMOUS)
         assert mock_client.generate_completion.call_count == NUM_VOTERS
 
     def test_vote_with_string_level(self, voter, mock_client):
@@ -582,16 +572,12 @@ class TestConsensusVoterAsync:
         return ConsensusVoter(mock_client)
 
     def test_vote_async_any(self, voter, mock_client):
-        verdict = asyncio.run(
-            voter.vote_async("delete file", ConsensusLevel.ANY)
-        )
+        verdict = asyncio.run(voter.vote_async("delete file", ConsensusLevel.ANY))
         assert mock_client.generate_completion_async.call_count == 1
         assert verdict.approved is True
 
     def test_vote_async_majority(self, voter, mock_client):
-        verdict = asyncio.run(
-            voter.vote_async("delete file", ConsensusLevel.MAJORITY)
-        )
+        verdict = asyncio.run(voter.vote_async("delete file", ConsensusLevel.MAJORITY))
         assert mock_client.generate_completion_async.call_count == NUM_VOTERS
         assert verdict.approved is True
 
@@ -604,9 +590,7 @@ class TestConsensusVoterAsync:
             return_value={"success": False, "error": "timeout"}
         )
         voter = ConsensusVoter(mock_client)
-        verdict = asyncio.run(
-            voter.vote_async("delete file", ConsensusLevel.ANY)
-        )
+        verdict = asyncio.run(voter.vote_async("delete file", ConsensusLevel.ANY))
         assert verdict.votes[0].decision == VoteDecision.ABSTAIN
 
     def test_vote_async_exception_returns_abstain(self, mock_client):
@@ -614,9 +598,7 @@ class TestConsensusVoterAsync:
             side_effect=RuntimeError("async boom")
         )
         voter = ConsensusVoter(mock_client)
-        verdict = asyncio.run(
-            voter.vote_async("delete file", ConsensusLevel.ANY)
-        )
+        verdict = asyncio.run(voter.vote_async("delete file", ConsensusLevel.ANY))
         assert verdict.votes[0].decision == VoteDecision.ABSTAIN
         assert "async boom" in verdict.votes[0].error
 
@@ -648,9 +630,7 @@ class TestConsensusVoterCostTracking:
 class TestConsensusAuditLog:
     def test_log_verdict_emits_audit_log(self):
         votes = [Vote(voter_id=0, decision=VoteDecision.APPROVE, reasoning="OK")]
-        verdict = ConsensusVerdict(
-            level=ConsensusLevel.ANY, approved=True, votes=votes
-        )
+        verdict = ConsensusVerdict(level=ConsensusLevel.ANY, approved=True, votes=votes)
         with patch("test_ai.skills.consensus.audit_logger") as mock_logger:
             ConsensusVoter._log_verdict(verdict, "test op", "builder", 0.123)
             mock_logger.info.assert_called_once()
@@ -663,9 +643,7 @@ class TestConsensusAuditLog:
 
     def test_log_verdict_truncates_operation(self):
         votes = [Vote(voter_id=0, decision=VoteDecision.APPROVE)]
-        verdict = ConsensusVerdict(
-            level=ConsensusLevel.ANY, approved=True, votes=votes
-        )
+        verdict = ConsensusVerdict(level=ConsensusLevel.ANY, approved=True, votes=votes)
         long_op = "x" * 500
         with patch("test_ai.skills.consensus.audit_logger") as mock_logger:
             ConsensusVoter._log_verdict(verdict, long_op, "", 0.0)
@@ -764,9 +742,7 @@ class TestEnforcementResult:
             matched_text="rm -rf /",
             skill="file_ops",
         )
-        result = EnforcementResult(
-            action=EnforcementAction.BLOCK, violations=[v]
-        )
+        result = EnforcementResult(action=EnforcementAction.BLOCK, violations=[v])
         d = result.to_dict()
         assert d["action"] == "block"
         assert d["passed"] is False
@@ -843,9 +819,7 @@ class TestSkillEnforcerCheckOutput:
 
     def test_protected_path_violation(self, enforcer_with_skills):
         enforcer = enforcer_with_skills(protected_paths=["/etc/passwd"])
-        result = enforcer.check_output(
-            "builder", "I will read /etc/passwd now"
-        )
+        result = enforcer.check_output("builder", "I will read /etc/passwd now")
         assert result.passed is False
         assert result.action == EnforcementAction.WARN
         assert len(result.violations) == 1
@@ -863,32 +837,22 @@ class TestSkillEnforcerCheckOutput:
 
     def test_protected_path_fnmatch_glob_star(self, enforcer_with_skills):
         enforcer = enforcer_with_skills(protected_paths=["/root/.ssh/*"])
-        result = enforcer.check_output(
-            "builder", "Found key at /root/.ssh/id_rsa"
-        )
+        result = enforcer.check_output("builder", "Found key at /root/.ssh/id_rsa")
         assert result.passed is False
 
     def test_protected_path_exact_match(self, enforcer_with_skills):
         enforcer = enforcer_with_skills(protected_paths=["/var/log/syslog"])
-        result = enforcer.check_output(
-            "builder", "Tailing /var/log/syslog for errors"
-        )
+        result = enforcer.check_output("builder", "Tailing /var/log/syslog for errors")
         assert result.passed is False
 
     def test_no_protected_paths_skips_check(self, enforcer_with_skills):
         enforcer = enforcer_with_skills(protected_paths=[])
-        result = enforcer.check_output(
-            "builder", "Reading /etc/passwd now"
-        )
+        result = enforcer.check_output("builder", "Reading /etc/passwd now")
         assert result.passed is True
 
     def test_blocked_pattern_violation(self, enforcer_with_skills):
-        enforcer = enforcer_with_skills(
-            blocked_patterns=[r"rm\s+-rf\s+/"]
-        )
-        result = enforcer.check_output(
-            "builder", "Running: rm -rf / to clean up"
-        )
+        enforcer = enforcer_with_skills(blocked_patterns=[r"rm\s+-rf\s+/"])
+        result = enforcer.check_output("builder", "Running: rm -rf / to clean up")
         assert result.passed is False
         assert result.action == EnforcementAction.BLOCK
         assert len(result.violations) == 1
@@ -896,9 +860,7 @@ class TestSkillEnforcerCheckOutput:
         assert result.violations[0].severity == "critical"
 
     def test_blocked_pattern_no_match(self, enforcer_with_skills):
-        enforcer = enforcer_with_skills(
-            blocked_patterns=[r"rm\s+-rf\s+/"]
-        )
+        enforcer = enforcer_with_skills(blocked_patterns=[r"rm\s+-rf\s+/"])
         result = enforcer.check_output("builder", "Using ls -la to list files")
         assert result.passed is True
 
@@ -908,12 +870,8 @@ class TestSkillEnforcerCheckOutput:
         assert result.passed is True
 
     def test_multiple_blocked_patterns(self, enforcer_with_skills):
-        enforcer = enforcer_with_skills(
-            blocked_patterns=[r"rm\s+-rf", r"DROP\s+TABLE"]
-        )
-        result = enforcer.check_output(
-            "builder", "Running rm -rf and DROP TABLE users"
-        )
+        enforcer = enforcer_with_skills(blocked_patterns=[r"rm\s+-rf", r"DROP\s+TABLE"])
+        result = enforcer.check_output("builder", "Running rm -rf and DROP TABLE users")
         assert result.action == EnforcementAction.BLOCK
         assert len(result.violations) == 2
 
@@ -925,9 +883,7 @@ class TestSkillEnforcerCheckOutput:
             protected_paths=["/etc/*"],
             blocked_patterns=[r"sudo\s+"],
         )
-        result = enforcer.check_output(
-            "builder", "Running sudo cat /etc/shadow"
-        )
+        result = enforcer.check_output("builder", "Running sudo cat /etc/shadow")
         assert result.action == EnforcementAction.BLOCK
         assert len(result.violations) == 2
 
@@ -941,19 +897,13 @@ class TestSkillEnforcerCheckOutput:
 
     def test_invalid_regex_pattern_skipped(self, enforcer_with_skills):
         """Invalid regex in blocked_patterns is skipped, not raised."""
-        enforcer = enforcer_with_skills(
-            blocked_patterns=["[invalid(regex"]
-        )
+        enforcer = enforcer_with_skills(blocked_patterns=["[invalid(regex"])
         result = enforcer.check_output("builder", "Some output text")
         assert result.passed is True
 
     def test_multiple_agents_checked(self, mock_library):
-        skill1 = _make_skill(
-            name="skill1", protected_paths=["/etc/*"]
-        )
-        skill2 = _make_skill(
-            name="skill2", blocked_patterns=[r"DROP\s+TABLE"]
-        )
+        skill1 = _make_skill(name="skill1", protected_paths=["/etc/*"])
+        skill2 = _make_skill(name="skill2", blocked_patterns=[r"DROP\s+TABLE"])
 
         def get_skills(agent_name):
             if agent_name == "system":
@@ -966,9 +916,7 @@ class TestSkillEnforcerCheckOutput:
         role_map = {"devops": ["system", "database"]}
         enforcer = SkillEnforcer(mock_library, role_map)
 
-        result = enforcer.check_output(
-            "devops", "Running DROP TABLE on /etc/hosts"
-        )
+        result = enforcer.check_output("devops", "Running DROP TABLE on /etc/hosts")
         assert result.action == EnforcementAction.BLOCK
         assert len(result.violations) == 2
 
@@ -1020,9 +968,7 @@ class TestSkillEnforcerProtectedPathEdgeCases:
 
     def test_tilde_home_path_protected(self, enforcer_with_paths):
         enforcer = enforcer_with_paths(["~/.ssh/*"])
-        result = enforcer.check_output(
-            "builder", "Reading ~/.ssh/authorized_keys"
-        )
+        result = enforcer.check_output("builder", "Reading ~/.ssh/authorized_keys")
         assert result.passed is False
 
     def test_one_violation_per_path(self, enforcer_with_paths):
@@ -1034,9 +980,7 @@ class TestSkillEnforcerProtectedPathEdgeCases:
 
     def test_multiple_paths_in_output(self, enforcer_with_paths):
         enforcer = enforcer_with_paths(["/etc/*"])
-        result = enforcer.check_output(
-            "builder", "Reading /etc/passwd and /etc/shadow"
-        )
+        result = enforcer.check_output("builder", "Reading /etc/passwd and /etc/shadow")
         assert len(result.violations) == 2
 
     def test_path_not_in_protected_set(self, enforcer_with_paths):
