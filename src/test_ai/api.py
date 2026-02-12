@@ -244,11 +244,19 @@ async def lifespan(app: FastAPI):
         """
         try:
             provider = create_agent_provider("anthropic")
+            # Wire Convergent coherence checker if available
+            try:
+                from test_ai.agents.convergence import create_checker
+
+                checker = create_checker()
+            except Exception:
+                checker = None
             return SupervisorAgent(
                 provider,
                 mode=mode,
                 session=session,
                 backend=backend or _app_state.get("backend"),
+                convergence_checker=checker,
             )
         except Exception as e:
             logger.warning(f"Could not create supervisor: {e}")

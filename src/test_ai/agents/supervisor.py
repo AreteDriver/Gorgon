@@ -417,17 +417,23 @@ class SupervisorAgent:
 
         # Check delegations for coherence before parallel execution
         if self._convergence_checker and self._convergence_checker.enabled:
+            from test_ai.agents.convergence import format_convergence_alert
+
             convergence = self._convergence_checker.check_delegations(delegations)
-            if convergence.has_conflicts:
-                logger.warning(f"Convergence conflicts: {convergence.conflicts}")
+            alert = format_convergence_alert(convergence)
+            if alert:
+                logger.warning("Convergence alert:\n%s", alert)
             if convergence.dropped_agents:
+                original_count = len(delegations)
                 delegations = [
                     d
                     for d in delegations
                     if d.get("agent") not in convergence.dropped_agents
                 ]
                 logger.info(
-                    f"Dropped {len(convergence.dropped_agents)} redundant delegations"
+                    "Dropped %d/%d redundant delegations",
+                    original_count - len(delegations),
+                    original_count,
                 )
 
         # Group by dependency (for now, run all in parallel)

@@ -259,7 +259,17 @@ class GorgonApp(App):
 
                 provider = self._provider_manager.get_default()
                 agent_provider = AgentProvider(provider)
-                self._supervisor = SupervisorAgent(provider=agent_provider)
+                # Wire Convergent coherence checker if available
+                try:
+                    from test_ai.agents.convergence import create_checker
+
+                    checker = create_checker()
+                except Exception:
+                    checker = None
+                self._supervisor = SupervisorAgent(
+                    provider=agent_provider,
+                    convergence_checker=checker,
+                )
             except Exception as e:
                 cs.chat_display.add_error_message(
                     f"Agent init failed: {_sanitize_error(str(e))}"

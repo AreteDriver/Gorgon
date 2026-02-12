@@ -14,7 +14,12 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 try:
-    from convergent import Intent, InterfaceKind, InterfaceSpec
+    from convergent import (
+        Intent,
+        InterfaceKind,
+        InterfaceSpec,
+        create_delegation_checker,
+    )
 
     HAS_CONVERGENT = True
 except ImportError:
@@ -128,3 +133,41 @@ class DelegationConvergenceChecker:
                 ),
             ],
         )
+
+
+def create_checker() -> DelegationConvergenceChecker:
+    """Create a DelegationConvergenceChecker with a fresh resolver.
+
+    Returns a disabled checker if Convergent is not installed.
+    """
+    if not HAS_CONVERGENT:
+        logger.info("Convergent not installed — delegation coherence checking disabled")
+        return DelegationConvergenceChecker(resolver=None)
+
+    resolver = create_delegation_checker(min_stability=0.0)
+    logger.info("Convergent delegation coherence checker enabled")
+    return DelegationConvergenceChecker(resolver=resolver)
+
+
+def format_convergence_alert(result: ConvergenceResult) -> str:
+    """Format a ConvergenceResult into a human-readable alert string.
+
+    Returns empty string if no conflicts or dropped agents.
+    """
+    parts: list[str] = []
+
+    if result.conflicts:
+        parts.append(f"Conflicts ({len(result.conflicts)}):")
+        for c in result.conflicts:
+            parts.append(f"  - {c.get('agent', '?')}: {c.get('description', '?')}")
+
+    if result.dropped_agents:
+        agents = ", ".join(sorted(result.dropped_agents))
+        parts.append(f"Dropped agents ({len(result.dropped_agents)}): {agents}")
+
+    if result.adjustments:
+        parts.append(f"Adjustments ({len(result.adjustments)}):")
+        for a in result.adjustments:
+            parts.append(f"  - {a.get('agent', '?')}: {a.get('description', '?')}")
+
+    return "\n".join(parts)
