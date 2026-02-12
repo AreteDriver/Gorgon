@@ -11,6 +11,8 @@ import sys
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 sys.path.insert(0, "src")
 
 from test_ai.orchestrators.analytics.pipeline import (
@@ -539,3 +541,376 @@ class TestPipelineExecution:
 
         assert len(received_configs) == 1
         assert received_configs[0].get("custom_key") == "custom_value"
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: PipelineStage enum completeness
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineStageValues:
+    """Tests for PipelineStage enum values."""
+
+    def test_all_values(self):
+        assert PipelineStage.COLLECT.value == "collect"
+        assert PipelineStage.CLEAN.value == "clean"
+        assert PipelineStage.ANALYZE.value == "analyze"
+        assert PipelineStage.VISUALIZE.value == "visualize"
+        assert PipelineStage.REPORT.value == "report"
+        assert PipelineStage.ALERT.value == "alert"
+
+    def test_string_enum(self):
+        """PipelineStage is a string enum."""
+        assert isinstance(PipelineStage.COLLECT, str)
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: StageResult
+# ---------------------------------------------------------------------------
+
+
+class TestStageResultExtended:
+    """Extended StageResult tests."""
+
+    def test_defaults(self):
+        result = StageResult(
+            stage=PipelineStage.COLLECT,
+            status="success",
+            output={"data": [1, 2, 3]},
+            duration_ms=50.0,
+        )
+        assert result.error is None
+        assert result.metadata == {}
+
+    def test_with_error(self):
+        result = StageResult(
+            stage=PipelineStage.ANALYZE,
+            status="failed",
+            output=None,
+            duration_ms=10.0,
+            error="Analysis failed",
+        )
+        assert result.status == "failed"
+        assert result.error == "Analysis failed"
+
+    def test_with_metadata(self):
+        result = StageResult(
+            stage=PipelineStage.REPORT,
+            status="success",
+            output="report",
+            duration_ms=100.0,
+            metadata={"format": "pdf"},
+        )
+        assert result.metadata == {"format": "pdf"}
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: PipelineResult serialization edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineResultSerialization:
+    """Extended PipelineResult serialization tests."""
+
+    def test_to_dict_no_completed_at(self):
+        result = PipelineResult(
+            pipeline_id="test",
+            status="running",
+            started_at=datetime.now(timezone.utc),
+        )
+        d = result.to_dict()
+        assert d["completed_at"] is None
+
+    def test_to_dict_with_errors(self):
+        result = PipelineResult(
+            pipeline_id="test",
+            status="failed",
+            started_at=datetime.now(timezone.utc),
+            errors=["Error 1", "Error 2"],
+        )
+        d = result.to_dict()
+        assert d["errors"] == ["Error 1", "Error 2"]
+
+    def test_to_dict_with_multiple_stages(self):
+        result = PipelineResult(
+            pipeline_id="test",
+            status="completed",
+            started_at=datetime.now(timezone.utc),
+            completed_at=datetime.now(timezone.utc),
+            stages=[
+                StageResult(
+                    stage=PipelineStage.COLLECT,
+                    status="success",
+                    output={},
+                    duration_ms=10.0,
+                ),
+                StageResult(
+                    stage=PipelineStage.ANALYZE,
+                    status="success",
+                    output={},
+                    duration_ms=20.0,
+                ),
+            ],
+        )
+        d = result.to_dict()
+        assert len(d["stages"]) == 2
+        assert d["stages"][0]["stage"] == "collect"
+        assert d["stages"][1]["stage"] == "analyze"
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: add_agent_stage
+# ---------------------------------------------------------------------------
+
+
+class TestAddAgentStageExtended:
+    """Extended tests for add_agent_stage."""
+
+    def test_raises_without_agent_client(self):
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+        with pytest.raises(ValueError, match="not configured for agent"):
+            pipeline.add_agent_stage(
+                PipelineStage.ANALYZE,
+                "analyst",
+                "Analyze: {{context}}",
+            )
+
+    @patch("test_ai.api_clients.ClaudeCodeClient")
+    def test_agent_handler_success(self, mock_cls):
+        mock_client = MagicMock()
+        mock_client.execute_agent.return_value = {
+            "success": True,
+            "output": "analysis result",
+        }
+        mock_cls.return_value = mock_client
+
+        pipeline = AnalyticsPipeline("test", use_agents=True)
+        pipeline.add_agent_stage(
+            PipelineStage.ANALYZE,
+            "analyst",
+            "Analyze: {{context}}",
+        )
+
+        _, handler, _ = pipeline._stages[0]
+        result = handler("test data", {})
+        assert result == "analysis result"
+
+    @patch("test_ai.api_clients.ClaudeCodeClient")
+    def test_agent_handler_failure_raises(self, mock_cls):
+        mock_client = MagicMock()
+        mock_client.execute_agent.return_value = {
+            "success": False,
+            "error": "Agent failed",
+        }
+        mock_cls.return_value = mock_client
+
+        pipeline = AnalyticsPipeline("test", use_agents=True)
+        pipeline.add_agent_stage(PipelineStage.ANALYZE, "analyst", "{{context}}")
+
+        _, handler, _ = pipeline._stages[0]
+        with pytest.raises(RuntimeError, match="Agent.*failed"):
+            handler("test data", {})
+
+    @patch("test_ai.api_clients.ClaudeCodeClient")
+    def test_agent_handler_pending_confirmation(self, mock_cls):
+        mock_client = MagicMock()
+        mock_client.execute_agent.return_value = {
+            "success": True,
+            "output": "partial",
+            "pending_user_confirmation": True,
+            "consensus": {"agreed": True},
+        }
+        mock_cls.return_value = mock_client
+
+        pipeline = AnalyticsPipeline("test", use_agents=True)
+        pipeline.add_agent_stage(PipelineStage.ANALYZE, "analyst", "{{context}}")
+
+        _, handler, _ = pipeline._stages[0]
+        result = handler("test data", {})
+        assert isinstance(result, dict)
+        assert result["pending_user_confirmation"] is True
+        assert result["consensus"] == {"agreed": True}
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: pipeline execution edge cases
+# ---------------------------------------------------------------------------
+
+
+class TestPipelineExecutionEdgeCases:
+    """Edge case tests for pipeline execution."""
+
+    def test_empty_pipeline(self):
+        pipeline = AnalyticsPipeline("empty", use_agents=False)
+        result = pipeline.execute()
+        assert result.status == "completed"
+        assert result.final_output == {}
+        assert result.stages == []
+
+    def test_none_initial_context(self):
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+        pipeline.add_stage(
+            PipelineStage.COLLECT,
+            lambda data, ctx: {"ok": True},
+        )
+        result = pipeline.execute(initial_context=None)
+        assert result.status == "completed"
+
+    def test_handler_returning_none(self):
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+        pipeline.add_stage(PipelineStage.COLLECT, lambda d, c: None)
+        result = pipeline.execute()
+        assert result.status == "completed"
+        assert result.final_output is None
+
+    def test_first_stage_fails(self):
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+
+        def failing(data, ctx):
+            raise RuntimeError("Startup failure")
+
+        pipeline.add_stage(PipelineStage.COLLECT, failing)
+        result = pipeline.execute()
+        assert result.status == "failed"
+        assert len(result.stages) == 1
+        assert result.stages[0].status == "failed"
+
+    def test_long_pipeline_chain(self):
+        """Pipeline with many stages processes correctly."""
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+        for i in range(10):
+            pipeline.add_stage(
+                PipelineStage.CLEAN,
+                lambda data, ctx, idx=i: (
+                    {"step": idx, **data} if isinstance(data, dict) else {"step": idx}
+                ),
+            )
+        result = pipeline.execute(initial_context={"start": True})
+        assert result.status == "completed"
+        assert len(result.stages) == 10
+
+    def test_stage_config_merged(self):
+        """Stage-level config is merged into the context dict."""
+        received = {}
+
+        def handler(data, ctx):
+            received.update(ctx)
+            return data
+
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+        pipeline.add_stage(
+            PipelineStage.ANALYZE,
+            handler,
+            config={"threshold": 0.5},
+        )
+        pipeline.execute(initial_context={"base": "val"})
+        assert received.get("threshold") == 0.5
+        assert received.get("base") == "val"
+
+    def test_stage_output_stored_in_context(self):
+        """Each stage output is stored in context keyed by stage type."""
+        context_seen = {}
+
+        def analyze(data, ctx):
+            context_seen.update(ctx)
+            return {"analyzed": True}
+
+        pipeline = AnalyticsPipeline("test", use_agents=False)
+        pipeline.add_stage(
+            PipelineStage.COLLECT,
+            lambda data, ctx: {"raw_data": [1, 2]},
+        )
+        pipeline.add_stage(PipelineStage.ANALYZE, analyze)
+        pipeline.execute()
+        assert "collect_output" in context_seen
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage: CollectedData.to_context_string
+# ---------------------------------------------------------------------------
+
+
+class TestCollectedDataContextString:
+    """Tests for CollectedData.to_context_string formatting."""
+
+    def test_with_dict_data(self):
+        data = CollectedData(
+            source="test",
+            collected_at=datetime.now(timezone.utc),
+            data={"section": {"key1": "val1", "key2": "val2"}},
+            metadata={},
+        )
+        s = data.to_context_string()
+        assert "# Data Collection: test" in s
+        assert "key1: val1" in s
+        assert "key2: val2" in s
+
+    def test_with_list_data(self):
+        data = CollectedData(
+            source="test",
+            collected_at=datetime.now(timezone.utc),
+            data={"items": ["a", "b", "c"]},
+            metadata={},
+        )
+        s = data.to_context_string()
+        assert "- a" in s
+        assert "- b" in s
+
+    def test_with_list_data_truncated(self):
+        """Lists longer than 10 items are truncated."""
+        data = CollectedData(
+            source="test",
+            collected_at=datetime.now(timezone.utc),
+            data={"items": list(range(15))},
+            metadata={},
+        )
+        s = data.to_context_string()
+        assert "and 5 more" in s
+
+    def test_with_scalar_data(self):
+        data = CollectedData(
+            source="test",
+            collected_at=datetime.now(timezone.utc),
+            data={"count": 42},
+            metadata={},
+        )
+        s = data.to_context_string()
+        assert "42" in s
+
+
+# ---------------------------------------------------------------------------
+# AnalysisResult.to_context_string
+# ---------------------------------------------------------------------------
+
+
+class TestAnalysisResultContextString:
+    """Tests for AnalysisResult.to_context_string formatting."""
+
+    def test_basic_output(self):
+        result = AnalysisResult(
+            analyzer="test_analyzer",
+            analyzed_at=datetime.now(timezone.utc),
+            findings=[
+                {"severity": "warning", "message": "High error rate"},
+            ],
+            metrics={"error_rate": 0.15},
+            recommendations=["Investigate errors"],
+            severity="warning",
+        )
+        s = result.to_context_string()
+        assert "# Analysis Results: test_analyzer" in s
+        assert "[WARNING] High error rate" in s
+        assert "error_rate: 0.15" in s
+        assert "Investigate errors" in s
+
+    def test_empty_recommendations(self):
+        result = AnalysisResult(
+            analyzer="test",
+            analyzed_at=datetime.now(timezone.utc),
+            findings=[],
+            metrics={},
+            recommendations=[],
+            severity="info",
+        )
+        s = result.to_context_string()
+        assert "Recommendations" not in s
