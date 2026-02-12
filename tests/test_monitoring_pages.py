@@ -956,7 +956,7 @@ class TestGetAgentTrackerFunction:
             ) as mock_cls:
                 from test_ai.dashboard.monitoring_pages import get_agent_tracker
 
-                result = get_agent_tracker()
+                _result = get_agent_tracker()
                 mock_cls.assert_called_once()
                 assert "agent_tracker" in mock_st_module.session_state
 
@@ -1134,7 +1134,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         with patch(
             "test_ai.dashboard.monitoring_pages.PipelineBuilder",
             create=True,
-        ) as mock_pb_import:
+        ) as _mock_pb_import:
             # We need to patch the import inside the function
             mock_pipeline = MagicMock()
             mock_pipeline.execute.return_value = "result"
@@ -1163,7 +1163,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         ):
             from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
 
-            result = _run_analytics_pipeline("historical_trends", hours=48)
+            _result = _run_analytics_pipeline("historical_trends", hours=48)
             mock_builder.historical_trends_pipeline.assert_called_once_with(hours=48)
 
     def test_api_health(self):
@@ -1178,7 +1178,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         ):
             from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
 
-            result = _run_analytics_pipeline("api_health")
+            _result = _run_analytics_pipeline("api_health")
             mock_builder.api_health_pipeline.assert_called_once()
 
     def test_operations_dashboard(self):
@@ -1193,7 +1193,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         ):
             from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
 
-            result = _run_analytics_pipeline("operations_dashboard")
+            _result = _run_analytics_pipeline("operations_dashboard")
             mock_builder.operations_dashboard_pipeline.assert_called_once()
 
 

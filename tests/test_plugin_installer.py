@@ -7,6 +7,7 @@ import json
 from datetime import datetime
 from pathlib import Path
 from unittest.mock import MagicMock, patch
+from urllib.parse import urlparse
 
 import pytest
 
@@ -821,7 +822,7 @@ class TestDownloadHelpers:
             assert result == (Path("/tmp/plugin.py"), "checksum")
             # Should convert to raw URL
             call_url = mock_dl.call_args[0][0]
-            assert "raw.githubusercontent.com" in call_url
+            assert urlparse(call_url).hostname == "raw.githubusercontent.com"
 
     def test_download_from_github_blob_url(self, installer):
         with patch.object(installer, "_download_and_verify") as mock_dl:
@@ -839,7 +840,7 @@ class TestDownloadHelpers:
                 "https://raw.githubusercontent.com/user/repo/main/plugin.py", "test"
             )
             call_url = mock_dl.call_args[0][0]
-            assert "raw.githubusercontent.com" in call_url
+            assert urlparse(call_url).hostname == "raw.githubusercontent.com"
 
     def test_download_from_url_none(self, installer):
         result = installer._download_from_url(None, "test")

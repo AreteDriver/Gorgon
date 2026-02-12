@@ -972,7 +972,7 @@ class TestScroll:
     def test_scroll_up(self, tmp_path):
         async def _test():
             browser = _make_browser(tmp_path=tmp_path)
-            mock_page, *_ = _setup_started_browser(browser)
+            _mock_page, *_ = _setup_started_browser(browser)
 
             result = await browser.scroll(direction="up", amount=300)
             assert result.success is True
@@ -983,7 +983,7 @@ class TestScroll:
     def test_scroll_left(self, tmp_path):
         async def _test():
             browser = _make_browser(tmp_path=tmp_path)
-            mock_page, *_ = _setup_started_browser(browser)
+            _mock_page, *_ = _setup_started_browser(browser)
 
             result = await browser.scroll(direction="left", amount=200)
             assert result.success is True
@@ -993,7 +993,7 @@ class TestScroll:
     def test_scroll_right(self, tmp_path):
         async def _test():
             browser = _make_browser(tmp_path=tmp_path)
-            mock_page, *_ = _setup_started_browser(browser)
+            _mock_page, *_ = _setup_started_browser(browser)
 
             result = await browser.scroll(direction="right", amount=200)
             assert result.success is True
@@ -1326,7 +1326,7 @@ class TestExecuteActions:
     def test_scroll_action(self, tmp_path):
         async def _test():
             browser = _make_browser(tmp_path=tmp_path)
-            mock_page, *_ = _setup_started_browser(browser)
+            _mock_page, *_ = _setup_started_browser(browser)
 
             actions = [
                 PageAction(

@@ -1974,42 +1974,6 @@ def _render_templates_section():
                 st.rerun()
 
 
-def _render_saved_workflows():
-    """Render saved workflows management section."""
-    st.markdown("### Saved Workflows")
-
-    workflows = _list_saved_workflows()
-
-    if not workflows:
-        st.info("No saved workflows yet. Create one and save it!")
-        return
-
-    for wf in workflows:
-        with st.expander(f"**{wf['name']}** v{wf['version']}", expanded=False):
-            st.caption(wf["description"] or "No description")
-            st.markdown(f"Steps: {wf['steps']}")
-
-            col1, col2 = st.columns(2)
-            with col1:
-                if st.button(
-                    "Load", key=f"load_{wf['path']}", use_container_width=True
-                ):
-                    if _load_workflow_from_file(wf["path"]):
-                        st.success(f"Loaded {wf['name']}")
-                        st.rerun()
-                    else:
-                        st.error("Failed to load")
-            with col2:
-                if st.button(
-                    "Delete", key=f"del_{wf['path']}", use_container_width=True
-                ):
-                    if _delete_workflow(wf["path"]):
-                        st.success(f"Deleted {wf['name']}")
-                        st.rerun()
-                    else:
-                        st.error("Failed to delete")
-
-
 def _render_execute_preview():
     """Render execution preview with validation and step summary."""
     workflow = _build_yaml_from_state()
