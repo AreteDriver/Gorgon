@@ -1,11 +1,16 @@
 """Tests for MCP connector management."""
 
+import base64
+import json
+
 import pytest
 from test_ai.mcp import (
     MCPConnectorManager,
     MCPServerCreateInput,
+    MCPServerStatus,
     CredentialCreateInput,
 )
+from test_ai.mcp.models import MCPServerUpdateInput
 from test_ai.state import SQLiteBackend
 
 
@@ -291,3 +296,431 @@ class TestCredentials:
         updated_server = manager.get_server(server.id)
         assert updated_server.credentialId is None
         assert updated_server.status == "not_configured"
+
+
+class TestGetCredential:
+    """Tests for get_credential unit method."""
+
+    def test_get_credential_returns_metadata(self, manager):
+        """Test get_credential returns credential metadata without value."""
+        created = manager.create_credential(
+            CredentialCreateInput(
+                name="GitHub Token",
+                type="bearer",
+                service="github",
+                value="ghp_secret_value",
+            )
+        )
+
+        credential = manager.get_credential(created.id)
+        assert credential is not None
+        assert credential.id == created.id
+        assert credential.name == "GitHub Token"
+        assert credential.type == "bearer"
+        assert credential.service == "github"
+        assert credential.createdAt is not None
+        # Value must never be exposed on the Credential model
+        assert "value" not in credential.model_dump()
+
+    def test_get_credential_nonexistent_returns_none(self, manager):
+        """Test get_credential with non-existent ID returns None."""
+        result = manager.get_credential("does-not-exist-id")
+        assert result is None
+
+
+class TestEncryptionDecryption:
+    """Tests for _encrypt_value and _decrypt_value edge cases."""
+
+    def test_encrypt_produces_different_output_each_call(self, manager):
+        """Test _encrypt_value produces different output due to random salt."""
+        value = "same-secret-value"
+        encrypted1 = manager._encrypt_value(value)
+        encrypted2 = manager._encrypt_value(value)
+
+        # Random salt means same plaintext produces different ciphertext
+        assert encrypted1 != encrypted2
+
+    def test_encrypt_decrypt_roundtrip(self, manager):
+        """Test encrypt then decrypt returns original value."""
+        original = "my-api-key-12345!@#$%"
+        encrypted = manager._encrypt_value(original)
+        decrypted = manager._decrypt_value(encrypted)
+
+        assert decrypted == original
+
+    def test_encrypt_decrypt_roundtrip_unicode(self, manager):
+        """Test roundtrip with unicode characters."""
+        original = "token-with-unicode-\u00e9\u00e8\u00ea"
+        encrypted = manager._encrypt_value(original)
+        decrypted = manager._decrypt_value(encrypted)
+
+        assert decrypted == original
+
+    def test_encrypt_decrypt_roundtrip_empty_string(self, manager):
+        """Test roundtrip with empty string."""
+        encrypted = manager._encrypt_value("")
+        decrypted = manager._decrypt_value(encrypted)
+
+        assert decrypted == ""
+
+    def test_decrypt_corrupted_base64(self, manager):
+        """Test _decrypt_value with corrupted/non-base64 data returns empty string."""
+        result = manager._decrypt_value("not-valid-base64!!!")
+        assert result == ""
+
+    def test_decrypt_truncated_data(self, manager):
+        """Test _decrypt_value with data shorter than 16-byte salt."""
+        # Encode only 8 bytes (less than the 16-byte salt)
+        short_data = base64.b64encode(b"short").decode("ascii")
+        result = manager._decrypt_value(short_data)
+        # Should return empty string after removing salt, or handle gracefully
+        assert isinstance(result, str)
+
+    def test_decrypt_malformed_utf8(self, manager):
+        """Test _decrypt_value with invalid UTF-8 after salt removal."""
+        # 16 bytes salt + invalid UTF-8 bytes
+        bad_payload = b"\x00" * 16 + b"\xff\xfe\xfd"
+        encoded = base64.b64encode(bad_payload).decode("ascii")
+        result = manager._decrypt_value(encoded)
+        # Exception handler returns empty string
+        assert result == ""
+
+    def test_get_credential_value_nonexistent(self, manager):
+        """Test get_credential_value with non-existent ID returns None."""
+        result = manager.get_credential_value("nonexistent-id")
+        assert result is None
+
+
+class TestRowToServerMalformedJSON:
+    """Tests for _row_to_server with malformed JSON in tools/resources."""
+
+    def _make_row(self, **overrides):
+        """Helper to build a minimal valid row dict."""
+        row = {
+            "id": "test-id",
+            "name": "Test",
+            "url": "https://test.com",
+            "type": "sse",
+            "status": "disconnected",
+            "description": "",
+            "auth_type": "none",
+            "credential_id": None,
+            "tools": "[]",
+            "resources": "[]",
+            "last_connected": None,
+            "error": None,
+            "created_at": "2024-01-01T00:00:00",
+            "updated_at": "2024-01-01T00:00:00",
+        }
+        row.update(overrides)
+        return row
+
+    def test_malformed_tools_json(self, manager):
+        """Test _row_to_server with malformed JSON in tools column."""
+        row = self._make_row(tools="{bad json!!!")
+        server = manager._row_to_server(row)
+
+        assert server.id == "test-id"
+        assert server.tools == []  # Falls back to empty list
+
+    def test_malformed_resources_json(self, manager):
+        """Test _row_to_server with malformed JSON in resources column."""
+        row = self._make_row(resources="not-json")
+        server = manager._row_to_server(row)
+
+        assert server.resources == []  # Falls back to empty list
+
+    def test_null_tools_and_resources(self, manager):
+        """Test _row_to_server with null tools and resources."""
+        row = self._make_row(tools=None, resources=None)
+        server = manager._row_to_server(row)
+
+        assert server.tools == []
+        assert server.resources == []
+
+    def test_empty_string_tools_and_resources(self, manager):
+        """Test _row_to_server with empty string tools and resources."""
+        row = self._make_row(tools="", resources="")
+        server = manager._row_to_server(row)
+
+        assert server.tools == []
+        assert server.resources == []
+
+    def test_valid_tools_json(self, manager):
+        """Test _row_to_server correctly parses valid tools JSON."""
+        tools_data = [
+            {"name": "read_file", "description": "Read a file", "inputSchema": {}}
+        ]
+        row = self._make_row(tools=json.dumps(tools_data))
+        server = manager._row_to_server(row)
+
+        assert len(server.tools) == 1
+        assert server.tools[0].name == "read_file"
+
+    def test_both_tools_and_resources_malformed(self, manager):
+        """Test _row_to_server when both tools and resources are malformed."""
+        row = self._make_row(tools="[invalid", resources="{also bad")
+        server = manager._row_to_server(row)
+
+        # Both fallback to empty
+        assert server.tools == []
+        assert server.resources == []
+
+
+class TestSimulateToolDiscovery:
+    """Tests for _simulate_tool_discovery for each server type."""
+
+    def _create_server_with_name(self, manager, name):
+        """Helper to create a server and return it."""
+        server = manager.create_server(
+            MCPServerCreateInput(
+                name=name,
+                url=f"https://{name.lower()}.example.com",
+                type="sse",
+                authType="none",
+            )
+        )
+        return manager.get_server(server.id)
+
+    def test_github_server_tools(self, manager):
+        """Test tool discovery for GitHub server type."""
+        server = self._create_server_with_name(manager, "GitHub MCP")
+        tools = manager._simulate_tool_discovery(server)
+
+        assert len(tools) == 3
+        tool_names = [t.name for t in tools]
+        assert "list_repos" in tool_names
+        assert "create_pr" in tool_names
+        assert "list_issues" in tool_names
+
+        # Verify create_pr has required fields in schema
+        pr_tool = next(t for t in tools if t.name == "create_pr")
+        assert "required" in pr_tool.inputSchema
+        assert "repo" in pr_tool.inputSchema["required"]
+        assert "title" in pr_tool.inputSchema["required"]
+
+    def test_filesystem_server_tools(self, manager):
+        """Test tool discovery for filesystem server type."""
+        server = self._create_server_with_name(manager, "Filesystem Local")
+        tools = manager._simulate_tool_discovery(server)
+
+        assert len(tools) == 3
+        tool_names = [t.name for t in tools]
+        assert "read_file" in tool_names
+        assert "write_file" in tool_names
+        assert "list_directory" in tool_names
+
+    def test_notion_server_tools(self, manager):
+        """Test tool discovery for Notion server type."""
+        server = self._create_server_with_name(manager, "Notion Workspace")
+        tools = manager._simulate_tool_discovery(server)
+
+        assert len(tools) == 2
+        tool_names = [t.name for t in tools]
+        assert "search_pages" in tool_names
+        assert "get_page" in tool_names
+
+    def test_slack_server_tools(self, manager):
+        """Test tool discovery for Slack server type."""
+        server = self._create_server_with_name(manager, "Slack Integration")
+        tools = manager._simulate_tool_discovery(server)
+
+        assert len(tools) == 2
+        tool_names = [t.name for t in tools]
+        assert "send_message" in tool_names
+        assert "list_channels" in tool_names
+
+    def test_unknown_server_returns_empty_tools(self, manager):
+        """Test tool discovery for unknown/custom server returns empty list."""
+        server = self._create_server_with_name(manager, "Custom MCP Server")
+        tools = manager._simulate_tool_discovery(server)
+
+        assert tools == []
+
+    def test_case_insensitive_matching(self, manager):
+        """Test that server name matching is case-insensitive."""
+        server = self._create_server_with_name(manager, "GITHUB Enterprise")
+        tools = manager._simulate_tool_discovery(server)
+
+        assert len(tools) == 3  # Should still match github
+
+
+class TestEdgeCases:
+    """Tests for edge cases in MCP operations."""
+
+    def test_create_server_with_all_optional_fields(self, manager):
+        """Test create_server with all optional fields populated."""
+        cred = manager.create_credential(
+            CredentialCreateInput(
+                name="Token", type="bearer", service="github", value="xxx"
+            )
+        )
+
+        data = MCPServerCreateInput(
+            name="Full Server",
+            url="https://full.example.com/mcp",
+            type="websocket",
+            authType="bearer",
+            credentialId=cred.id,
+            description="A fully configured MCP server",
+        )
+        server = manager.create_server(data)
+
+        assert server is not None
+        assert server.name == "Full Server"
+        assert server.type == "websocket"
+        assert server.authType == "bearer"
+        assert server.credentialId == cred.id
+        assert server.description == "A fully configured MCP server"
+        # Has credential, so status should be disconnected (not not_configured)
+        assert server.status == "disconnected"
+
+    def test_update_server_empty_update(self, manager):
+        """Test update_server with no changes returns existing server."""
+        created = manager.create_server(
+            MCPServerCreateInput(
+                name="Unchanged",
+                url="https://test.com",
+                type="sse",
+                authType="none",
+            )
+        )
+
+        # Empty update - all fields None
+        result = manager.update_server(created.id, MCPServerUpdateInput())
+
+        assert result is not None
+        assert result.id == created.id
+        assert result.name == "Unchanged"
+
+    def test_update_server_not_found(self, manager):
+        """Test update_server with non-existent ID returns None."""
+        result = manager.update_server(
+            "nonexistent-id", MCPServerUpdateInput(name="New")
+        )
+        assert result is None
+
+    def test_update_server_all_fields(self, manager):
+        """Test update_server with every field changed."""
+        created = manager.create_server(
+            MCPServerCreateInput(
+                name="Original",
+                url="https://old.com",
+                type="sse",
+                authType="none",
+            )
+        )
+
+        updated = manager.update_server(
+            created.id,
+            MCPServerUpdateInput(
+                name="New Name",
+                url="https://new.com",
+                type="websocket",
+                authType="api_key",
+                credentialId="",  # Empty string to clear
+                description="Updated desc",
+            ),
+        )
+
+        assert updated.name == "New Name"
+        assert updated.url == "https://new.com"
+        assert updated.type == "websocket"
+        assert updated.authType == "api_key"
+        assert updated.description == "Updated desc"
+
+    def test_list_servers_empty(self, manager):
+        """Test list_servers when no servers exist."""
+        servers = manager.list_servers()
+        assert servers == []
+
+    def test_list_credentials_empty(self, manager):
+        """Test list_credentials when no credentials exist."""
+        credentials = manager.list_credentials()
+        assert credentials == []
+
+    def test_delete_credential_not_found(self, manager):
+        """Test deleting a non-existent credential returns False."""
+        result = manager.delete_credential("nonexistent-id")
+        assert result is False
+
+    def test_delete_credential_referenced_by_multiple_servers(self, manager):
+        """Test deleting credential updates all referencing servers."""
+        cred = manager.create_credential(
+            CredentialCreateInput(
+                name="Shared Token", type="bearer", service="test", value="shared"
+            )
+        )
+
+        server1 = manager.create_server(
+            MCPServerCreateInput(
+                name="Server A",
+                url="https://a.com",
+                type="sse",
+                authType="bearer",
+                credentialId=cred.id,
+            )
+        )
+        server2 = manager.create_server(
+            MCPServerCreateInput(
+                name="Server B",
+                url="https://b.com",
+                type="sse",
+                authType="bearer",
+                credentialId=cred.id,
+            )
+        )
+
+        # Delete the shared credential
+        manager.delete_credential(cred.id)
+
+        # Both servers should lose their credential reference
+        s1 = manager.get_server(server1.id)
+        s2 = manager.get_server(server2.id)
+        assert s1.credentialId is None
+        assert s1.status == "not_configured"
+        assert s2.credentialId is None
+        assert s2.status == "not_configured"
+
+    def test_get_tools_for_nonexistent_server(self, manager):
+        """Test get_tools returns empty list for non-existent server."""
+        tools = manager.get_tools("nonexistent-id")
+        assert tools == []
+
+    def test_connection_test_updates_server_status(self, manager):
+        """Test that successful connection test updates server to connected."""
+        server = manager.create_server(
+            MCPServerCreateInput(
+                name="Filesystem Test",
+                url="stdio://mcp-filesystem",
+                type="stdio",
+                authType="none",
+            )
+        )
+
+        result = manager.test_connection(server.id)
+        assert result.success is True
+
+        # Verify server status updated in DB
+        updated = manager.get_server(server.id)
+        assert updated.status == MCPServerStatus.CONNECTED.value
+        assert updated.lastConnected is not None
+        assert updated.error is None
+
+    def test_parse_datetime_invalid_value(self, manager):
+        """Test _parse_datetime with invalid datetime string."""
+        result = manager._parse_datetime("not-a-date")
+        assert result is None
+
+    def test_parse_datetime_none(self, manager):
+        """Test _parse_datetime with None."""
+        result = manager._parse_datetime(None)
+        assert result is None
+
+    def test_parse_datetime_with_z_suffix(self, manager):
+        """Test _parse_datetime handles Z timezone suffix."""
+        result = manager._parse_datetime("2024-01-15T10:30:00Z")
+        assert result is not None
+        assert result.year == 2024
+        assert result.month == 1
+        assert result.day == 15
