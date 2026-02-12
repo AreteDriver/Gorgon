@@ -135,6 +135,140 @@ class TestStatePersistence:
         assert stats["by_status"]["completed"] == 1
         assert stats["total_checkpoints"] == 1
 
+    # -- additional coverage --
+
+    def test_get_workflow_not_found(self, persistence):
+        """get_workflow returns None for nonexistent workflow."""
+        assert persistence.get_workflow("nonexistent") is None
+
+    def test_get_last_checkpoint_no_checkpoints(self, persistence):
+        """get_last_checkpoint returns None when no checkpoints exist."""
+        persistence.create_workflow("wf-1", "Test")
+        assert persistence.get_last_checkpoint("wf-1") is None
+
+    def test_resume_from_checkpoint_no_checkpoint_raises(self, persistence):
+        """resume_from_checkpoint raises ValueError when no checkpoint exists."""
+        persistence.create_workflow("wf-1", "Test")
+        with pytest.raises(ValueError, match="No checkpoint found"):
+            persistence.resume_from_checkpoint("wf-1")
+
+    def test_mark_paused(self, persistence):
+        """Can mark workflow as paused."""
+        persistence.create_workflow("wf-1", "Test")
+        persistence.update_status("wf-1", WorkflowStatus.RUNNING)
+        persistence.mark_paused("wf-1")
+        workflow = persistence.get_workflow("wf-1")
+        assert workflow["status"] == "paused"
+
+    def test_delete_workflow_not_found(self, persistence):
+        """Deleting nonexistent workflow returns False."""
+        result = persistence.delete_workflow("nonexistent")
+        assert result is False
+
+    def test_create_workflow_no_config(self, persistence):
+        """Can create workflow without config."""
+        persistence.create_workflow("wf-1", "Test")
+        workflow = persistence.get_workflow("wf-1")
+        assert workflow["config"] is None
+
+    def test_checkpoint_without_data(self, persistence):
+        """Checkpoint works with no input/output data."""
+        persistence.create_workflow("wf-1", "Test")
+        cp_id = persistence.checkpoint("wf-1", "step1", "success")
+        assert cp_id > 0
+        checkpoint = persistence.get_last_checkpoint("wf-1")
+        assert checkpoint["input_data"] is None
+        assert checkpoint["output_data"] is None
+
+    def test_checkpoint_updates_current_stage(self, persistence):
+        """Checkpoint updates the workflow's current_stage."""
+        persistence.create_workflow("wf-1", "Test")
+        persistence.checkpoint("wf-1", "planning", "success")
+        workflow = persistence.get_workflow("wf-1")
+        assert workflow["current_stage"] == "planning"
+        assert workflow["status"] == "running"
+
+    def test_list_workflows_all(self, persistence):
+        """list_workflows returns all workflows."""
+        persistence.create_workflow("wf-1", "Alpha")
+        persistence.create_workflow("wf-2", "Beta")
+        persistence.create_workflow("wf-3", "Gamma")
+        workflows = persistence.list_workflows()
+        assert len(workflows) == 3
+
+    def test_list_workflows_with_status_filter(self, persistence):
+        """list_workflows filters by status."""
+        persistence.create_workflow("wf-1", "Running")
+        persistence.update_status("wf-1", WorkflowStatus.RUNNING)
+        persistence.create_workflow("wf-2", "Done")
+        persistence.update_status("wf-2", WorkflowStatus.COMPLETED)
+        persistence.create_workflow("wf-3", "Also Running")
+        persistence.update_status("wf-3", WorkflowStatus.RUNNING)
+
+        running = persistence.list_workflows(status=WorkflowStatus.RUNNING)
+        assert len(running) == 2
+        completed = persistence.list_workflows(status=WorkflowStatus.COMPLETED)
+        assert len(completed) == 1
+
+    def test_list_workflows_with_limit(self, persistence):
+        """list_workflows respects limit."""
+        for i in range(5):
+            persistence.create_workflow(f"wf-{i}", f"Workflow {i}")
+        workflows = persistence.list_workflows(limit=2)
+        assert len(workflows) == 2
+
+    def test_get_all_checkpoints_empty(self, persistence):
+        """get_all_checkpoints returns empty for workflow with no checkpoints."""
+        persistence.create_workflow("wf-1", "Test")
+        assert persistence.get_all_checkpoints("wf-1") == []
+
+    def test_update_status_with_error(self, persistence):
+        """update_status stores error message."""
+        persistence.create_workflow("wf-1", "Test")
+        persistence.update_status("wf-1", WorkflowStatus.FAILED, error="Timeout")
+        workflow = persistence.get_workflow("wf-1")
+        assert workflow["error"] == "Timeout"
+
+    def test_get_stats_empty_db(self, persistence):
+        """get_stats works on empty database."""
+        stats = persistence.get_stats()
+        assert stats["total_workflows"] == 0
+        assert stats["total_checkpoints"] == 0
+        for status in WorkflowStatus:
+            assert stats["by_status"][status.value] == 0
+
+    def test_get_stats_multiple_statuses(self, persistence):
+        """get_stats counts multiple statuses correctly."""
+        persistence.create_workflow("wf-1", "A")
+        persistence.update_status("wf-1", WorkflowStatus.RUNNING)
+        persistence.create_workflow("wf-2", "B")
+        persistence.update_status("wf-2", WorkflowStatus.RUNNING)
+        persistence.create_workflow("wf-3", "C")
+        persistence.update_status("wf-3", WorkflowStatus.COMPLETED)
+
+        stats = persistence.get_stats()
+        assert stats["total_workflows"] == 3
+        assert stats["by_status"]["running"] == 2
+        assert stats["by_status"]["completed"] == 1
+
+    def test_resumable_workflows_includes_paused(self, persistence):
+        """Paused workflows are included in resumable list."""
+        persistence.create_workflow("wf-1", "Paused")
+        persistence.update_status("wf-1", WorkflowStatus.PAUSED)
+        resumable = persistence.get_resumable_workflows()
+        ids = [w["id"] for w in resumable]
+        assert "wf-1" in ids
+
+    def test_init_with_backend(self, tmp_path):
+        """StatePersistence can be initialized with explicit backend."""
+        from test_ai.state.backends import SQLiteBackend
+
+        db_path = str(tmp_path / "test.db")
+        backend = SQLiteBackend(db_path=db_path)
+        persistence = StatePersistence(backend=backend)
+        persistence.create_workflow("wf-1", "Test")
+        assert persistence.get_workflow("wf-1") is not None
+
 
 class TestCheckpointManager:
     """Tests for CheckpointManager class."""
@@ -247,3 +381,187 @@ class TestCheckpointManager:
         assert len(progress["stages_completed"]) == 2
         assert progress["total_tokens"] == 125
         assert progress["total_checkpoints"] == 2
+
+    # -- additional coverage --
+
+    def test_start_workflow_custom_id(self, manager):
+        """Can start workflow with custom id."""
+        wf_id = manager.start_workflow("Test", workflow_id="custom-id")
+        assert wf_id == "custom-id"
+        assert manager.current_workflow_id == "custom-id"
+
+    def test_complete_workflow_explicit_id(self, manager):
+        """Can complete workflow with explicit id."""
+        wf_id = manager.start_workflow("Test")
+        manager.complete_workflow(workflow_id=wf_id)
+        assert manager.current_workflow_id is None
+        workflow = manager.persistence.get_workflow(wf_id)
+        assert workflow["status"] == "completed"
+
+    def test_complete_workflow_different_id(self, manager):
+        """Completing different workflow doesn't clear current."""
+        wf1 = manager.start_workflow("WF1", workflow_id="wf1")
+        wf2 = manager.start_workflow("WF2", workflow_id="wf2")
+        manager.complete_workflow(workflow_id="wf1")
+        # Current should still be wf2
+        assert manager.current_workflow_id == "wf2"
+
+    def test_complete_workflow_no_workflow(self, manager):
+        """Completing without any workflow is a no-op."""
+        manager.complete_workflow()  # Should not raise
+
+    def test_fail_workflow_explicit_id(self, manager):
+        """Can fail workflow with explicit id."""
+        wf_id = manager.start_workflow("Test")
+        manager.fail_workflow("Error", workflow_id=wf_id)
+        assert manager.current_workflow_id is None
+
+    def test_fail_workflow_no_workflow(self, manager):
+        """Failing without any workflow is a no-op."""
+        manager.fail_workflow("Error")  # Should not raise
+
+    def test_checkpoint_now_without_workflow_raises(self, manager):
+        """checkpoint_now without active workflow raises ValueError."""
+        with pytest.raises(ValueError, match="No active workflow"):
+            manager.checkpoint_now(stage="test", status="success")
+
+    def test_checkpoint_now_with_explicit_workflow_id(self, manager):
+        """checkpoint_now works with explicit workflow_id."""
+        wf_id = manager.start_workflow("Test")
+        manager._current_workflow = None  # Clear current
+        cp_id = manager.checkpoint_now(
+            stage="manual",
+            status="success",
+            workflow_id=wf_id,
+        )
+        assert cp_id > 0
+
+    def test_get_progress_without_workflow_raises(self, manager):
+        """get_progress without workflow raises ValueError."""
+        with pytest.raises(ValueError, match="No workflow specified"):
+            manager.get_progress()
+
+    def test_get_progress_explicit_workflow_id(self, manager):
+        """get_progress works with explicit workflow_id."""
+        wf_id = manager.start_workflow("Test")
+        with manager.stage("step1") as ctx:
+            ctx.tokens_used = 42
+        manager._current_workflow = None
+
+        progress = manager.get_progress(workflow_id=wf_id)
+        assert progress["workflow_id"] == wf_id
+        assert progress["total_tokens"] == 42
+
+    def test_resume_nonexistent_workflow_raises(self, manager):
+        """Resuming nonexistent workflow raises ValueError."""
+        with pytest.raises(ValueError, match="Workflow not found"):
+            manager.resume("nonexistent")
+
+    def test_stage_failure_records_checkpoint(self, manager):
+        """Stage failure still creates a checkpoint with 'failed' status."""
+        wf_id = manager.start_workflow("Test")
+
+        with pytest.raises(RuntimeError):
+            with manager.stage("failing_step") as ctx:
+                ctx.tokens_used = 10
+                raise RuntimeError("stage exploded")
+
+        # Checkpoint should be recorded with failed status
+        checkpoints = manager.persistence.get_all_checkpoints(wf_id)
+        assert len(checkpoints) == 1
+        assert checkpoints[0]["status"] == "failed"
+        assert checkpoints[0]["tokens_used"] == 10
+
+    def test_stage_with_explicit_workflow_id(self, manager):
+        """Stage can use explicit workflow_id."""
+        wf_id = manager.start_workflow("Test")
+        manager._current_workflow = None
+
+        with manager.stage("step1", workflow_id=wf_id) as ctx:
+            ctx.output_data = {"result": "ok"}
+
+        checkpoints = manager.persistence.get_all_checkpoints(wf_id)
+        assert len(checkpoints) == 1
+
+    def test_current_stage_property(self, manager):
+        """current_stage returns active stage context."""
+        assert manager.current_stage is None
+        manager.start_workflow("Test")
+        with manager.stage("step1") as ctx:
+            assert manager.current_stage is ctx
+        assert manager.current_stage is None
+
+    def test_get_progress_with_failed_stages(self, manager):
+        """get_progress separates completed and failed stages."""
+        wf_id = manager.start_workflow("Test")
+
+        with manager.stage("step1") as ctx:
+            ctx.tokens_used = 10
+
+        with pytest.raises(RuntimeError):
+            with manager.stage("step2") as ctx:
+                raise RuntimeError("fail")
+
+        progress = manager.get_progress()
+        assert "step1" in progress["stages_completed"]
+        assert "step2" in progress["stages_failed"]
+
+    def test_workflow_context_with_config(self, manager):
+        """Workflow context manager passes config."""
+        config = {"model": "gpt-4", "max_tokens": 1000}
+        with manager.workflow("Configured Workflow", config=config) as wf_id:
+            workflow = manager.persistence.get_workflow(wf_id)
+            assert workflow["config"] == config
+
+    def test_init_with_persistence(self, tmp_path):
+        """CheckpointManager can use pre-built persistence."""
+        db_path = str(tmp_path / "test.db")
+        persistence = StatePersistence(db_path)
+        manager = CheckpointManager(persistence=persistence)
+        wf_id = manager.start_workflow("Test")
+        assert persistence.get_workflow(wf_id) is not None
+
+    def test_init_with_backend(self, tmp_path):
+        """CheckpointManager can use a database backend directly."""
+        from test_ai.state.backends import SQLiteBackend
+
+        db_path = str(tmp_path / "test.db")
+        backend = SQLiteBackend(db_path=db_path)
+        manager = CheckpointManager(backend=backend)
+        wf_id = manager.start_workflow("Test")
+        assert manager.persistence.get_workflow(wf_id) is not None
+
+
+class TestStageContext:
+    """Tests for StageContext dataclass."""
+
+    def test_default_values(self):
+        """StageContext has sensible defaults."""
+        from test_ai.state.checkpoint import StageContext
+
+        ctx = StageContext(
+            workflow_id="wf-1",
+            stage="test",
+            started_at=1000.0,
+        )
+        assert ctx.input_data == {}
+        assert ctx.output_data == {}
+        assert ctx.tokens_used == 0
+        assert ctx.status == "running"
+        assert ctx.error is None
+
+
+class TestWorkflowStatus:
+    """Tests for WorkflowStatus enum."""
+
+    def test_values(self):
+        """All expected workflow statuses exist."""
+        assert WorkflowStatus.PENDING.value == "pending"
+        assert WorkflowStatus.RUNNING.value == "running"
+        assert WorkflowStatus.PAUSED.value == "paused"
+        assert WorkflowStatus.COMPLETED.value == "completed"
+        assert WorkflowStatus.FAILED.value == "failed"
+
+    def test_from_value(self):
+        """Can create WorkflowStatus from string."""
+        assert WorkflowStatus("running") == WorkflowStatus.RUNNING
