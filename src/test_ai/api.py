@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+import re
 import signal
 import threading
 import time
@@ -648,6 +649,11 @@ def get_yaml_workflow_definition(
 ):
     """Get a specific YAML workflow definition."""
     verify_auth(authorization)
+
+    # Sanitize path param — not Pydantic-validated like POST body
+    workflow_id = re.sub(r"[^\w\-]", "", workflow_id)
+    if not workflow_id:
+        raise not_found("YAML Workflow", workflow_id)
 
     # Try to find the workflow file
     yaml_file = YAML_WORKFLOWS_DIR / f"{workflow_id}.yaml"
