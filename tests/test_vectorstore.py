@@ -477,7 +477,8 @@ class TestMemoryVectorStore:
 
     def test_delete_nonexistent(self, store):
         """Deleting nonexistent IDs returns 0."""
-        assert store.delete(["nonexistent"]) == 0
+        deleted = store.delete(["nonexistent"])
+        assert deleted == 0
 
     # -- clear --
 
