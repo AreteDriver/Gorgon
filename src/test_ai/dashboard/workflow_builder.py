@@ -484,7 +484,7 @@ def _get_workflow_templates() -> dict:
     return WORKFLOW_TEMPLATES
 
 
-def _init_session_state():
+def _init_session_state() -> None:
     """Initialize session state for the workflow builder."""
     if "builder_nodes" not in st.session_state:
         st.session_state.builder_nodes = []
@@ -700,7 +700,7 @@ def _generate_node_id(step_type: str) -> str:
     return f"{base_id}-{counter}"
 
 
-def _add_node(step_type: str):
+def _add_node(step_type: str) -> None:
     """Add a new node to the canvas."""
     node_id = _generate_node_id(step_type)
     config = NODE_TYPE_CONFIG[step_type]
@@ -731,7 +731,7 @@ def _add_node(step_type: str):
     _mark_dirty()
 
 
-def _delete_node(node_id: str):
+def _delete_node(node_id: str) -> None:
     """Delete a node and its connections."""
     st.session_state.builder_nodes = [
         n for n in st.session_state.builder_nodes if n["id"] != node_id
@@ -746,7 +746,7 @@ def _delete_node(node_id: str):
     _mark_dirty()
 
 
-def _add_edge(source: str, target: str, label: str | None = None):
+def _add_edge(source: str, target: str, label: str | None = None) -> None:
     """Add an edge between two nodes."""
     # Check if edge already exists
     for edge in st.session_state.builder_edges:
@@ -764,7 +764,7 @@ def _add_edge(source: str, target: str, label: str | None = None):
     _mark_dirty()
 
 
-def _delete_edge(edge_id: str):
+def _delete_edge(edge_id: str) -> None:
     """Delete an edge."""
     st.session_state.builder_edges = [
         e for e in st.session_state.builder_edges if e["id"] != edge_id
@@ -772,7 +772,7 @@ def _delete_edge(edge_id: str):
     _mark_dirty()
 
 
-def _render_node_palette():
+def _render_node_palette() -> None:
     """Render the node palette sidebar."""
     st.markdown("### Node Types")
     st.markdown("Click to add a node to the canvas")
@@ -965,7 +965,7 @@ def _render_node_card(node: dict) -> None:
             st.rerun()
 
 
-def _render_canvas():
+def _render_canvas() -> None:
     """Render the workflow canvas with nodes."""
     st.markdown("### 🎯 Workflow Canvas")
 
@@ -1114,7 +1114,7 @@ def _render_canvas():
         st.markdown("</div>", unsafe_allow_html=True)
 
 
-def _render_node_config():
+def _render_node_config() -> None:
     """Render configuration panel for selected node."""
     selected_id = st.session_state.selected_node
 
@@ -1331,7 +1331,7 @@ def _render_node_config():
     st.session_state.builder_nodes[node_idx] = node
 
 
-def _render_workflow_settings():
+def _render_workflow_settings() -> None:
     """Render workflow metadata settings."""
     st.markdown("### Workflow Settings")
 
@@ -1483,7 +1483,7 @@ def _build_yaml_from_state() -> dict:
     return workflow
 
 
-def _load_yaml_to_state(workflow_data: dict):
+def _load_yaml_to_state(workflow_data: dict) -> None:
     """Load a YAML workflow dict into session state."""
     # Load metadata
     st.session_state.builder_metadata = {
@@ -1572,7 +1572,7 @@ def _load_workflow_from_file(filepath: Path) -> bool:
         return False
 
 
-def _render_yaml_preview():
+def _render_yaml_preview() -> None:
     """Render YAML preview and export options."""
     st.markdown("### YAML Preview")
 
@@ -1614,7 +1614,7 @@ def _render_yaml_preview():
                 st.error("Failed to save workflow")
 
 
-def _render_import_section():
+def _render_import_section() -> None:
     """Render YAML import section."""
     st.markdown("### Import Workflow")
 
@@ -1678,7 +1678,7 @@ def _render_import_section():
                     st.error("Failed to load workflow")
 
 
-def _render_visual_graph():
+def _render_visual_graph() -> None:
     """Render a visual representation of the workflow graph with enhanced styling."""
     nodes = st.session_state.builder_nodes
     edges = st.session_state.builder_edges
@@ -1902,7 +1902,7 @@ def _render_visual_graph():
     )
 
 
-def _render_saved_workflows():
+def _render_saved_workflows() -> None:
     """Render saved workflows management section."""
     st.markdown("### Saved Workflows")
 
@@ -1938,7 +1938,7 @@ def _render_saved_workflows():
                         st.error("Failed to delete")
 
 
-def _render_templates_section():
+def _render_templates_section() -> None:
     """Render workflow templates selection section."""
     st.markdown("### Templates")
     st.caption("Start with a pre-built workflow pattern")
@@ -1974,7 +1974,7 @@ def _render_templates_section():
                 st.rerun()
 
 
-def _render_execute_preview():
+def _render_execute_preview() -> None:
     """Render execution preview with validation and step summary."""
     workflow = _build_yaml_from_state()
     errors = validate_workflow(workflow)
@@ -2021,7 +2021,7 @@ def _render_execute_preview():
     st.info("Save the workflow, then execute it from the **Execute** page.")
 
 
-def render_workflow_builder():
+def render_workflow_builder() -> None:
     """Main entry point for the visual workflow builder."""
     st.title("🎨 Visual Workflow Builder")
 

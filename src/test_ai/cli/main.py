@@ -6,9 +6,15 @@ import json
 import subprocess
 import sys
 from pathlib import Path
-from typing import Annotated, Optional
+from typing import TYPE_CHECKING, Annotated, Optional
 
 import typer
+
+if TYPE_CHECKING:
+    from test_ai.api_clients import ClaudeCodeClient
+    from test_ai.monitoring.tracker import ExecutionTracker
+    from test_ai.orchestrator import WorkflowEngineAdapter
+    from test_ai.workflow.executor import WorkflowExecutor
 from rich.console import Console
 from rich.panel import Panel
 from rich.table import Table
@@ -26,7 +32,7 @@ app = typer.Typer(
 console = Console()
 
 
-def version_callback(value: bool):
+def version_callback(value: bool) -> None:
     """Show version and exit."""
     if value:
         console.print(f"[bold cyan]gorgon[/bold cyan] version {__version__}")
@@ -76,7 +82,7 @@ def main(
 
 
 @app.command()
-def tui():
+def tui() -> None:
     """Launch the Gorgon TUI - unified AI terminal interface."""
     from test_ai.tui.app import GorgonApp
 
@@ -84,7 +90,7 @@ def tui():
     tui_app.run()
 
 
-def get_workflow_engine():
+def get_workflow_engine() -> WorkflowEngineAdapter:
     """Lazy import workflow engine to avoid startup cost."""
     try:
         from test_ai.orchestrator import WorkflowEngineAdapter
@@ -96,7 +102,7 @@ def get_workflow_engine():
         raise typer.Exit(1)
 
 
-def get_claude_client():
+def get_claude_client() -> ClaudeCodeClient:
     """Get Claude Code client for direct agent execution."""
     try:
         from test_ai.api_clients import ClaudeCodeClient
@@ -112,7 +118,7 @@ def get_claude_client():
         raise typer.Exit(1)
 
 
-def get_workflow_executor(dry_run: bool = False):
+def get_workflow_executor(dry_run: bool = False) -> WorkflowExecutor:
     """Get workflow executor with checkpoint and budget managers."""
     try:
         from test_ai.workflow.executor import WorkflowExecutor
@@ -245,7 +251,7 @@ def format_context_for_prompt(context: dict) -> str:
     return "\n".join(lines)
 
 
-def get_tracker():
+def get_tracker() -> ExecutionTracker | None:
     """Lazy import execution tracker."""
     try:
         from test_ai.monitoring.tracker import get_tracker as _get_tracker
@@ -434,7 +440,7 @@ def list_workflows(
     list_workflows_table(engine)
 
 
-def list_workflows_table(engine):
+def list_workflows_table(engine) -> None:
     """Display workflows in a table."""
     workflows = engine.list_workflows()
 
@@ -702,7 +708,7 @@ def init(
 
 
 @app.command(hidden=True)
-def version():
+def version() -> None:
     """Show Gorgon version (use --version instead)."""
     console.print(f"[bold cyan]gorgon[/bold cyan] version {__version__}")
     console.print("[dim]Your personal army of AI agents[/dim]")
@@ -777,7 +783,7 @@ def completion(
         _show_completion_instructions(shell)
 
 
-def _show_completion_instructions(shell: str):
+def _show_completion_instructions(shell: str) -> None:
     """Show manual completion installation instructions."""
     instructions = {
         "bash": """
@@ -1891,7 +1897,7 @@ def config_show(
 
 
 @config_app.command("path")
-def config_path():
+def config_path() -> None:
     """Show configuration file paths."""
     from pathlib import Path
     import os
@@ -1921,7 +1927,7 @@ def config_path():
 
 
 @config_app.command("env")
-def config_env():
+def config_env() -> None:
     """Show required environment variables."""
     env_vars = [
         ("ANTHROPIC_API_KEY", "Anthropic/Claude API key", True),
@@ -2456,7 +2462,7 @@ def bot_discord(
 
 
 @bot_app.command("status")
-def bot_status():
+def bot_status() -> None:
     """Show messaging bot configuration status."""
     import os
 
@@ -2512,7 +2518,7 @@ def bot_status():
 
 
 @bot_app.command("setup")
-def bot_setup():
+def bot_setup() -> None:
     """Interactive setup for messaging bots."""
     console.print(
         Panel(

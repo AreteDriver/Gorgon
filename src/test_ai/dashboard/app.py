@@ -1,6 +1,10 @@
 """Streamlit dashboard for Gorgon AI Workflow Orchestrator."""
 
+from __future__ import annotations
+
 import json
+from collections.abc import Callable
+
 import streamlit as st
 
 from test_ai.orchestrator import WorkflowEngineAdapter, Workflow, WorkflowStep, StepType
@@ -35,7 +39,7 @@ except ImportError:
     NEW_COMPONENTS_AVAILABLE = False
 
 
-def _get_workflow_builder_renderer():
+def _get_workflow_builder_renderer() -> Callable[[], None] | None:
     """Get the workflow builder renderer, importing lazily."""
     try:
         from test_ai.dashboard.workflow_builder import render_workflow_builder
@@ -45,7 +49,7 @@ def _get_workflow_builder_renderer():
         return None
 
 
-def _get_plugin_marketplace_renderer():
+def _get_plugin_marketplace_renderer() -> Callable[[], None] | None:
     """Get the plugin marketplace renderer, importing lazily."""
     try:
         from test_ai.dashboard.plugin_marketplace import render_plugin_marketplace
@@ -57,24 +61,24 @@ def _get_plugin_marketplace_renderer():
 
 # Initialize components
 @st.cache_resource
-def get_workflow_engine():
+def get_workflow_engine() -> WorkflowEngineAdapter:
     """Get cached workflow engine."""
     return WorkflowEngineAdapter()
 
 
 @st.cache_resource
-def get_prompt_manager():
+def get_prompt_manager() -> PromptTemplateManager:
     """Get cached prompt manager."""
     return PromptTemplateManager()
 
 
 @st.cache_resource
-def get_openai_client():
+def get_openai_client() -> OpenAIClient:
     """Get cached OpenAI client."""
     return OpenAIClient()
 
 
-def render_sidebar():
+def render_sidebar() -> str:
     """Render sidebar navigation."""
     st.sidebar.title("🐍 Gorgon Orchestrator")
 
@@ -112,7 +116,7 @@ def render_sidebar():
     return page
 
 
-def render_dashboard_page():
+def render_dashboard_page() -> None:
     """Render main dashboard page."""
     st.title("📊 Gorgon Dashboard")
 
@@ -160,7 +164,7 @@ def render_dashboard_page():
             st.rerun()
 
 
-def render_workflows_page():
+def render_workflows_page() -> None:
     """Render workflows management page."""
     st.title("⚙️ Workflows")
 
@@ -257,7 +261,7 @@ def render_workflows_page():
                 st.warning("Please fill in Workflow ID and Name")
 
 
-def render_prompts_page():
+def render_prompts_page() -> None:
     """Render prompts management page."""
     st.title("📝 Prompt Templates")
 
@@ -342,7 +346,7 @@ def render_prompts_page():
                 st.warning("Please fill in Template ID, Name, and User Prompt")
 
 
-def render_execute_page():
+def render_execute_page() -> None:
     """Render workflow execution page."""
     st.title("▶️ Execute Workflow")
 
@@ -399,7 +403,7 @@ def render_execute_page():
                         st.error(f"Error executing workflow: {str(e)}")
 
 
-def render_logs_page():
+def render_logs_page() -> None:
     """Render logs page."""
     st.title("📋 Workflow Logs")
 
@@ -422,7 +426,7 @@ def render_logs_page():
         st.info("No logs found. Execute a workflow to generate logs.")
 
 
-def _render_builder_fallback():
+def _render_builder_fallback() -> None:
     """Fallback when workflow builder is not available."""
     st.title("🎨 Visual Workflow Builder")
     st.warning(
@@ -430,7 +434,7 @@ def _render_builder_fallback():
     )
 
 
-def _render_builder_page():
+def _render_builder_page() -> None:
     """Render builder page with lazy import."""
     renderer = _get_workflow_builder_renderer()
     if renderer:
@@ -439,7 +443,7 @@ def _render_builder_page():
         _render_builder_fallback()
 
 
-def _render_plugins_fallback():
+def _render_plugins_fallback() -> None:
     """Fallback when plugin marketplace is not available."""
     st.title("🏪 Plugin Marketplace")
     st.warning(
@@ -447,7 +451,7 @@ def _render_plugins_fallback():
     )
 
 
-def _render_plugins_page():
+def _render_plugins_page() -> None:
     """Render plugins page with lazy import."""
     renderer = _get_plugin_marketplace_renderer()
     if renderer:
@@ -475,7 +479,7 @@ _PAGE_RENDERERS = {
 }
 
 
-def main():
+def main() -> None:
     """Main dashboard application."""
     st.set_page_config(page_title="Gorgon Orchestrator", page_icon="🐍", layout="wide")
 
@@ -490,7 +494,7 @@ def main():
         renderer()
 
 
-def run_dashboard():
+def run_dashboard() -> None:
     """Run the Streamlit dashboard."""
     main()
 

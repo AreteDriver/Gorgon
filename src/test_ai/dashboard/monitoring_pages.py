@@ -8,18 +8,24 @@ from __future__ import annotations
 
 import time
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 import streamlit as st
 
+if TYPE_CHECKING:
+    from test_ai.monitoring.parallel_tracker import ParallelExecutionTracker
+    from test_ai.monitoring.tracker import AgentTracker, ExecutionTracker
+    from test_ai.orchestrators.analytics.pipeline import PipelineResult
+
 
 # Import monitoring components - lazy load to avoid dep issues
-def get_tracker():
+def get_tracker() -> ExecutionTracker:
     from test_ai.monitoring import get_tracker as _get_tracker
 
     return _get_tracker()
 
 
-def get_agent_tracker():
+def get_agent_tracker() -> AgentTracker:
     from test_ai.monitoring.tracker import AgentTracker
 
     if "agent_tracker" not in st.session_state:
@@ -27,7 +33,7 @@ def get_agent_tracker():
     return st.session_state.agent_tracker
 
 
-def get_parallel_tracker():
+def get_parallel_tracker() -> ParallelExecutionTracker:
     """Get the parallel execution tracker."""
     from test_ai.monitoring.parallel_tracker import (
         get_parallel_tracker as _get_parallel_tracker,
@@ -36,7 +42,7 @@ def get_parallel_tracker():
     return _get_parallel_tracker()
 
 
-def render_monitoring_page():
+def render_monitoring_page() -> None:
     """Render real-time monitoring page."""
     st.title("Real-Time Monitoring")
 
@@ -169,7 +175,7 @@ def render_monitoring_page():
         st.info("No recent executions")
 
 
-def render_agents_page():
+def render_agents_page() -> None:
     """Render agent coordination visualization page."""
     st.title("Agent Coordination")
 
@@ -278,7 +284,7 @@ def render_agents_page():
         st.info("No agent history")
 
 
-def render_metrics_page():
+def render_metrics_page() -> None:
     """Render metrics and analytics page."""
     st.title("Metrics Dashboard")
 
@@ -386,7 +392,7 @@ def render_metrics_page():
         st.info("Execute workflows to see duration distribution")
 
 
-def render_system_status():
+def render_system_status() -> None:
     """Render system status component (for sidebar)."""
     st.sidebar.divider()
     st.sidebar.subheader("System Status")
@@ -405,7 +411,7 @@ def render_system_status():
         st.sidebar.markdown("⚪ Monitoring unavailable")
 
 
-def render_analytics_page():
+def render_analytics_page() -> None:
     """Render analytics pipeline page."""
     st.title("Analytics Pipelines")
 
@@ -475,7 +481,7 @@ def render_analytics_page():
         _render_pipeline_result(result, pipeline_name, pipelines)
 
 
-def _run_analytics_pipeline(pipeline_id: str, hours: int = 24):
+def _run_analytics_pipeline(pipeline_id: str, hours: int = 24) -> PipelineResult:
     """Run selected analytics pipeline."""
     from test_ai.orchestrators.analytics.pipeline import PipelineBuilder
 
@@ -493,7 +499,7 @@ def _run_analytics_pipeline(pipeline_id: str, hours: int = 24):
     return pipeline.execute()
 
 
-def _render_pipeline_result(result, pipeline_name: str, pipelines: dict):
+def _render_pipeline_result(result, pipeline_name: str, pipelines: dict) -> None:
     """Render pipeline execution results."""
     # Header with status
     status_icon = "✅" if result.status == "completed" else "❌"
@@ -540,7 +546,7 @@ def _render_pipeline_result(result, pipeline_name: str, pipelines: dict):
         _render_final_output(result.final_output)
 
 
-def _render_collect_output(output):
+def _render_collect_output(output) -> None:
     """Render collect stage output."""
     if hasattr(output, "source"):
         st.markdown(f"**Source:** {output.source}")
@@ -561,7 +567,7 @@ def _render_collect_output(output):
         st.json(output if isinstance(output, dict) else str(output))
 
 
-def _render_analyze_output(output):
+def _render_analyze_output(output) -> None:
     """Render analyze stage output."""
     if hasattr(output, "severity"):
         severity_colors = {"info": "blue", "warning": "orange", "critical": "red"}
@@ -577,7 +583,7 @@ def _render_analyze_output(output):
         st.success("No issues detected")
 
 
-def _render_visualize_output(output):
+def _render_visualize_output(output) -> None:
     """Render visualize stage output."""
     if hasattr(output, "charts"):
         st.markdown(f"**Generated {len(output.charts)} charts**")
@@ -588,7 +594,7 @@ def _render_visualize_output(output):
             st.code(output.streamlit_code, language="python")
 
 
-def _render_report_output(output):
+def _render_report_output(output) -> None:
     """Render report stage output."""
     if hasattr(output, "report_type"):
         st.markdown(f"**Report Type:** {output.report_type}")
@@ -596,7 +602,7 @@ def _render_report_output(output):
         st.markdown(output.summary)
 
 
-def _render_alert_output(output):
+def _render_alert_output(output) -> None:
     """Render alert stage output."""
     if hasattr(output, "alerts") and output.alerts:
         st.markdown(f"**{len(output.alerts)} alerts generated**")
@@ -610,7 +616,7 @@ def _render_alert_output(output):
         st.success("No alerts triggered")
 
 
-def _render_fallback_output(output):
+def _render_fallback_output(output) -> None:
     """Render fallback for unknown stage types."""
     if isinstance(output, dict):
         st.json(output)
@@ -629,7 +635,7 @@ _STAGE_RENDERERS = {
 }
 
 
-def _render_stage_output(stage):
+def _render_stage_output(stage) -> None:
     """Render individual stage output."""
     output = stage.output
     stage_type = stage.stage.value
@@ -637,7 +643,7 @@ def _render_stage_output(stage):
     renderer(output)
 
 
-def _render_final_output(output):
+def _render_final_output(output) -> None:
     """Render final pipeline output with charts."""
     import pandas as pd
 
@@ -697,7 +703,7 @@ def _render_final_output(output):
 # =============================================================================
 
 
-def render_parallel_execution_page():
+def render_parallel_execution_page() -> None:
     """Render parallel execution monitoring page.
 
     Shows real-time status of fan-out, map-reduce, and auto-parallel executions,
@@ -814,7 +820,7 @@ def render_parallel_execution_page():
     _render_performance_stats(summary)
 
 
-def _render_rate_limit_section(rate_limits: dict, summary: dict):
+def _render_rate_limit_section(rate_limits: dict, summary: dict) -> None:
     """Render rate limit status gauges."""
     st.subheader("Rate Limit Status")
 
@@ -902,7 +908,7 @@ def _render_rate_limit_section(rate_limits: dict, summary: dict):
             st.metric("Max Wait", f"{rate_limit_waits['max']:.1f}ms")
 
 
-def _render_active_execution(execution: dict):
+def _render_active_execution(execution: dict) -> None:
     """Render a single active parallel execution."""
     pattern_type = execution.get("pattern_type", "unknown")
     step_id = execution.get("step_id", "unknown")
@@ -982,7 +988,7 @@ def _render_active_execution(execution: dict):
         st.divider()
 
 
-def _render_recent_execution(execution: dict):
+def _render_recent_execution(execution: dict) -> None:
     """Render a recent parallel execution in history."""
     pattern_type = execution.get("pattern_type", "unknown")
     step_id = execution.get("step_id", "unknown")
@@ -1030,7 +1036,7 @@ def _render_recent_execution(execution: dict):
                     )
 
 
-def _render_performance_stats(summary: dict):
+def _render_performance_stats(summary: dict) -> None:
     """Render performance statistics section."""
     col1, col2 = st.columns(2)
 
@@ -1097,7 +1103,7 @@ def _render_performance_stats(summary: dict):
         st.bar_chart(df.set_index("Pattern"))
 
 
-def render_parallel_status_sidebar():
+def render_parallel_status_sidebar() -> None:
     """Render parallel execution status in sidebar."""
     st.sidebar.divider()
     st.sidebar.subheader("Parallel Status")

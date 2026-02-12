@@ -124,19 +124,19 @@ _app_state = {
 _state_lock = asyncio.Lock()
 
 
-async def _increment_active_requests():
+async def _increment_active_requests() -> None:
     """Increment active request counter."""
     async with _state_lock:
         _app_state["active_requests"] += 1
 
 
-async def _decrement_active_requests():
+async def _decrement_active_requests() -> None:
     """Decrement active request counter."""
     async with _state_lock:
         _app_state["active_requests"] -= 1
 
 
-def _handle_shutdown_signal(signum, frame):
+def _handle_shutdown_signal(signum, frame) -> None:
     """Handle shutdown signals gracefully."""
     logger.info(f"Received signal {signum}, initiating graceful shutdown...")
     _app_state["shutting_down"] = True
@@ -529,7 +529,7 @@ def verify_auth(authorization: Optional[str] = Header(None)) -> str:
 
 
 @app.get("/")
-def root():
+def root() -> dict:
     """Root endpoint."""
     return {"app": "AI Workflow Orchestrator", "version": "0.1.0", "status": "running"}
 
@@ -2218,7 +2218,7 @@ def get_agent(agent_id: str, authorization: Optional[str] = Header(None)):
 
 
 @app.get("/health")
-def health_check():
+def health_check() -> dict:
     """Basic health check (liveness probe).
 
     Returns 200 if the application process is running.
@@ -2228,7 +2228,7 @@ def health_check():
 
 
 @app.get("/health/live")
-def liveness_check():
+def liveness_check() -> dict:
     """Liveness probe - is the process alive?
 
     Returns 200 as long as the process is running.
@@ -2238,7 +2238,7 @@ def liveness_check():
 
 
 @app.get("/health/ready")
-def readiness_check():
+def readiness_check() -> dict:
     """Readiness probe - is the application ready to serve traffic?
 
     Returns 200 if the application is fully initialized and not shutting down.
@@ -2261,7 +2261,7 @@ def readiness_check():
 
 
 @app.get("/health/db")
-def database_health_check():
+def database_health_check() -> dict:
     """Database health check endpoint.
 
     Checks database connectivity and migration status.
@@ -2304,7 +2304,7 @@ def database_health_check():
 
 
 @app.get("/health/full")
-def full_health_check():
+def full_health_check() -> dict:
     """Comprehensive health check with all subsystem statuses.
 
     Checks application state, database, and circuit breakers.
@@ -2374,7 +2374,7 @@ def full_health_check():
 
 
 @app.get("/metrics", include_in_schema=False)
-def metrics_endpoint():
+def metrics_endpoint() -> Response:
     """Prometheus metrics endpoint.
 
     Exposes application metrics in Prometheus text format for scraping.
@@ -2841,7 +2841,7 @@ async def websocket_executions(
 
 
 @app.get("/ws/stats", include_in_schema=False)
-def websocket_stats():
+def websocket_stats() -> dict:
     """Get WebSocket connection statistics (internal use)."""
     if ws_manager is None:
         return {"error": "WebSocket not initialized"}
