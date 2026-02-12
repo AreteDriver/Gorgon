@@ -920,3 +920,709 @@ class TestRenderParallelStatusSidebar:
 
         mock_tracker_fn.side_effect = Exception("No tracker")
         render_parallel_status_sidebar()
+
+
+# =============================================================================
+# Additional coverage tests for previously uncovered lines
+# =============================================================================
+
+
+class TestGetTrackerFunction:
+    """Test the lazy-load get_tracker function (lines 17-19)."""
+
+    def test_get_tracker_returns_tracker(self):
+        with patch(
+            "test_ai.monitoring.get_tracker", return_value=MagicMock()
+        ) as mock_inner:
+            from test_ai.dashboard.monitoring_pages import get_tracker
+
+            result = get_tracker()
+            mock_inner.assert_called_once()
+            assert result is mock_inner.return_value
+
+
+class TestGetAgentTrackerFunction:
+    """Test get_agent_tracker session_state creation path (line 26)."""
+
+    def test_creates_tracker_when_not_in_session(self):
+        mock_st_module = _make_mock_st()
+        # Ensure agent_tracker is NOT in session_state
+        mock_st_module.session_state = _SessionState()
+        assert "agent_tracker" not in mock_st_module.session_state
+
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch(
+                "test_ai.monitoring.tracker.AgentTracker", return_value=MagicMock()
+            ) as mock_cls:
+                from test_ai.dashboard.monitoring_pages import get_agent_tracker
+
+                result = get_agent_tracker()
+                mock_cls.assert_called_once()
+                assert "agent_tracker" in mock_st_module.session_state
+
+
+class TestGetParallelTrackerFunction:
+    """Test the lazy-load get_parallel_tracker function (lines 32-36)."""
+
+    def test_get_parallel_tracker_returns_tracker(self):
+        with patch(
+            "test_ai.monitoring.parallel_tracker.get_parallel_tracker",
+            return_value=MagicMock(),
+        ) as mock_inner:
+            from test_ai.dashboard.monitoring_pages import get_parallel_tracker
+
+            result = get_parallel_tracker()
+            mock_inner.assert_called_once()
+            assert result is mock_inner.return_value
+
+
+class TestAutoRefreshBranch:
+    """Test auto-refresh rerun paths (lines 51-52, 718-719)."""
+
+    def test_monitoring_page_auto_refresh_rerun(self):
+        mock_st_module = _make_mock_st()
+        # Make toggle return True to trigger auto-refresh
+        mock_st_module.toggle = lambda *a, **kw: True
+        mock_st_module.rerun = MagicMock()
+
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+                mock_tracker = MagicMock()
+                mock_tracker.get_dashboard_data.return_value = {
+                    "summary": {
+                        "active_workflows": 0,
+                        "total_executions": 0,
+                        "success_rate": 0,
+                        "avg_duration_ms": 0,
+                    },
+                    "active_workflows": [],
+                    "recent_executions": [],
+                }
+                mock_tracker_fn.return_value = mock_tracker
+                with patch("test_ai.dashboard.monitoring_pages.time"):
+                    from test_ai.dashboard.monitoring_pages import render_monitoring_page
+
+                    render_monitoring_page()
+                    mock_st_module.rerun.assert_called()
+
+    def test_parallel_page_auto_refresh_rerun(self):
+        mock_st_module = _make_mock_st()
+        mock_st_module.toggle = lambda *a, **kw: True
+        mock_st_module.rerun = MagicMock()
+
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch(
+                "test_ai.dashboard.monitoring_pages.get_parallel_tracker"
+            ) as mock_tracker_fn:
+                mock_tracker = MagicMock()
+                mock_tracker.get_dashboard_data.return_value = {
+                    "summary": {
+                        "active_executions": 0,
+                        "total_executions": 0,
+                        "success_rate": 0,
+                        "active_branches": 0,
+                        "counters": {},
+                    },
+                    "active_executions": [],
+                    "recent_executions": [],
+                    "rate_limits": {},
+                }
+                mock_tracker_fn.return_value = mock_tracker
+                with patch("test_ai.dashboard.monitoring_pages.time"):
+                    from test_ai.dashboard.monitoring_pages import (
+                        render_parallel_execution_page,
+                    )
+
+                    render_parallel_execution_page()
+                    mock_st_module.rerun.assert_called()
+
+
+class TestSimulateAgentActivity:
+    """Test the simulate agent button path (lines 232-240)."""
+
+    def test_simulate_button_pressed(self):
+        mock_st_module = _make_mock_st()
+        # Make button return True to trigger simulation
+        mock_st_module.button = lambda *a, **kw: True
+        mock_st_module.rerun = MagicMock()
+
+        mock_tracker = MagicMock()
+        mock_tracker.get_agent_summary.return_value = {
+            "active_count": 0,
+            "recent_count": 0,
+            "by_role": {},
+        }
+        mock_tracker.get_active_agents.return_value = []
+        mock_tracker.get_agent_history.return_value = []
+        mock_st_module.session_state = _SessionState(agent_tracker=mock_tracker)
+
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            from test_ai.dashboard.monitoring_pages import render_agents_page
+
+            render_agents_page()
+            # register_agent should have been called 3 times
+            assert mock_tracker.register_agent.call_count == 3
+            mock_st_module.rerun.assert_called()
+
+
+class TestMetricsPageTokenBranches:
+    """Test metrics page token/duration branches (lines 367, 384)."""
+
+    def test_token_data_all_zero(self):
+        """Test branch where token_data exists but all tokens are 0 (line 367)."""
+        mock_st_module = _make_mock_st()
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+                mock_tracker = MagicMock()
+                mock_tracker.get_dashboard_data.return_value = {
+                    "summary": {
+                        "total_executions": 1,
+                        "failed_executions": 0,
+                        "total_steps_executed": 1,
+                        "total_tokens_used": 0,
+                        "success_rate": 100,
+                        "avg_duration_ms": 100,
+                    },
+                    "step_performance": {},
+                    "recent_executions": [
+                        {
+                            "execution_id": "abc12345",
+                            "total_tokens": 0,
+                            "duration_ms": 0,
+                        },
+                    ],
+                }
+                mock_tracker_fn.return_value = mock_tracker
+                from test_ai.dashboard.monitoring_pages import render_metrics_page
+
+                render_metrics_page()
+
+    def test_duration_data_missing(self):
+        """Test branch where recent execs exist but duration_ms is falsy (line 384)."""
+        mock_st_module = _make_mock_st()
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+                mock_tracker = MagicMock()
+                mock_tracker.get_dashboard_data.return_value = {
+                    "summary": {
+                        "total_executions": 1,
+                        "failed_executions": 0,
+                        "total_steps_executed": 1,
+                        "total_tokens_used": 0,
+                        "success_rate": 100,
+                        "avg_duration_ms": 0,
+                    },
+                    "step_performance": {},
+                    "recent_executions": [
+                        {
+                            "execution_id": "abc12345",
+                            "total_tokens": 100,
+                            "duration_ms": 0,
+                        },
+                    ],
+                }
+                mock_tracker_fn.return_value = mock_tracker
+                from test_ai.dashboard.monitoring_pages import render_metrics_page
+
+                render_metrics_page()
+
+
+class TestRunAnalyticsPipelineKnownPipelines:
+    """Test _run_analytics_pipeline for each known pipeline (lines 483-493)."""
+
+    def test_workflow_metrics(self):
+        with patch(
+            "test_ai.dashboard.monitoring_pages.PipelineBuilder",
+            create=True,
+        ) as mock_pb_import:
+            # We need to patch the import inside the function
+            mock_pipeline = MagicMock()
+            mock_pipeline.execute.return_value = "result"
+            mock_builder = MagicMock()
+            mock_builder.workflow_metrics_pipeline.return_value = mock_pipeline
+
+            with patch(
+                "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+                mock_builder,
+            ):
+                from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
+
+                result = _run_analytics_pipeline("workflow_metrics")
+                mock_builder.workflow_metrics_pipeline.assert_called_once()
+                assert result == "result"
+
+    def test_historical_trends(self):
+        mock_pipeline = MagicMock()
+        mock_pipeline.execute.return_value = "trends"
+        mock_builder = MagicMock()
+        mock_builder.historical_trends_pipeline.return_value = mock_pipeline
+
+        with patch(
+            "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+            mock_builder,
+        ):
+            from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
+
+            result = _run_analytics_pipeline("historical_trends", hours=48)
+            mock_builder.historical_trends_pipeline.assert_called_once_with(hours=48)
+
+    def test_api_health(self):
+        mock_pipeline = MagicMock()
+        mock_pipeline.execute.return_value = "health"
+        mock_builder = MagicMock()
+        mock_builder.api_health_pipeline.return_value = mock_pipeline
+
+        with patch(
+            "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+            mock_builder,
+        ):
+            from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
+
+            result = _run_analytics_pipeline("api_health")
+            mock_builder.api_health_pipeline.assert_called_once()
+
+    def test_operations_dashboard(self):
+        mock_pipeline = MagicMock()
+        mock_pipeline.execute.return_value = "ops"
+        mock_builder = MagicMock()
+        mock_builder.operations_dashboard_pipeline.return_value = mock_pipeline
+
+        with patch(
+            "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+            mock_builder,
+        ):
+            from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
+
+            result = _run_analytics_pipeline("operations_dashboard")
+            mock_builder.operations_dashboard_pipeline.assert_called_once()
+
+
+class TestAnalyticsPageButtonPress:
+    """Test analytics page button press and error handling (lines 457-466)."""
+
+    def test_button_press_success(self):
+        mock_st_module = _make_mock_st()
+        mock_st_module.button = lambda *a, **kw: True
+        mock_st_module.spinner = MagicMock(return_value=_ColumnContext())
+        mock_st_module.session_state = _SessionState()
+
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch(
+                "test_ai.dashboard.monitoring_pages._run_analytics_pipeline"
+            ) as mock_run:
+                mock_result = MagicMock()
+                mock_result.status = "completed"
+                mock_result.stages = []
+                mock_result.errors = []
+                mock_result.final_output = None
+                mock_run.return_value = mock_result
+
+                from test_ai.dashboard.monitoring_pages import render_analytics_page
+
+                render_analytics_page()
+                assert "analytics_result" in mock_st_module.session_state
+
+    def test_button_press_pipeline_error(self):
+        mock_st_module = _make_mock_st()
+        mock_st_module.button = lambda *a, **kw: True
+        mock_st_module.spinner = MagicMock(return_value=_ColumnContext())
+        mock_st_module.session_state = _SessionState()
+
+        with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
+            with patch(
+                "test_ai.dashboard.monitoring_pages._run_analytics_pipeline"
+            ) as mock_run:
+                mock_run.side_effect = RuntimeError("Pipeline crashed")
+
+                from test_ai.dashboard.monitoring_pages import render_analytics_page
+
+                render_analytics_page()
+                mock_st_module._mock.error.assert_called()
+
+
+class TestRenderFinalOutputToDictBranch:
+    """Test _render_final_output with to_dict method (line 688)."""
+
+    def test_output_with_to_dict(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_final_output
+
+            output = MagicMock()
+            # Has to_dict but no metrics/data/findings attrs
+            output.to_dict.return_value = {"key": "value"}
+            del output.metrics
+            del output.data
+            del output.findings
+            _render_final_output(output)
+
+
+class TestRenderRateLimitSectionEmptyProviders:
+    """Test _render_rate_limit_section with non-empty dicts but no providers (line 833)."""
+
+    def test_both_dicts_set_but_empty_providers(self):
+        """When rate_limits and rate_limit_states are non-empty dicts at top
+        level but combined provider set is empty (degenerate case)."""
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_rate_limit_section
+
+            # Both truthy but rate_limit_states keys used for providers
+            _render_rate_limit_section(
+                {},
+                {
+                    "rate_limit_waits": {"count": 0},
+                    "rate_limit_states": {},
+                },
+            )
+
+
+class TestPerformanceStatsPatternBarChart:
+    """Test pattern count bar chart in _render_performance_stats (line 833-834)."""
+
+    def test_pattern_counts_with_pandas(self):
+        """Verify pattern count bar chart renders (relies on pandas import)."""
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_performance_stats
+
+            _render_performance_stats(
+                {
+                    "execution_duration": {"count": 0},
+                    "branch_duration": {"count": 0},
+                    "execution_tokens": {"count": 0},
+                    "counters": {
+                        "executions_started_fan_out": 5,
+                        "executions_started_map_reduce": 3,
+                    },
+                }
+            )
+
+
+class TestRecentExecutionWithStepStatuses:
+    """Test recent execution rendering with various step statuses."""
+
+    def test_execution_with_failed_step(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+                mock_tracker = MagicMock()
+                mock_tracker.get_dashboard_data.return_value = {
+                    "summary": {
+                        "active_workflows": 0,
+                        "total_executions": 1,
+                        "success_rate": 75.0,
+                        "avg_duration_ms": 200,
+                    },
+                    "active_workflows": [],
+                    "recent_executions": [
+                        {
+                            "workflow_name": "mixed",
+                            "execution_id": "mix123456789abcdef",
+                            "status": "failed",
+                            "duration_ms": 200,
+                            "completed_steps": 1,
+                            "total_steps": 2,
+                            "started_at": "2026-01-27",
+                            "completed_at": "2026-01-27",
+                            "total_tokens": 0,
+                            "error": "Step failed",
+                            "steps": [
+                                {
+                                    "step_id": "s1",
+                                    "step_type": "shell",
+                                    "action": "run",
+                                    "status": "success",
+                                    "duration_ms": 100,
+                                },
+                                {
+                                    "step_id": "s2",
+                                    "step_type": "openai",
+                                    "action": "generate",
+                                    "status": "failed",
+                                    "duration_ms": 100,
+                                },
+                            ],
+                        }
+                    ],
+                }
+                mock_tracker_fn.return_value = mock_tracker
+                from test_ai.dashboard.monitoring_pages import render_monitoring_page
+
+                render_monitoring_page()
+
+
+class TestActiveExecutionWithBranches:
+    """Test active execution rendering with branch details."""
+
+    def test_with_all_branch_statuses(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_active_execution
+
+            _render_active_execution(
+                {
+                    "pattern_type": "map_reduce",
+                    "step_id": "step_map",
+                    "execution_id": "exec_map_123456789",
+                    "total_items": 5,
+                    "completed_count": 2,
+                    "failed_count": 1,
+                    "active_branch_count": 2,
+                    "duration_ms": 1500,
+                    "total_tokens": 250,
+                    "branches": [
+                        {
+                            "branch_id": "b1_pending_branch",
+                            "status": "pending",
+                            "item_index": 0,
+                            "duration_ms": 0,
+                        },
+                        {
+                            "branch_id": "b2_running_branch",
+                            "status": "running",
+                            "item_index": 1,
+                            "duration_ms": 50,
+                        },
+                        {
+                            "branch_id": "b3_completed_branch",
+                            "status": "completed",
+                            "item_index": 2,
+                            "duration_ms": 200,
+                        },
+                        {
+                            "branch_id": "b4_failed_branch",
+                            "status": "failed",
+                            "item_index": 3,
+                            "duration_ms": 100,
+                        },
+                        {
+                            "branch_id": "b5_cancelled_branch",
+                            "status": "cancelled",
+                            "item_index": 4,
+                            "duration_ms": 10,
+                        },
+                    ],
+                }
+            )
+
+    def test_with_no_duration_no_tokens(self):
+        """Test execution with 0 duration and 0 tokens (no metric rendered)."""
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_active_execution
+
+            _render_active_execution(
+                {
+                    "pattern_type": "parallel_group",
+                    "step_id": "step_pg",
+                    "execution_id": "exec_pg_1234567890",
+                    "total_items": 2,
+                    "completed_count": 0,
+                    "failed_count": 0,
+                    "active_branch_count": 2,
+                    "duration_ms": 0,
+                    "total_tokens": 0,
+                    "branches": [],
+                }
+            )
+
+
+class TestRecentExecutionVariants:
+    """Test _render_recent_execution with different patterns and statuses."""
+
+    def test_fan_in_pattern(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_recent_execution
+
+            _render_recent_execution(
+                {
+                    "pattern_type": "fan_in",
+                    "step_id": "merge_step",
+                    "execution_id": "exec_fanin_12345678",
+                    "status": "completed",
+                    "total_items": 3,
+                    "completed_count": 3,
+                    "failed_count": 0,
+                    "duration_ms": 500,
+                    "total_tokens": 100,
+                    "started_at": "2026-01-27",
+                    "completed_at": "2026-01-27",
+                    "branches": [],
+                }
+            )
+
+    def test_failed_with_error_branches(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_recent_execution
+
+            _render_recent_execution(
+                {
+                    "pattern_type": "auto_parallel",
+                    "step_id": "auto_step",
+                    "execution_id": "exec_auto_12345678",
+                    "status": "failed",
+                    "total_items": 3,
+                    "completed_count": 1,
+                    "failed_count": 2,
+                    "duration_ms": 800,
+                    "total_tokens": 50,
+                    "started_at": "2026-01-27",
+                    "completed_at": "2026-01-27",
+                    "branches": [
+                        {
+                            "branch_id": "b1",
+                            "status": "failed",
+                            "error": "Connection timeout",
+                        },
+                        {
+                            "branch_id": "b2",
+                            "status": "failed",
+                            "error": "Rate limited",
+                        },
+                        {
+                            "branch_id": "b3",
+                            "status": "completed",
+                            "error": None,
+                        },
+                    ],
+                }
+            )
+
+
+class TestCollectOutputEdgeCases:
+    """Test _render_collect_output edge cases."""
+
+    def test_collect_with_empty_counters(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_collect_output
+
+            output = SimpleNamespace(
+                source="tracker",
+                collected_at="2026-01-27",
+                data={"metrics": {"counters": {}}, "summary": {}},
+            )
+            _render_collect_output(output)
+
+    def test_collect_with_string_output(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_collect_output
+
+            _render_collect_output("raw string output")
+
+    def test_collect_with_many_counters(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_collect_output
+
+            output = SimpleNamespace(
+                source="tracker",
+                collected_at="2026-01-27",
+                data={
+                    "metrics": {
+                        "counters": {f"counter_{i}": i * 10 for i in range(10)}
+                    },
+                },
+            )
+            _render_collect_output(output)
+
+
+class TestAnalyzeOutputEdgeCases:
+    """Test _render_analyze_output edge cases."""
+
+    def test_findings_with_unknown_severity(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_analyze_output
+
+            output = SimpleNamespace(
+                severity="critical",
+                findings=[
+                    {"severity": "unknown_sev", "message": "Something"},
+                    {"message": "No severity key"},
+                ],
+            )
+            _render_analyze_output(output)
+
+
+class TestVisualizeOutputEdgeCases:
+    """Test _render_visualize_output when no charts or no streamlit_code."""
+
+    def test_no_charts_attr(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_visualize_output
+
+            # Object without charts attr
+            obj = MagicMock(spec=[])
+            _render_visualize_output(obj)
+
+    def test_no_streamlit_code(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_visualize_output
+
+            output = SimpleNamespace(charts=[], streamlit_code=None)
+            _render_visualize_output(output)
+
+
+class TestReportOutputEdgeCases:
+    """Test _render_report_output edge cases."""
+
+    def test_no_report_type(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_report_output
+
+            obj = MagicMock(spec=[])
+            _render_report_output(obj)
+
+    def test_no_summary(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_report_output
+
+            output = SimpleNamespace(report_type="detailed")
+            _render_report_output(output)
+
+
+class TestAlertOutputEdgeCases:
+    """Test _render_alert_output edge cases."""
+
+    def test_alerts_with_missing_keys(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_alert_output
+
+            _render_alert_output(
+                SimpleNamespace(
+                    alerts=[
+                        {},  # No severity, title, or message
+                        {"severity": "info"},  # No title or message
+                    ]
+                )
+            )
+
+    def test_no_alerts_attr(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_alert_output
+
+            obj = MagicMock(spec=[])
+            _render_alert_output(obj)
+
+
+class TestRenderPipelineResultWithStages:
+    """Test _render_pipeline_result with various stage types."""
+
+    def test_stage_with_output_for_each_type(self):
+        with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
+            from test_ai.dashboard.monitoring_pages import _render_pipeline_result
+
+            stages = []
+            for stage_type in ["collect", "analyze", "visualize", "report", "alert"]:
+                stage = MagicMock()
+                stage.stage.value = stage_type
+                stage.duration_ms = 50.0
+                stage.status = "success"
+                stage.error = None
+                stage.output = MagicMock()
+                stages.append(stage)
+
+            result = MagicMock()
+            result.status = "completed"
+            result.stages = stages
+            result.errors = []
+            result.final_output = SimpleNamespace(
+                metrics={"counters": {"total": 10, "errors": 2}},
+                findings=[{"severity": "info", "message": "All good"}],
+                to_dict=lambda: {"key": "val"},
+            )
+
+            _render_pipeline_result(result, "test", {"test": {"name": "Test"}})
