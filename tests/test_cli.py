@@ -328,7 +328,7 @@ class TestValidateCommand:
 class TestStatusCommand:
     """Tests for the status command."""
 
-    @patch("test_ai.cli.main.get_tracker")
+    @patch("test_ai.cli.commands.workflow.get_tracker")
     def test_status_displays_metrics(self, mock_get_tracker):
         """Status command displays metrics."""
         mock_tracker = MagicMock()
@@ -351,7 +351,7 @@ class TestStatusCommand:
         assert "Total Executions: 100" in result.output
         assert "Success Rate: 95.5%" in result.output
 
-    @patch("test_ai.cli.main.get_tracker")
+    @patch("test_ai.cli.commands.workflow.get_tracker")
     def test_status_json_output(self, mock_get_tracker):
         """Status command outputs JSON when requested."""
         mock_tracker = MagicMock()
@@ -368,7 +368,7 @@ class TestStatusCommand:
         data = json.loads(result.output)
         assert "summary" in data
 
-    @patch("test_ai.cli.main.get_tracker")
+    @patch("test_ai.cli.commands.workflow.get_tracker")
     def test_status_handles_unavailable_tracker(self, mock_get_tracker):
         """Status handles unavailable tracker gracefully."""
         mock_get_tracker.side_effect = Exception("Not available")
@@ -382,7 +382,7 @@ class TestStatusCommand:
 class TestListCommand:
     """Tests for the list command."""
 
-    @patch("test_ai.cli.main.get_workflow_engine")
+    @patch("test_ai.cli.commands.workflow.get_workflow_engine")
     def test_list_no_workflows(self, mock_get_engine):
         """List shows message when no workflows exist."""
         mock_engine = MagicMock()
@@ -394,7 +394,7 @@ class TestListCommand:
         assert result.exit_code == 0
         assert "No workflows found" in result.output
 
-    @patch("test_ai.cli.main.get_workflow_engine")
+    @patch("test_ai.cli.commands.workflow.get_workflow_engine")
     def test_list_shows_workflows(self, mock_get_engine):
         """List displays available workflows."""
         mock_engine = MagicMock()
@@ -412,7 +412,7 @@ class TestListCommand:
         assert "wf1" in result.output
         assert "Workflow 1" in result.output
 
-    @patch("test_ai.cli.main.get_workflow_engine")
+    @patch("test_ai.cli.commands.workflow.get_workflow_engine")
     def test_list_json_output(self, mock_get_engine):
         """List outputs JSON when requested."""
         mock_engine = MagicMock()
@@ -429,7 +429,7 @@ class TestListCommand:
 class TestRunCommand:
     """Tests for the run command."""
 
-    @patch("test_ai.cli.main.get_workflow_engine")
+    @patch("test_ai.cli.commands.workflow.get_workflow_engine")
     def test_run_workflow_not_found(self, mock_get_engine):
         """Run fails when workflow not found."""
         mock_engine = MagicMock()
@@ -442,7 +442,7 @@ class TestRunCommand:
         assert result.exit_code == 1
         assert "not found" in result.output.lower()
 
-    @patch("test_ai.cli.main.get_workflow_engine")
+    @patch("test_ai.cli.commands.workflow.get_workflow_engine")
     def test_run_dry_run(self, mock_get_engine):
         """Run with --dry-run shows plan without executing."""
         mock_engine = MagicMock()
@@ -462,7 +462,7 @@ class TestRunCommand:
         assert "Dry run" in result.output
         mock_engine.execute_workflow.assert_not_called()
 
-    @patch("test_ai.cli.main.get_workflow_engine")
+    @patch("test_ai.cli.commands.workflow.get_workflow_engine")
     def test_run_with_variables(self, mock_get_engine):
         """Run passes variables to workflow."""
         mock_engine = MagicMock()
@@ -502,8 +502,8 @@ class TestRunCommand:
 class TestAgentCommands:
     """Tests for interactive agent commands."""
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_plan_command(self, mock_context, mock_get_client):
         """Plan command calls planner agent."""
         mock_context.return_value = {
@@ -527,8 +527,8 @@ class TestAgentCommands:
         call_kwargs = mock_client.execute_agent.call_args[1]
         assert call_kwargs["role"] == "planner"
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_build_command(self, mock_context, mock_get_client):
         """Build command calls builder agent."""
         mock_context.return_value = {
@@ -551,8 +551,8 @@ class TestAgentCommands:
         call_kwargs = mock_client.execute_agent.call_args[1]
         assert call_kwargs["role"] == "builder"
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_test_command(self, mock_context, mock_get_client):
         """Test command calls tester agent."""
         mock_context.return_value = {
@@ -575,8 +575,8 @@ class TestAgentCommands:
         call_kwargs = mock_client.execute_agent.call_args[1]
         assert call_kwargs["role"] == "tester"
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_review_command(self, mock_context, mock_get_client):
         """Review command calls reviewer agent."""
         mock_context.return_value = {
@@ -599,8 +599,8 @@ class TestAgentCommands:
         call_kwargs = mock_client.execute_agent.call_args[1]
         assert call_kwargs["role"] == "reviewer"
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_ask_command(self, mock_context, mock_get_client):
         """Ask command answers questions about codebase."""
         mock_context.return_value = {
@@ -621,8 +621,8 @@ class TestAgentCommands:
         assert "Question" in result.output
         mock_client.generate_completion.assert_called_once()
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_agent_error_handling(self, mock_context, mock_get_client):
         """Agent commands handle errors gracefully."""
         mock_context.return_value = {
@@ -643,8 +643,8 @@ class TestAgentCommands:
         assert result.exit_code == 0
         assert "Error" in result.output
 
-    @patch("test_ai.cli.main.get_claude_client")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_claude_client")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_agent_json_output(self, mock_context, mock_get_client):
         """Agent commands support JSON output."""
         mock_context.return_value = {
@@ -675,8 +675,8 @@ class TestAgentCommands:
 class TestDoCommand:
     """Tests for the 'do' task command."""
 
-    @patch("test_ai.cli.main.get_workflow_executor")
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.get_workflow_executor")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     @patch("test_ai.workflow.loader.load_workflow")
     def test_do_dry_run(self, mock_load, mock_context, mock_get_executor):
         """Do command with --dry-run shows plan."""
@@ -698,7 +698,7 @@ class TestDoCommand:
         assert result.exit_code == 0
         assert "Dry run" in result.output
 
-    @patch("test_ai.cli.main.detect_codebase_context")
+    @patch("test_ai.cli.commands.dev.detect_codebase_context")
     def test_do_workflow_not_found(self, mock_context):
         """Do command fails when workflow not found."""
         mock_context.return_value = {
@@ -1020,7 +1020,7 @@ class TestPluginsCommands:
 class TestLogsCommand:
     """Tests for logs command."""
 
-    @patch("test_ai.cli.main.get_tracker")
+    @patch("test_ai.cli.commands.admin.get_tracker")
     def test_logs_empty(self, mock_get_tracker):
         """Logs shows message when empty."""
         mock_tracker = MagicMock()
@@ -1032,7 +1032,7 @@ class TestLogsCommand:
         assert result.exit_code == 0
         assert "No logs found" in result.output
 
-    @patch("test_ai.cli.main.get_tracker")
+    @patch("test_ai.cli.commands.admin.get_tracker")
     def test_logs_displays_entries(self, mock_get_tracker):
         """Logs displays log entries."""
         mock_tracker = MagicMock()
@@ -1052,7 +1052,7 @@ class TestLogsCommand:
         assert result.exit_code == 0
         assert "Test log message" in result.output
 
-    @patch("test_ai.cli.main.get_tracker")
+    @patch("test_ai.cli.commands.admin.get_tracker")
     def test_logs_json_output(self, mock_get_tracker):
         """Logs outputs JSON when requested."""
         mock_tracker = MagicMock()

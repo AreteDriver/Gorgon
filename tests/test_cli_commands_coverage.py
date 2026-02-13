@@ -234,7 +234,7 @@ class TestRunCommand:
                 }
             )
         )
-        with patch("test_ai.cli.main.get_workflow_engine") as mock_engine:
+        with patch("test_ai.cli.commands.workflow.get_workflow_engine") as mock_engine:
             mock_result = MagicMock()
             mock_result.status = "completed"
             mock_result.step_results = {}
@@ -272,19 +272,19 @@ class TestValidateCommand:
 
 class TestListCommand:
     def test_list_json(self):
-        with patch("test_ai.cli.main.get_workflow_engine") as mock_engine:
+        with patch("test_ai.cli.commands.workflow.get_workflow_engine") as mock_engine:
             mock_engine.return_value.list_workflows.return_value = []
             result = runner.invoke(app, ["list", "--json"])
             assert result.exit_code == 0
 
     def test_list_empty(self):
-        with patch("test_ai.cli.main.get_workflow_engine") as mock_engine:
+        with patch("test_ai.cli.commands.workflow.get_workflow_engine") as mock_engine:
             mock_engine.return_value.list_workflows.return_value = []
             result = runner.invoke(app, ["list"])
             assert result.exit_code == 0
 
     def test_list_with_workflows(self):
-        with patch("test_ai.cli.main.get_workflow_engine") as mock_engine:
+        with patch("test_ai.cli.commands.workflow.get_workflow_engine") as mock_engine:
             mock_wf = MagicMock()
             mock_wf.steps = [MagicMock()]
             mock_engine.return_value.list_workflows.return_value = [
@@ -297,7 +297,7 @@ class TestListCommand:
 
 class TestStatusCommand:
     def test_status_json(self):
-        with patch("test_ai.cli.main.get_tracker") as mock_tracker:
+        with patch("test_ai.cli.commands.workflow.get_tracker") as mock_tracker:
             mock_tracker.return_value.get_dashboard_data.return_value = {
                 "summary": {},
                 "active_workflows": [],
@@ -307,12 +307,15 @@ class TestStatusCommand:
             assert result.exit_code == 0
 
     def test_status_no_tracker(self):
-        with patch("test_ai.cli.main.get_tracker", side_effect=Exception("no tracker")):
+        with patch(
+            "test_ai.cli.commands.workflow.get_tracker",
+            side_effect=Exception("no tracker"),
+        ):
             result = runner.invoke(app, ["status"])
             assert result.exit_code == 0
 
     def test_status_with_data(self):
-        with patch("test_ai.cli.main.get_tracker") as mock_tracker:
+        with patch("test_ai.cli.commands.workflow.get_tracker") as mock_tracker:
             mock_tracker.return_value.get_dashboard_data.return_value = {
                 "summary": {
                     "active_workflows": 2,
