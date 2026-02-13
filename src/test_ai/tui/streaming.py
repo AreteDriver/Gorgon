@@ -53,7 +53,7 @@ async def stream_completion(
     try:
         provider.initialize()
     except Exception:
-        pass  # Already initialized — providers raise or no-op
+        pass  # Graceful degradation: already initialized, providers raise or no-op
 
     # Extract system prompt from messages if not provided
     if system_prompt is None:

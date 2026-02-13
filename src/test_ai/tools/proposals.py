@@ -71,7 +71,7 @@ class ProposalManager:
             try:
                 old_content = resolved.read_text(encoding="utf-8")
             except (OSError, UnicodeDecodeError):
-                pass  # File unreadable - proceed with None old_content
+                pass  # Non-critical fallback: file unreadable, proceed with None old_content
 
         proposal_id = str(uuid.uuid4())
         now = datetime.now(timezone.utc)

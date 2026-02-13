@@ -913,7 +913,7 @@ class ContextWindow:
                     try:
                         role = MessageRole(role_str)
                     except ValueError:
-                        pass
+                        pass  # Graceful degradation: invalid role string falls back to default USER
                     content = content[end_bracket + 2 :]  # Skip "] "
 
             self.add_message(role, content, metadata=mem.metadata)

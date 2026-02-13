@@ -721,7 +721,7 @@ class ExecutionManager:
             try:
                 variables = json.loads(row["variables"])
             except (json.JSONDecodeError, TypeError):
-                pass
+                pass  # Graceful degradation: corrupted JSON in DB row, use empty dict
 
         return Execution(
             id=row["id"],
@@ -745,7 +745,7 @@ class ExecutionManager:
             try:
                 metadata = json.loads(row["metadata"])
             except (json.JSONDecodeError, TypeError):
-                pass
+                pass  # Graceful degradation: corrupted metadata JSON in DB row, use None
 
         return ExecutionLog(
             id=row.get("id"),

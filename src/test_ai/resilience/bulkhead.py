@@ -201,7 +201,7 @@ class Bulkhead:
                     self._total_acquired += 1
                 return True
             except asyncio.TimeoutError:
-                pass  # Semaphore wasn't immediately available
+                pass  # Graceful degradation: semaphore not immediately available, try waiting below
 
         # Need to wait - check if waiting queue has capacity
         async with self._async_lock:

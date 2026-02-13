@@ -71,7 +71,7 @@ class Entity:
         try:
             entity_type = EntityType(entity_type)
         except ValueError:
-            pass  # Keep as string
+            pass  # Graceful degradation: unrecognized entity type kept as string
 
         return cls(
             id=data.get("id", str(uuid.uuid4())[:12]),

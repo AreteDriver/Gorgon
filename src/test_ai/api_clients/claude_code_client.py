@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 try:
     import anthropic
 except ImportError:
-    anthropic = None
+    anthropic = None  # Optional import: anthropic package not installed
 
 
 # Default role prompts - can be overridden via config/agent_prompts.json
@@ -173,7 +173,7 @@ class ClaudeCodeClient:
                     for role, info in data.items()
                 }
             except Exception:
-                pass
+                pass  # Non-critical fallback: config file parse failure, use default prompts
         return DEFAULT_ROLE_PROMPTS.copy()
 
     @staticmethod

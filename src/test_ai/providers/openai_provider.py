@@ -20,7 +20,7 @@ from test_ai.utils.retry import with_retry, async_with_retry
 try:
     from openai import OpenAI, AsyncOpenAI, RateLimitError as OpenAIRateLimitError
 except ImportError:
-    OpenAI = None
+    OpenAI = None  # Optional import: openai package not installed
     AsyncOpenAI = None
     OpenAIRateLimitError = Exception
 
@@ -85,7 +85,7 @@ class OpenAIProvider(Provider):
 
                 self.config.api_key = get_settings().openai_api_key
             except Exception:
-                pass
+                pass  # Non-critical fallback: settings unavailable, check api_key below
 
         if not self.config.api_key:
             raise ProviderNotConfiguredError("OpenAI API key not configured")

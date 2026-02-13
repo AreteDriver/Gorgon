@@ -57,7 +57,7 @@ class Broadcaster:
             try:
                 await self._task
             except asyncio.CancelledError:
-                pass
+                pass  # Graceful degradation: task cancellation is expected during stop()
         logger.info("Broadcaster stopped")
 
     async def _process_queue(self) -> None:

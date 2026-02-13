@@ -268,7 +268,7 @@ class ConnectionManager:
                 data = await websocket.receive_text()
                 await self.handle_client_message(connection, data)
         except WebSocketDisconnect:
-            pass
+            pass  # Graceful degradation: client disconnect is normal lifecycle event
         except Exception as e:
             logger.error(f"WebSocket error for {connection.id}: {e}")
         finally:

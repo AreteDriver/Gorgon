@@ -186,7 +186,7 @@ class MetricsCollector:
             try:
                 callback(event_type, metrics)
             except Exception:
-                pass  # Don't let callbacks break collection
+                pass  # Best-effort cleanup: callback failure must not break metrics collection
 
     def start_workflow(
         self,

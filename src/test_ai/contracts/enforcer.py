@@ -237,7 +237,7 @@ class ContractEnforcer:
             contract = get_contract(role_str)
             required_fields = contract.output_schema.get("required", [])
         except ValueError:
-            pass
+            pass  # Graceful degradation: unknown role has no required fields, use empty list
 
         parts = [
             f"[Retry attempt {attempt + 1}] Your previous output did not satisfy "

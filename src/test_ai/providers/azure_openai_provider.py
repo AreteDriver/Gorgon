@@ -23,7 +23,7 @@ try:
     from openai import AzureOpenAI, AsyncAzureOpenAI
     from openai import RateLimitError as OpenAIRateLimitError
 except ImportError:
-    AzureOpenAI = None
+    AzureOpenAI = None  # Optional import: openai package not installed
     AsyncAzureOpenAI = None
     OpenAIRateLimitError = Exception
 
@@ -110,7 +110,7 @@ class AzureOpenAIProvider(Provider):
                         "AZURE_OPENAI_DEPLOYMENT"
                     )
             except Exception:
-                pass  # Config loading optional - fall back to env vars below
+                pass  # Non-critical fallback: config loading optional, fall back to env vars below
 
         if not self.config.api_key:
             raise ProviderNotConfiguredError("Azure OpenAI API key not configured")

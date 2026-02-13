@@ -77,7 +77,7 @@ def _get_retryable_exceptions() -> Tuple[Type[Exception], ...]:
             ]
         )
     except (ImportError, AttributeError):
-        pass
+        pass  # Optional import: OpenAI SDK not installed
 
     # Anthropic SDK exceptions
     try:
@@ -92,7 +92,7 @@ def _get_retryable_exceptions() -> Tuple[Type[Exception], ...]:
             ]
         )
     except (ImportError, AttributeError):
-        pass
+        pass  # Optional import: Anthropic SDK not installed
 
     # GitHub SDK exceptions (PyGithub)
     try:
@@ -104,7 +104,7 @@ def _get_retryable_exceptions() -> Tuple[Type[Exception], ...]:
             ]
         )
     except (ImportError, AttributeError):
-        pass
+        pass  # Optional import: PyGithub not installed
 
     # Requests library exceptions
     try:
@@ -117,7 +117,7 @@ def _get_retryable_exceptions() -> Tuple[Type[Exception], ...]:
             ]
         )
     except (ImportError, AttributeError):
-        pass
+        pass  # Optional import: requests library not installed
 
     return tuple(exceptions)
 

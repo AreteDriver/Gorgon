@@ -155,7 +155,7 @@ def _detect_python_framework(path: Path) -> str | None:
             if keyword in content:
                 return framework
     except Exception:
-        pass
+        pass  # Non-critical fallback: pyproject.toml unreadable, framework detection skipped
     return None
 
 
@@ -169,7 +169,7 @@ def _detect_js_framework(path: Path) -> str | None:
             if keyword in deps:
                 return framework
     except Exception:
-        pass
+        pass  # Non-critical fallback: package.json unreadable, framework detection skipped
     return None
 
 
@@ -215,7 +215,7 @@ def _get_readme_content(path: Path, max_chars: int = 500) -> str | None:
             try:
                 return readme_path.read_text()[:max_chars]
             except Exception:
-                pass
+                pass  # Non-critical fallback: README unreadable, try next filename variant
     return None
 
 
@@ -1116,7 +1116,7 @@ def test(
                 f"\nCode to test:\n```\n{target_path.read_text()[:5000]}\n```"
             )
         except Exception:
-            pass
+            pass  # Non-critical fallback: source file unreadable, proceed without code context
 
     console.print(
         Panel(
@@ -1170,7 +1170,7 @@ def _get_git_diff_context(target: str, cwd: Path) -> str:
         if diff.returncode == 0:
             return f"\nGit diff:\n```diff\n{diff.stdout[:8000]}\n```"
     except Exception:
-        pass
+        pass  # Non-critical fallback: git diff unavailable, proceed without diff context
     return ""
 
 
@@ -1190,7 +1190,7 @@ def _get_directory_context(target_path: Path) -> str:
         try:
             code_snippets.append(f"# {f}\n{f.read_text()[:2000]}")
         except Exception:
-            pass
+            pass  # Non-critical fallback: skip unreadable files in directory context
     if code_snippets:
         return f"\nFiles to review:\n```\n{'---'.join(code_snippets)}\n```"
     return ""

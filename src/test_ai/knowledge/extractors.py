@@ -172,7 +172,7 @@ Only output the JSON array, nothing else."""
                     try:
                         entity_type = EntityType(entity_type.lower())
                     except ValueError:
-                        pass  # Keep as string
+                        pass  # Graceful degradation: unrecognized entity type kept as string
 
                     entities.append(
                         Entity(
@@ -282,7 +282,7 @@ Only output the JSON array, nothing else."""
         try:
             return json.loads(text)
         except json.JSONDecodeError:
-            pass
+            pass  # Non-critical fallback: direct parse failed, try extracting JSON array
 
         # Try to extract JSON array
         match = re.search(r"\[[\s\S]*\]", text)
@@ -290,7 +290,7 @@ Only output the JSON array, nothing else."""
             try:
                 return json.loads(match.group())
             except json.JSONDecodeError:
-                pass
+                pass  # Non-critical fallback: array extraction failed, try JSON object
 
         # Try to extract JSON object
         match = re.search(r"\{[\s\S]*\}", text)
@@ -298,7 +298,7 @@ Only output the JSON array, nothing else."""
             try:
                 return json.loads(match.group())
             except json.JSONDecodeError:
-                pass
+                pass  # Non-critical fallback: all JSON parse strategies exhausted
 
         return None
 

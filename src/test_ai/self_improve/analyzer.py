@@ -395,7 +395,7 @@ class CodebaseAnalyzer:
                     try:
                         code_samples.append((str(rel_path), py_file.read_text()[:3000]))
                     except Exception:
-                        pass  # Skip unreadable files
+                        pass  # Non-critical fallback: skip unreadable files during AI analysis
 
         if not code_samples:
             return static_result

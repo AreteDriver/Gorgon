@@ -257,7 +257,7 @@ class PluginInstaller:
         try:
             self.registry.unregister(request.name)
         except Exception:
-            pass  # Plugin may not be registered yet
+            pass  # Graceful degradation: plugin may not be registered yet
 
         # Download and install new version
         plugin_path = None

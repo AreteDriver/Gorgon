@@ -351,7 +351,7 @@ class BatchExporter:
                 trace = self._queue.get(timeout=0.1)
                 batch.append(trace)
             except queue.Empty:
-                pass
+                pass  # Graceful degradation: queue poll timeout is normal control flow
 
             # Export when batch is full or interval elapsed
             should_export = len(batch) >= self.config.batch_size or (

@@ -326,7 +326,7 @@ class ParallelExecutionTracker:
             try:
                 callback(event_type, metrics)
             except Exception:
-                pass  # Don't let callbacks break tracking
+                pass  # Best-effort cleanup: callback failure must not break tracking
 
     def start_execution(
         self,

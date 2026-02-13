@@ -49,7 +49,7 @@ class SettingsManager:
                     Fernet(key.encode())
                     return key.encode()
                 except Exception:
-                    pass
+                    pass  # Graceful degradation: invalid Fernet key falls through to derived key
 
         # Fall back to deriving from JWT_SECRET or a default
         secret = os.environ.get("JWT_SECRET", "gorgon-default-secret-change-me")

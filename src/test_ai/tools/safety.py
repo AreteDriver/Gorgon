@@ -232,7 +232,7 @@ class PathValidator:
             resolved.relative_to(self.project_path)
             return True
         except ValueError:
-            pass
+            pass  # Graceful degradation: path not under project root, check allowed paths next
 
         # Check additional allowed paths
         for allowed in self.allowed_paths:
@@ -240,7 +240,7 @@ class PathValidator:
                 resolved.relative_to(allowed)
                 return True
             except ValueError:
-                pass
+                pass  # Graceful degradation: path not under this allowed dir, try next
 
         return False
 

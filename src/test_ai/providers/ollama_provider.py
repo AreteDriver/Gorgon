@@ -21,7 +21,7 @@ from .base import (
 try:
     import httpx
 except ImportError:
-    httpx = None
+    httpx = None  # Optional import: httpx package not installed
 
 
 class OllamaProvider(Provider):
@@ -417,7 +417,7 @@ class OllamaProvider(Provider):
                     "details": data.get("details"),
                 }
         except Exception:
-            pass  # Model details optional - fall back to basic info
+            pass  # Non-critical fallback: model details optional, fall back to basic info
 
         return {"model": model, "provider": self.name}
 

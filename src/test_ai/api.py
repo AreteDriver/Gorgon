@@ -1463,7 +1463,7 @@ def start_workflow_execution(
                 )
                 workflow_name = yaml_workflow.name
             except Exception:
-                pass
+                pass  # Non-critical fallback: YAML parse failure, use workflow_id as name
         else:
             raise not_found("Workflow", workflow_id)
 

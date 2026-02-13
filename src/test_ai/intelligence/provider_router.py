@@ -578,7 +578,7 @@ class ProviderRouter:
                     if isinstance(prov_data, dict) and "roles" in prov_data:
                         roles.update(prov_data["roles"])
         except Exception:
-            pass
+            pass  # Non-critical fallback: outcome tracker unavailable, use known roles only
 
         # Ensure common roles are always present.
         roles.update(

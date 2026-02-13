@@ -36,7 +36,7 @@ try:
 
     NEW_COMPONENTS_AVAILABLE = True
 except ImportError:
-    NEW_COMPONENTS_AVAILABLE = False
+    NEW_COMPONENTS_AVAILABLE = False  # Optional import: dashboard components not available
 
 
 def _get_workflow_builder_renderer() -> Callable[[], None] | None:
@@ -111,7 +111,7 @@ def render_sidebar() -> str:
         try:
             render_cost_widget()
         except Exception:
-            pass
+            pass  # Non-critical fallback: cost widget render failure is non-fatal
 
     return page
 

@@ -21,7 +21,7 @@ try:
     import anthropic
     from anthropic import RateLimitError as AnthropicRateLimitError
 except ImportError:
-    anthropic = None
+    anthropic = None  # Optional import: anthropic package not installed
     AnthropicRateLimitError = Exception
 
 
@@ -85,7 +85,7 @@ class AnthropicProvider(Provider):
 
                 self.config.api_key = get_settings().anthropic_api_key
             except Exception:
-                pass
+                pass  # Non-critical fallback: settings unavailable, check api_key below
 
         if not self.config.api_key:
             raise ProviderNotConfiguredError("Anthropic API key not configured")

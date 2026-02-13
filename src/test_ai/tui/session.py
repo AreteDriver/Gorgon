@@ -90,7 +90,7 @@ class TUISession:
         try:
             os.chmod(HISTORY_DIR, _DIR_MODE)
         except OSError:
-            pass  # Best-effort: chmod may fail on non-POSIX filesystems
+            pass  # Best-effort cleanup: chmod may fail on non-POSIX filesystems
 
         path = self.filepath
         path.write_text(json.dumps(self.to_dict(), indent=2))
@@ -98,7 +98,7 @@ class TUISession:
         try:
             os.chmod(path, _FILE_MODE)
         except OSError:
-            pass  # Best-effort: chmod may fail on non-POSIX filesystems
+            pass  # Best-effort cleanup: chmod may fail on non-POSIX filesystems
         return path
 
     @classmethod

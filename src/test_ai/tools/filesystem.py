@@ -165,8 +165,7 @@ class FilesystemTools:
                     )
                 )
             except OSError:
-                # Skip files we can't stat
-                pass
+                pass  # Best-effort cleanup: skip files we can't stat
 
         # Sort: directories first, then by name
         entries.sort(key=lambda e: (not e.is_dir, e.name.lower()))
@@ -319,7 +318,7 @@ class FilesystemTools:
                     if not self.validator.is_excluded(rel_path):
                         visible_entries.append(entry)
                 except ValueError:
-                    pass  # Path not relative to root - skip entry
+                    pass  # Graceful degradation: path not relative to root, skip entry
 
             for i, entry in enumerate(visible_entries):
                 is_last = i == len(visible_entries) - 1
@@ -371,7 +370,7 @@ class FilesystemTools:
                 if not self.validator.is_excluded(rel_path) and path.is_file():
                     results.append(rel_path)
             except ValueError:
-                pass  # Path not relative to root - skip
+                pass  # Graceful degradation: path not relative to root, skip
 
             if len(results) >= self.max_results:
                 break
