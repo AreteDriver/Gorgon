@@ -6,15 +6,26 @@ import asyncio
 import logging
 import subprocess
 import time
-from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from enum import Enum
 from typing import Callable
 
 from .loader import WorkflowConfig, StepConfig
 from .parallel import ParallelExecutor, ParallelTask, ParallelStrategy
 from .rate_limited_executor import RateLimitedParallelExecutor
 from .auto_parallel import build_dependency_graph, find_parallel_groups
+from .executor_results import (  # noqa: F401 — re-exported for backward compat
+    ExecutionResult,
+    StepHandler,
+    StepResult,
+    StepStatus,
+)
+from .executor_clients import (  # noqa: F401 — re-exported for backward compat
+    _get_claude_client,
+    _get_openai_client,
+    configure_circuit_breaker,
+    get_circuit_breaker,
+    reset_circuit_breakers,
+)
 from test_ai.monitoring.parallel_tracker import (
     ParallelPatternType,
     get_parallel_tracker,
@@ -29,148 +40,6 @@ from test_ai.api_clients import (
 )
 
 logger = logging.getLogger(__name__)
-
-# Global circuit breakers for step types
-_circuit_breakers: dict[str, CircuitBreaker] = {}
-
-
-def configure_circuit_breaker(
-    key: str,
-    failure_threshold: int = 5,
-    recovery_timeout: float = 60.0,
-    success_threshold: int = 2,
-) -> CircuitBreaker:
-    """Configure a circuit breaker for a step type or custom key.
-
-    Args:
-        key: Identifier for the circuit breaker (e.g., step type or custom key)
-        failure_threshold: Number of failures before opening circuit
-        recovery_timeout: Seconds to wait before trying again
-        success_threshold: Successes needed in half-open to close circuit
-
-    Returns:
-        The configured CircuitBreaker instance
-    """
-    cb = CircuitBreaker(
-        name=key,
-        failure_threshold=failure_threshold,
-        recovery_timeout=recovery_timeout,
-        success_threshold=success_threshold,
-    )
-    _circuit_breakers[key] = cb
-    return cb
-
-
-def get_circuit_breaker(key: str) -> CircuitBreaker | None:
-    """Get circuit breaker by key."""
-    return _circuit_breakers.get(key)
-
-
-def reset_circuit_breakers() -> None:
-    """Reset all circuit breakers (for testing)."""
-    global _circuit_breakers
-    for cb in _circuit_breakers.values():
-        cb.reset()
-    _circuit_breakers = {}
-
-
-# Lazy-loaded API clients to avoid circular imports
-_claude_client = None
-_openai_client = None
-
-
-def _get_claude_client():
-    """Get or create ClaudeCodeClient instance."""
-    global _claude_client
-    if _claude_client is None:
-        try:
-            from test_ai.api_clients.claude_code_client import ClaudeCodeClient
-
-            _claude_client = ClaudeCodeClient()
-        except Exception:
-            _claude_client = False  # Mark as unavailable
-    return _claude_client if _claude_client else None
-
-
-def _get_openai_client():
-    """Get or create OpenAIClient instance."""
-    global _openai_client
-    if _openai_client is None:
-        try:
-            from test_ai.api_clients.openai_client import OpenAIClient
-
-            _openai_client = OpenAIClient()
-        except Exception:
-            _openai_client = False  # Mark as unavailable
-    return _openai_client if _openai_client else None
-
-
-class StepStatus(Enum):
-    """Status of a workflow step."""
-
-    PENDING = "pending"
-    RUNNING = "running"
-    SUCCESS = "success"
-    FAILED = "failed"
-    SKIPPED = "skipped"
-
-
-@dataclass
-class StepResult:
-    """Result of executing a single step."""
-
-    step_id: str
-    status: StepStatus
-    output: dict = field(default_factory=dict)
-    error: str | None = None
-    duration_ms: int = 0
-    tokens_used: int = 0
-    retries: int = 0
-
-
-@dataclass
-class ExecutionResult:
-    """Result of executing a complete workflow."""
-
-    workflow_name: str
-    status: str = "pending"  # "success", "failed", "partial", "pending"
-    steps: list[StepResult] = field(default_factory=list)
-    outputs: dict = field(default_factory=dict)
-    total_tokens: int = 0
-    total_duration_ms: int = 0
-    started_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    completed_at: datetime | None = None
-    error: str | None = None
-
-    def to_dict(self) -> dict:
-        return {
-            "workflow_name": self.workflow_name,
-            "status": self.status,
-            "steps": [
-                {
-                    "step_id": s.step_id,
-                    "status": s.status.value,
-                    "output": s.output,
-                    "error": s.error,
-                    "duration_ms": s.duration_ms,
-                    "tokens_used": s.tokens_used,
-                    "retries": s.retries,
-                }
-                for s in self.steps
-            ],
-            "outputs": self.outputs,
-            "total_tokens": self.total_tokens,
-            "total_duration_ms": self.total_duration_ms,
-            "started_at": self.started_at.isoformat(),
-            "completed_at": self.completed_at.isoformat()
-            if self.completed_at
-            else None,
-            "error": self.error,
-        }
-
-
-# Type alias for step handlers
-StepHandler = Callable[[StepConfig, dict], dict]
 
 
 class WorkflowExecutor:
@@ -1070,7 +939,7 @@ class WorkflowExecutor:
             return None, None, f"Unknown step type: {step.type}"
 
         cb_key = step.circuit_breaker_key or step.type
-        cb = _circuit_breakers.get(cb_key)
+        cb = get_circuit_breaker(cb_key)
         if cb and cb.is_open:
             logger.warning(f"Step '{step.id}' skipped: circuit breaker open")
             return None, None, f"Circuit breaker open for {cb_key}"
