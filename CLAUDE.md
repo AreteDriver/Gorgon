@@ -216,6 +216,22 @@ Plan → Build → Test → Review → Deploy
 
 ---
 
+## Skills
+
+Skills imported from: https://github.com/AreteDriver/ai-skills
+Path: Set `GORGON_SKILLS_PATH` to local clone of `ai-skills/agents/`
+
+Available agent skills:
+- `technical-debt-auditor` — 5 sub-agents, workflow.yaml, repo health scoring
+- `release-engineer` — last-mile shipping automation
+- `entity-resolver` — fuzzy entity matching and dedup
+- `context-mapper` — pre-execution codebase/corpus mapping
+- `workflow-debugger` — root-cause analysis for failed workflows
+- `document-forensics` — investigative document methodology
+- `intent-author` — Convergent intent graph authoring
+
+---
+
 ## Related Documentation
 
 - `README.md` - Project overview
