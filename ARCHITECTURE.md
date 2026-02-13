@@ -1,824 +1,730 @@
 # Gorgon Architecture
 
-## Overview
+## Positioning
 
-Gorgon is built as a modular, extensible workflow orchestration platform. This document provides a detailed technical overview of the system architecture, design decisions, and implementation patterns.
+Gorgon is an **AI Workflow Operating System** — a production-grade platform for orchestrating specialized AI agents across enterprise workflows with first-class operational primitives for governance, observability, cost control, and resilience.
+
+Gorgon coordinates multiple specialized "heads" (agents) — Planner, Builder, Tester, Reviewer, Architect, Documenter, Analyst, and others — through declarative workflow definitions with checkpoint-based state management, contract-driven validation, and multi-provider fault tolerance.
+
+---
 
 ## System Architecture
 
-### High-Level Architecture
+### Layer Model
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                     Client Layer                            │
-│  ┌──────────────────┐         ┌──────────────────────┐     │
-│  │  Streamlit UI    │         │   REST API Clients   │     │
-│  │  (Dashboard)     │         │   (curl, SDK, etc)   │     │
-│  └──────────────────┘         └──────────────────────┘     │
-└────────────┬──────────────────────────┬───────────────────┘
-             │                          │
-             v                          v
-┌─────────────────────────────────────────────────────────────┐
-│                   Application Layer                         │
-│  ┌──────────────────────────────────────────────────────┐   │
-│  │              FastAPI REST API                        │   │
-│  │  ┌──────────┐ ┌──────────┐ ┌──────────────────┐    │   │
-│  │  │  Auth    │ │ Workflow │ │    Prompts       │    │   │
-│  │  │ Routes   │ │  Routes  │ │    Routes        │    │   │
-│  │  └──────────┘ └──────────┘ └──────────────────┘    │   │
-│  └──────────────────────────────────────────────────────┘   │
-└────────────┬────────────────────────────────────────────────┘
-             │
-             v
-┌─────────────────────────────────────────────────────────────┐
-│                   Business Logic Layer                      │
-│  ┌──────────────┐  ┌───────────────┐  ┌───────────────┐   │
-│  │ Workflow     │  │   Prompt      │  │     Auth      │   │
-│  │   Engine     │  │  Template     │  │    Manager    │   │
-│  │              │  │   Manager     │  │               │   │
-│  └──────────────┘  └───────────────┘  └───────────────┘   │
-└────────────┬────────────────────────────────────────────────┘
-             │
-             v
-┌─────────────────────────────────────────────────────────────┐
-│                   Integration Layer                         │
-│  ┌─────────┐  ┌─────────┐  ┌─────────┐  ┌─────────┐       │
-│  │ OpenAI  │  │ GitHub  │  │ Notion  │  │  Gmail  │       │
-│  │ Client  │  │ Client  │  │ Client  │  │ Client  │       │
-│  └─────────┘  └─────────┘  └─────────┘  └─────────┘       │
-│                      ┌─────────────┐                        │
-│                      │ Claude Code │                        │
-│                      │   Client    │                        │
-│                      └─────────────┘                        │
-└────────────┬────────────────────────────────────────────────┘
-             │
-             v
-┌─────────────────────────────────────────────────────────────┐
-│                   External Services                         │
-│  OpenAI API │ GitHub API │ Notion API │ Gmail │ Claude API  │
-│                                                Claude CLI   │
-└─────────────────────────────────────────────────────────────┘
+┌─────────────────────────────────────────────────────────────────────────┐
+│                          Client Layer                                    │
+│   Streamlit Dashboard  │  REST API (FastAPI)  │  CLI (Typer)            │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────────┐
+│                       Application Layer                                  │
+│   Auth (Token/Tenant)  │  CORS  │  Rate Limiting  │  Audit Logging     │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────────┐
+│                       Orchestration Layer                                │
+│   WorkflowEngine  │  GraphExecutor (DAG)  │  ParallelExecutor          │
+│   WorkflowComposer  │  AutoParallel  │  RateLimitedParallelExecutor    │
+└──────────┬────────────────────┬─────────────────────┬───────────────────┘
+           │                    │                     │
+┌──────────▼──────────┐ ┌──────▼───────────┐ ┌───────▼──────────────────┐
+│ Contract Validation  │ │  State & Checkpt │ │  Resilience Layer        │
+│ AgentContract        │ │  CheckpointMgr   │ │  Circuit Breaker         │
+│ ContractEnforcer     │ │  StatePersistence│ │  Bulkhead (Semaphore)    │
+│ Input/Output Schema  │ │  SQLite/Postgres │ │  Fallback Chains         │
+└──────────────────────┘ └──────────────────┘ │  Retry + Exp. Backoff   │
+                                               └──────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────────┐
+│                       Integration Layer                                  │
+│   OpenAI Client  │  Claude Client  │  GitHub Client  │  Notion Client  │
+│   Gmail Client   │  Slack Client   │  Custom Plugins                   │
+└──────────────────────────────┬──────────────────────────────────────────┘
+                               │
+┌──────────────────────────────▼──────────────────────────────────────────┐
+│                      Observability Layer                                 │
+│   MetricsCollector  │  CostTracker  │  PrometheusExporter              │
+│   Structured Logs   │  Audit Trail  │  Dashboard Monitoring            │
+└─────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Core Components
-
-### 1. Workflow Engine (`src/test_ai/orchestrator/`)
-
-The heart of the system, responsible for executing multi-step workflows.
-
-#### Key Responsibilities
-- Parse workflow definitions (JSON)
-- Execute steps sequentially
-- Handle variable interpolation
-- Manage error handling and recovery
-- Log execution results
-
-#### Workflow Model
-
-```python
-# Conceptual model - actual implementation uses Pydantic BaseModel
-class WorkflowStep:
-    step_id: str           # Unique identifier
-    step_type: str         # API client type (openai, github, etc.)
-    action: str            # Action to perform
-    parameters: dict       # Action parameters (supports {{var}} interpolation)
-
-class Workflow:
-    workflow_id: str       # Unique workflow identifier
-    name: str              # Human-readable name
-    description: str       # Workflow description
-    steps: List[WorkflowStep]
-    variables: dict        # Runtime variables
-
-class WorkflowResult:
-    success: bool          # Execution status
-    outputs: dict          # Step outputs
-    errors: List[str]      # Error messages
-```
-
-#### Execution Flow
-
-1. **Load Workflow**: Read JSON definition from disk
-2. **Validate**: Check workflow structure and required fields
-3. **Initialize**: Set up variables and context
-4. **Execute Steps**: For each step:
-   - Interpolate variables in parameters
-   - Call appropriate API client
-   - Store results in outputs
-   - Handle errors gracefully
-5. **Log Results**: Write execution log to disk
-6. **Return Results**: Provide success status and outputs
-
-#### Variable Interpolation
-
-Supports template syntax: `{{variable_name}}`
-
-```python
-# Example: Reference previous step output
-{
-  "step_id": "step2",
-  "parameters": {
-    "content": "{{step1_output}}"
-  }
-}
-```
-
-### 2. API Clients (`src/test_ai/api_clients/`)
-
-Abstraction layer for third-party integrations.
-
-#### Design Pattern
-
-Each client follows a consistent interface:
-
-```python
-class BaseAPIClient:
-    def __init__(self, config: dict):
-        """Initialize with configuration."""
-        
-    def execute_action(self, action: str, params: dict) -> dict:
-        """Execute an action and return results."""
-```
-
-#### OpenAI Client
-
-**Capabilities:**
-- Text generation (GPT-4, GPT-3.5)
-- Chat completions
-- Streaming support
-- Model configuration
-
-**Actions:**
-- `generate_completion`: Generate text from prompt
-- `chat_completion`: Chat-based interaction
-
-#### GitHub Client
-
-**Capabilities:**
-- Repository management
-- Issue creation/update
-- File operations
-- Branch management
-
-**Actions:**
-- `create_issue`: Create GitHub issue
-- `create_file`: Commit file to repository
-- `list_repos`: List user repositories
-
-#### Notion Client
-
-**Capabilities:**
-- Page creation
-- Block management
-- Database queries
-- Search
-
-**Actions:**
-- `create_page`: Create new Notion page
-- `append_content`: Add content to page
-- `search`: Search Notion workspace
-
-#### Gmail Client
-
-**Capabilities:**
-- Email reading
-- OAuth 2.0 authentication
-- Query-based filtering
-- Message parsing
-
-**Actions:**
-- `list_messages`: Get emails by query
-- `get_message`: Fetch email content
-- `search`: Search emails
-
-#### Claude Code Client
-
-**Capabilities:**
-- Dual-mode operation (API and CLI)
-- Role-based agent execution
-- Specialized development workflows
-- Configurable agent prompts
-
-**Invocation Modes:**
-- **API Mode**: Direct calls to Anthropic API for programmatic use
-- **CLI Mode**: Subprocess execution of Claude CLI for interactive/local workflows
-
-**Actions:**
-- `execute_agent`: Run a specialized agent with role-specific prompts
-- `generate_completion`: Direct completion without role context
-- `execute_cli`: Run Claude CLI with custom prompt
-
-**Built-in Agent Roles:**
-
-| Role | Purpose |
-|------|---------|
-| `planner` | Strategic planning - breaks features into actionable steps |
-| `builder` | Code implementation - writes production-ready code |
-| `tester` | Testing specialist - creates comprehensive test suites |
-| `reviewer` | Code review - analyzes for quality, bugs, security |
-| `architect` | System design - makes architectural decisions |
-| `documenter` | Documentation - creates API docs and guides |
-| `data_analyst` | Data analysis - SQL queries, pandas pipelines, visualizations, statistical analysis |
-| `devops` | Infrastructure - Docker, Kubernetes, CI/CD, Terraform, cloud configurations |
-| `security_auditor` | Security - vulnerability scanning, OWASP compliance, dependency audits |
-| `migrator` | Migrations - framework upgrades, language migrations, API updates, refactoring |
-| `model_builder` | 3D asset creation - scripts, shaders, materials for Unity/Blender/Unreal/Godot/Three.js |
-
-**Configuration:**
-- Agent prompts configurable via `config/agent_prompts.json`
-- Supports custom roles by adding entries to config
-- Falls back to built-in defaults if config missing
-
-**Example Usage:**
-```python
-client = ClaudeCodeClient()
-
-# Execute a planning agent
-result = client.execute_agent(
-    role="planner",
-    task="Build user authentication system",
-    context="Using FastAPI and JWT tokens"
-)
-
-# Direct completion
-result = client.generate_completion(
-    prompt="Explain dependency injection",
-    system_prompt="You are a senior software engineer"
-)
-```
-
-### 3. Prompt Template Manager (`src/test_ai/prompts/`)
-
-Manages reusable prompt templates.
-
-#### Template Model
-
-```python
-class PromptTemplate:
-    template_id: str       # Unique identifier
-    name: str              # Human-readable name
-    description: str       # Template description
-    template: str          # Prompt text with {{variables}}
-    variables: List[str]   # Required variables
-```
-
-#### Features
-
-- **CRUD Operations**: Create, read, update, delete templates
-- **Variable Validation**: Ensure all required variables provided
-- **Template Rendering**: Substitute variables with values
-- **Persistence**: JSON-based storage
-
-#### Usage Pattern
-
-```python
-manager = PromptTemplateManager()
-
-# Create template
-template = PromptTemplate(
-    template_id="email_summary",
-    name="Email Summary",
-    template="Summarize this email: {{email_content}}"
-)
-manager.save_template(template)
-
-# Render with variables
-rendered = manager.render_template(
-    "email_summary",
-    {"email_content": "..."}
-)
-```
-
-### 4. Authentication System (`src/test_ai/auth/`)
-
-Token-based authentication for API access.
-
-#### Components
-
-- **Token Generation**: Create JWT tokens
-- **Token Validation**: Verify token authenticity
-- **Expiration Management**: Handle token lifecycle
-- **User Sessions**: Track authenticated users
-
-#### Security Features
-
-- **Secret Key**: Configurable secret for token signing
-- **Expiration**: Tokens expire after configurable duration
-- **Stateless**: No server-side session storage
-- **Bearer Token**: Standard HTTP authorization header
-
-### 5. Configuration Management (`src/test_ai/config/`)
-
-Centralized configuration using Pydantic Settings.
-
-#### Configuration Sources
-
-1. **Environment Variables** (highest priority)
-2. **.env file**
-3. **Default values** (lowest priority)
-
-#### Settings Model
-
-```python
-class Settings(BaseSettings):
-    # API Keys
-    openai_api_key: str
-    github_token: Optional[str]
-    notion_token: Optional[str]
-
-    # Claude/Anthropic Settings
-    anthropic_api_key: Optional[str]
-    claude_cli_path: str = "claude"
-    claude_mode: str = "api"  # "api" or "cli"
-
-    # Paths
-    workflows_dir: Path
-    prompts_dir: Path
-    logs_dir: Path
-
-    # Auth
-    secret_key: str
-    access_token_expire_minutes: int
-```
-
-### 6. REST API (`src/test_ai/api.py`)
-
-FastAPI-based REST API for programmatic access.
-
-#### Endpoint Groups
-
-**Authentication**
-- `POST /auth/login` - Get access token
-- `POST /auth/verify` - Verify token
-
-**Workflows**
-- `GET /workflows` - List all workflows
-- `GET /workflows/{id}` - Get specific workflow
-- `POST /workflows` - Create workflow
-- `POST /workflows/execute` - Execute workflow
-- `DELETE /workflows/{id}` - Delete workflow
-
-**Prompts**
-- `GET /prompts` - List all prompts
-- `GET /prompts/{id}` - Get specific prompt
-- `POST /prompts` - Create prompt
-- `PUT /prompts/{id}` - Update prompt
-- `DELETE /prompts/{id}` - Delete prompt
-
-**System**
-- `GET /health` - Health check
-- `GET /docs` - OpenAPI documentation
-
-#### Middleware
-
-- **CORS**: Cross-origin resource sharing
-- **Authentication**: Token verification
-- **Error Handling**: Consistent error responses
-- **Logging**: Request/response logging
-
-### 7. Dashboard (`src/test_ai/dashboard/`)
-
-Streamlit-based web interface.
-
-#### Pages
-
-1. **Home**: Overview and status
-2. **Workflows**: Browse and manage workflows
-3. **Execute**: Run workflows with custom parameters
-4. **Prompts**: Manage prompt templates
-5. **Logs**: View execution history
-6. **Settings**: Configure system
-
-#### Features
-
-- **Interactive Forms**: Create/edit workflows
-- **Real-time Execution**: Run workflows from UI
-- **Log Viewer**: Browse execution logs
-- **Template Editor**: Manage prompts
-
-## Data Flow
-
-### Workflow Execution Flow
+### Concrete Class Boundaries
+
+| Class | Module | Responsibility | Owns |
+|-------|--------|---------------|------|
+| `WorkflowEngine` | `orchestrator/workflow_engine.py` | Sequential step execution, variable interpolation | `Workflow`, `WorkflowStep`, `WorkflowResult` |
+| `GraphExecutor` | `workflow/graph_executor.py` | DAG-based execution with dependency resolution | Dependency graph, topological ordering |
+| `ParallelExecutor` | `workflow/parallel.py` | Fan-out/fan-in/map-reduce patterns | `ParallelTask`, branch results |
+| `RateLimitedParallelExecutor` | `workflow/rate_limited_executor.py` | Concurrent execution with per-provider rate limits | Adaptive rate state, distributed limiters |
+| `CheckpointManager` | `state/checkpoint.py` | Workflow state capture and resume | `StageContext`, persistence lifecycle |
+| `StatePersistence` | `state/persistence.py` | Database read/write for checkpoints | SQLite/Postgres backend abstraction |
+| `AgentContract` | `contracts/base.py` | Input/output schema definition per agent role | JSON Schema for validation |
+| `ContractEnforcer` | `contracts/base.py` | Runtime validation of agent inputs/outputs | Violation reporting |
+| `MetricsCollector` | `metrics/collector.py` | Thread-safe metrics aggregation | Counters, gauges, histograms, callbacks |
+| `CostTracker` | `metrics/cost_tracker.py` | Per-call token and USD cost tracking | Budget alerts, provider pricing |
+| `Bulkhead` | `resilience/bulkhead.py` | Semaphore-based resource isolation | Active/waiting counts, rejection stats |
+| `PluginManager` | `plugins/base.py` | Plugin lifecycle, hook dispatch | Plugin registry, hook mappings |
+| `ScheduleManager` | `scheduler/schedule_manager.py` | APScheduler-backed cron/interval triggers | Schedule DB, execution logs |
+| `TokenAuth` | `auth/token_auth.py` | Token generation, verification, revocation | Token store with expiry |
+| `TenantAuth` | `auth/tenants.py` | Multi-tenant isolation and RBAC | Tenant config, role mappings |
+
+---
+
+## Execution Model
+
+### Sequential Workflow (WorkflowEngine)
 
 ```
-User Request
-    ↓
-API/Dashboard
-    ↓
-Workflow Engine (validate workflow)
-    ↓
-For each step:
-    ↓
-Variable Interpolation
-    ↓
-API Client Router (select client)
-    ↓
-Execute Action (external API call)
-    ↓
-Store Result
-    ↓
-Next Step (use previous outputs)
-    ↓
-Log Results
-    ↓
-Return to User
+WorkflowEngine.execute_workflow(workflow)
+  │
+  ├── validate(workflow)              # Schema + required fields
+  ├── initialize(variables)           # Set up runtime context
+  │
+  ├── for step in workflow.steps:
+  │     ├── interpolate(step.params, variables)    # {{var}} substitution
+  │     ├── client = get_api_client(step.type)     # Factory dispatch
+  │     ├── result = client.execute_action(step.action, params)
+  │     ├── variables[step.id + "_output"] = result
+  │     └── log_step(step.id, result)
+  │
+  └── return WorkflowResult(outputs, status, errors)
 ```
 
-### Example: Email to Notion Workflow
+### DAG Workflow (GraphExecutor)
 
 ```
-1. Gmail Client
-   ↓ fetch emails matching query
-   emails_data
-
-2. OpenAI Client
-   ↓ summarize email content
-   summary_text
-
-3. Notion Client
-   ↓ create page with summary
-   notion_page_id
-
-4. Return Results
+GraphExecutor.execute(steps)
+  │
+  ├── build_dependency_graph(steps)        # Parse depends_on edges
+  ├── validate_dag(graph)                  # Cycle detection
+  ├── groups = topological_sort(graph)     # Parallel groups
+  │
+  ├── for group in groups:
+  │     └── asyncio.gather(*[execute_step(s) for s in group])
+  │           ├── Per step: checkpoint on success
+  │           └── Per step: checkpoint on failure → decide continue/abort
+  │
+  └── aggregate_results()
 ```
 
-### Example: Development Workflow (Plan → Build → Test → Review)
+### DAG Validation Rules
+
+1. **Cycle detection** — Topological sort fails on cycles; workflow rejected at load time.
+2. **Missing dependency** — If `depends_on` references a non-existent step ID, validation raises `ValidationError`.
+3. **Orphan detection** — Steps with no path from root are flagged as warnings (still execute).
+4. **Type compatibility** — Contract enforcer validates that upstream output schemas match downstream input schemas when contracts are defined.
+
+### Sequence Diagram: Plan → Build → Test → Review
 
 ```
-1. Claude Code Client (planner role)
-   ↓ break down feature request into implementation plan
-   plan_output
-
-2. Claude Code Client (builder role)
-   ↓ implement code based on plan
-   build_output
-
-3. Claude Code Client (tester role)
-   ↓ write comprehensive tests
-   test_output
-
-4. Claude Code Client (reviewer role)
-   ↓ review implementation for quality/security
-   review_output
-
-5. Return Results (plan, code, tests, review)
+┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐   ┌──────────┐
+│  Client   │   │ Workflow  │   │ Planner  │   │ Builder  │   │ Reviewer │
+│          │   │  Engine   │   │  Agent   │   │  Agent   │   │  Agent   │
+└────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘   └────┬─────┘
+     │              │              │              │              │
+     │──execute────▶│              │              │              │
+     │              │──checkpoint──│              │              │
+     │              │  (start)     │              │              │
+     │              │──plan───────▶│              │              │
+     │              │              │──plan_output─│              │
+     │              │◀─────────────│              │              │
+     │              │──checkpoint──│              │              │
+     │              │  (plan:ok)   │              │              │
+     │              │──build──────────────────────▶│              │
+     │              │              │              │──code_output─│
+     │              │◀─────────────────────────────│              │
+     │              │──checkpoint──│              │              │
+     │              │  (build:ok)  │              │              │
+     │              │──test────────────────────────▶│  (tester)  │
+     │              │◀─────────────────────────────│              │
+     │              │──checkpoint──│              │              │
+     │              │  (test:ok)   │              │              │
+     │              │──review────────────────────────────────────▶│
+     │              │◀───────────────────────────────────────────│
+     │              │──checkpoint──│              │              │
+     │              │  (review:ok) │              │              │
+     │◀─result──────│              │              │              │
 ```
 
-**Workflow Definition:**
+Each checkpoint persists to the database. On failure at any stage, execution can resume from the last successful checkpoint.
+
+---
+
+## State Management
+
+### Checkpoint Object (Serialized)
+
 ```json
 {
-  "id": "dev_workflow_plan_build_test_review",
-  "name": "Development Workflow: Plan → Build → Test → Review",
-  "steps": [
-    {
-      "id": "plan",
-      "type": "claude_code",
-      "action": "execute_agent",
-      "params": { "role": "planner", "task": "{{feature_request}}" },
-      "next_step": "build"
-    },
-    {
-      "id": "build",
-      "type": "claude_code",
-      "action": "execute_agent",
-      "params": { "role": "builder", "task": "{{feature_request}}", "context": "{{plan_output}}" },
-      "next_step": "test"
-    },
-    {
-      "id": "test",
-      "type": "claude_code",
-      "action": "execute_agent",
-      "params": { "role": "tester", "task": "Write tests for: {{feature_request}}", "context": "{{build_output}}" },
-      "next_step": "review"
-    },
-    {
-      "id": "review",
-      "type": "claude_code",
-      "action": "execute_agent",
-      "params": { "role": "reviewer", "task": "Review: {{feature_request}}", "context": "{{build_output}}" },
-      "next_step": null
-    }
-  ],
-  "variables": { "feature_request": "Describe the feature" }
+  "checkpoint_id": 47,
+  "workflow_id": "wf-a3b8c1d2e4f5",
+  "stage": "build",
+  "status": "success",
+  "input_data": {
+    "plan": "1. Create FastAPI router\n2. Add JWT middleware\n3. ...",
+    "task_id": "auth-feature-001"
+  },
+  "output_data": {
+    "code": "...",
+    "files_created": ["src/auth/router.py", "src/auth/jwt.py"],
+    "status": "complete"
+  },
+  "tokens_used": 4230,
+  "duration_ms": 12847,
+  "created_at": "2025-01-18T10:30:47.123Z"
 }
 ```
 
-### Specialized Agent Workflows
+### Database Schema (State Layer)
 
-| Workflow | Agent | Purpose |
-|----------|-------|---------|
-| `data-analysis.yaml` | data_analyst | Analyze data, generate SQL/pandas code, create visualizations |
-| `infrastructure-setup.yaml` | devops | Create Docker, Kubernetes, Terraform, CI/CD configs |
-| `security-audit.yaml` | security_auditor | Full security audit with compliance checking |
-| `code-migration.yaml` | migrator | Framework upgrades and code migrations |
+```sql
+-- Workflow execution tracking
+CREATE TABLE workflows (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    config TEXT,             -- JSON
+    status TEXT DEFAULT 'pending',  -- pending | running | completed | failed
+    current_stage TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-### Slack Integration
+-- Per-stage checkpoints
+CREATE TABLE checkpoints (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    workflow_id TEXT REFERENCES workflows(id),
+    stage TEXT NOT NULL,
+    status TEXT NOT NULL,     -- running | success | failed
+    input_data TEXT,          -- JSON
+    output_data TEXT,         -- JSON
+    tokens_used INTEGER DEFAULT 0,
+    duration_ms INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
-The Slack client (`api_clients/slack_client.py`) provides:
-
-**Notification Types:**
-- Workflow status updates (started, completed, failed)
-- Code review results
-- Approval requests with interactive buttons
-- Custom messages with color-coded severity
-
-**Example Usage:**
-```python
-from test_ai.api_clients.slack_client import SlackClient, MessageType
-
-slack = SlackClient(token="xoxb-...")
-
-# Send workflow notification
-slack.send_workflow_notification(
-    channel="#deployments",
-    workflow_name="feature-build",
-    status="completed",
-    details={"duration": "5m 32s", "steps": 4}
-)
-
-# Send approval request
-slack.send_approval_request(
-    channel="#approvals",
-    title="Production Deploy",
-    description="Deploy v2.1.0 to production?",
-    requester="@engineer"
-)
+-- Scheduled workflow definitions
+CREATE TABLE schedules (
+    id TEXT PRIMARY KEY,
+    workflow_id TEXT,
+    name TEXT,
+    schedule_type TEXT,       -- CRON | INTERVAL
+    cron_config TEXT,
+    interval_config TEXT,
+    variables TEXT,
+    status TEXT,              -- ACTIVE | PAUSED | DISABLED
+    created_at TIMESTAMP,
+    last_run TIMESTAMP,
+    next_run TIMESTAMP,
+    run_count INTEGER DEFAULT 0
+);
 ```
+
+### Resume Semantics
+
+When `CheckpointManager.resume(workflow_id)` is called:
+
+1. Load workflow record and verify status is `failed` or `running`.
+2. Query checkpoints ordered by `created_at DESC`.
+3. Find the last checkpoint with `status = 'success'`.
+4. Return the stage name and its output data.
+5. Caller skips all stages up to and including the resumed stage.
+6. Execution continues from the next stage using the checkpointed output as input context.
+
+Idempotency guarantee: each stage writes its checkpoint in a `finally` block. If a stage partially completes but crashes before checkpoint write, the stage re-executes from its input data on resume. Stages must be designed to tolerate re-execution (idempotent with respect to their input data).
+
+---
+
+## Concurrency Model
+
+### Threading Architecture
+
+- **API Layer**: FastAPI runs on uvicorn with async event loop. Each request is an async coroutine.
+- **MetricsCollector**: Protected by `threading.Lock` for thread-safe counter/gauge/histogram updates.
+- **Bulkhead**: Per-provider semaphores (`asyncio.Semaphore` for async, `threading.Semaphore` for sync). Limits concurrent requests to each external API independently.
+- **Parallel Execution**: `asyncio.gather()` for concurrent step execution within a DAG group. `ThreadPoolExecutor` fallback for sync operations.
+- **Distributed Rate Limiting**: Redis-backed (production) or SQLite-backed (single-node) sliding window counters for cross-process coordination.
+
+### Bulkhead Isolation
+
+```python
+# Each provider gets an isolated concurrency pool
+bulkheads = {
+    "anthropic": Bulkhead(max_concurrent=5, max_waiting=20, timeout=30.0),
+    "openai":    Bulkhead(max_concurrent=8, max_waiting=30, timeout=30.0),
+    "github":    Bulkhead(max_concurrent=10, max_waiting=50, timeout=15.0),
+}
+
+# If anthropic bulkhead is full, openai/github calls proceed unaffected
+```
+
+When `max_concurrent` slots are occupied and `max_waiting` queue slots are full, new requests receive `BulkheadFull` immediately. This prevents cascading backpressure from one slow provider blocking the entire system.
+
+### Rate Limiting Stack
+
+| Layer | Mechanism | Scope |
+|-------|-----------|-------|
+| API ingress | `slowapi` per-IP limits | Per client IP |
+| Provider concurrency | `Bulkhead` semaphores | Per provider, per process |
+| Adaptive throttle | Automatic limit reduction on 429 | Per provider, per process |
+| Distributed RPM | Redis/SQLite sliding window | Per provider, cross-process |
+
+---
+
+## Failure Modes and Recovery
+
+### Error Classification
+
+| Error Type | Response | Example |
+|-----------|----------|---------|
+| Validation Error | Fail fast, no retry | Invalid workflow schema |
+| API Transient Error | Retry with exponential backoff + jitter | HTTP 429, 503, timeout |
+| API Permanent Error | Fail step, checkpoint failure state | HTTP 401, 403 |
+| Provider Outage | Circuit breaker opens → fallback provider | 5+ consecutive failures |
+| Resource Exhaustion | Bulkhead rejection → immediate error | Max concurrent reached |
+| Checkpoint Write Failure | Log error, workflow marked failed | Database unavailable |
+
+### Retry Semantics
+
+```python
+# Exponential backoff with jitter (from resilience layer)
+retry_config = RetryConfig(
+    max_retries=3,
+    base_delay=1.0,        # 1s initial
+    max_delay=30.0,        # Cap at 30s
+    exponential_base=2.0,  # 1s → 2s → 4s
+    jitter=True,           # ±random to prevent thundering herd
+)
+
+# Per-step override in workflow YAML:
+# steps:
+#   - id: call_claude
+#     retry_policy:
+#       max_retries: 5
+#       base_delay: 2.0
+```
+
+### Circuit Breaker States
+
+```
+CLOSED ──[failure_threshold exceeded]──▶ OPEN
+                                            │
+                                     [recovery_timeout]
+                                            │
+                                            ▼
+                                        HALF_OPEN
+                                       /         \
+                           [success_threshold]  [any failure]
+                                  │                  │
+                                  ▼                  ▼
+                               CLOSED              OPEN
+```
+
+- **Failure threshold**: 5 consecutive failures opens the circuit.
+- **Recovery timeout**: 60s before testing with a single probe request.
+- **Success threshold**: 3 consecutive successes in half-open state closes the circuit.
+- **Scope**: One breaker per provider (Anthropic, OpenAI, GitHub, etc.).
+
+### Fallback Chain
+
+When a provider's circuit breaker is open:
+
+1. Route to configured fallback provider (e.g., OpenAI → Claude, Claude → OpenAI).
+2. If fallback also unavailable, return cached result if available.
+3. If no cache, fail with actionable error including which providers were attempted.
+
+---
+
+## Contract System
+
+### Contract Structure
+
+```python
+@dataclass
+class AgentContract:
+    role: AgentRole              # PLANNER, BUILDER, TESTER, etc.
+    input_schema: dict           # JSON Schema for inputs
+    output_schema: dict          # JSON Schema for outputs
+    description: str
+    required_context: list[str]  # Context keys that must be present
+```
+
+### Enforcement Flow
+
+```
+Workflow step begins
+  │
+  ├── ContractEnforcer.validate_input(contract, input_data)
+  │     └── jsonschema.validate(input_data, contract.input_schema)
+  │           ├── Pass → proceed to execution
+  │           └── Fail → ContractViolation raised, step skipped
+  │
+  ├── Agent executes
+  │
+  └── ContractEnforcer.validate_output(contract, output_data)
+        └── jsonschema.validate(output_data, contract.output_schema)
+              ├── Pass → checkpoint output, proceed
+              └── Fail → ContractViolation raised, step marked failed
+```
+
+### Predefined Contracts
+
+| Agent | Required Input | Expected Output |
+|-------|---------------|-----------------|
+| Planner | `request`, `context` | `tasks`, `architecture`, `success_criteria` |
+| Builder | `plan`, `task_id` | `code`, `files_created`, `status` |
+| Tester | `code`, `success_criteria` | `tests`, `test_results`, `coverage` |
+| Reviewer | `code` | `issues`, `recommendations`, `risk_level` |
+| Analyst | `data`, `analysis_request` | `findings`, `statistics`, `confidence` |
+
+---
+
+## Observability and Metrics
+
+### Metrics Collection Architecture
+
+The `MetricsCollector` is a thread-safe singleton that tracks all workflow execution in real time:
+
+```python
+class MetricsCollector:
+    _active: dict[str, WorkflowMetrics]     # Currently running workflows
+    _history: list[WorkflowMetrics]          # Completed (ring buffer, max 1000)
+    _counters: dict[str, int]               # Monotonic event counters
+    _gauges: dict[str, float]               # Point-in-time values
+    _histograms: dict[str, list[float]]     # Distribution tracking
+```
+
+**Counters tracked**: `workflows_started`, `workflows_completed`, `workflows_failed`, `steps_started`, `steps_completed`, `steps_failed`, `steps_started_{type}`.
+
+**Histograms tracked**: `workflow_duration_ms`, `workflow_tokens`, `step_duration_ms`, `step_tokens`.
+
+**Computed statistics**: min, max, avg, p50, p95 for all histograms.
+
+### Prometheus Integration
+
+The `PrometheusExporter` (`metrics/exporters.py`) exposes metrics in Prometheus text exposition format, compatible with standard Prometheus scraping:
+
+```
+# HELP gorgon_workflows_total Total workflow executions
+# TYPE gorgon_workflows_total counter
+gorgon_workflows_total{status="completed"} 1247
+gorgon_workflows_total{status="failed"} 83
+
+# HELP gorgon_workflow_duration_seconds Workflow execution duration
+# TYPE gorgon_workflow_duration_seconds histogram
+gorgon_workflow_duration_seconds_bucket{le="1.0"} 120
+gorgon_workflow_duration_seconds_bucket{le="5.0"} 890
+gorgon_workflow_duration_seconds_bucket{le="30.0"} 1200
+
+# HELP gorgon_tokens_used_total Total tokens consumed
+# TYPE gorgon_tokens_used_total counter
+gorgon_tokens_used_total{provider="anthropic"} 2847000
+gorgon_tokens_used_total{provider="openai"} 1523000
+```
+
+A `prometheus_server.py` module provides a standalone HTTP endpoint for Prometheus scraping.
 
 ### Cost Tracking
 
-The cost tracker (`metrics/cost_tracker.py`) provides:
+The `CostTracker` (`metrics/cost_tracker.py`) provides granular cost attribution:
 
-**Features:**
-- Per-call token and cost tracking
-- Aggregation by workflow, agent, model, and time period
-- Budget limits with alerts
-- CSV export for reporting
+- **Per-call tracking**: Provider, model, input/output tokens, computed USD cost.
+- **Attribution dimensions**: workflow_id, step_id, agent_role, provider, model.
+- **Budget management**: Configurable budget limits with threshold alerts.
+- **Aggregation**: By provider, by model, by workflow, by time period (daily/monthly).
+- **Export**: JSON persistence, CSV export for finance/reporting.
 
-**Supported Models:**
-- OpenAI: GPT-4, GPT-4o, GPT-3.5-turbo
-- Anthropic: Claude 3 Opus/Sonnet/Haiku, Claude 3.5
-
-**Example Usage:**
 ```python
-from test_ai.metrics.cost_tracker import CostTracker, Provider
-
-tracker = CostTracker(
-    storage_path=Path("data/costs.json"),
-    budget_limit_usd=100.0
-)
-
-# Track API call
 tracker.track(
     provider=Provider.ANTHROPIC,
     model="claude-sonnet-4-20250514",
     input_tokens=1500,
     output_tokens=2000,
     workflow_id="feature-123",
-    agent_role="builder"
+    agent_role="builder",
 )
-
-# Get summary
 summary = tracker.get_summary(days=30)
-print(f"Monthly cost: ${summary['total_cost_usd']:.2f}")
+# { "total_cost_usd": 47.82, "by_provider": {...}, "by_workflow": {...} }
 ```
 
-### Example: 3D Asset Generation Workflow
+### Structured Logging
 
-The `model_builder` agent enables creation of 3D assets, scripts, shaders, and configurations for game engines and 3D tools.
-
-```
-1. Claude Code Client (planner role)
-   ↓ plan asset structure and technical approach
-   plan_output
-
-2. Claude Code Client (model_builder role)
-   ↓ generate scripts, shaders, and configurations
-   assets_output
-
-3. Claude Code Client (reviewer role)
-   ↓ review for performance and platform conventions
-   review_output
-
-4. Return Results (plan, assets, instructions, review)
-```
-
-**Supported Platforms:**
-- **Unity** - C# scripts, ShaderLab/HLSL shaders, Animator controllers
-- **Blender** - Python addons, geometry nodes configs, material setups
-- **Unreal** - C++, Blueprints, Niagara VFX, Material functions
-- **Godot** - GDScript, Godot shaders, scene configurations
-- **Three.js** - JavaScript/TypeScript, GLSL shaders, scene setup
-
-**Available 3D Workflows:**
-
-| Workflow | Purpose |
-|----------|---------|
-| `3d-asset-build` | General 3D asset creation |
-| `blender-addon` | Blender Python addon generation |
-| `unity-shader-pipeline` | Unity shader with material setup |
-| `game-character-setup` | Complete character controller pipeline |
-| `vfx-particle-system` | Particle effects and VFX |
-| `threejs-scene` | Interactive Three.js web scenes |
-
-**Prompt Templates for 3D:**
-
-| Template | Purpose |
-|----------|---------|
-| `procedural_terrain` | Terrain generation with noise algorithms |
-| `shader_creation` | Custom shader development |
-| `animation_controller` | State machines and blend trees |
-
-See `examples/3d-assets/` for usage examples.
-
-## Design Patterns
-
-### 1. Factory Pattern
-
-API clients use factory pattern for dynamic instantiation:
-
-```python
-def get_api_client(client_type: str) -> BaseAPIClient:
-    clients = {
-        "openai": OpenAIClient,
-        "github": GitHubClient,
-        "notion": NotionClient,
-        "gmail": GmailClient,
-        "claude_code": ClaudeCodeClient
-    }
-    return clients[client_type]()
-```
-
-### 2. Strategy Pattern
-
-Different execution strategies for different step types:
-
-```python
-class WorkflowEngine:
-    def execute_step(self, step: WorkflowStep):
-        client = get_api_client(step.step_type)
-        return client.execute_action(step.action, step.parameters)
-```
-
-### 3. Template Method Pattern
-
-Common workflow execution flow with customizable steps:
-
-```python
-def execute_workflow(workflow: Workflow):
-    validate()      # Common
-    setup()         # Common
-    execute_steps() # Variable
-    cleanup()       # Common
-    log_results()   # Common
-```
-
-### 4. Dependency Injection
-
-Configuration and dependencies injected via Pydantic:
-
-```python
-settings = get_settings()  # Singleton
-client = OpenAIClient(settings.openai_api_key)
-```
-
-## Error Handling
-
-### Error Hierarchy
-
-```
-WorkflowError (base)
-├── ValidationError (invalid workflow)
-├── ExecutionError (step execution failed)
-├── ConfigurationError (missing config)
-└── AuthenticationError (invalid credentials)
-```
-
-### Error Handling Strategy
-
-1. **Validation Errors**: Fail fast before execution
-2. **Execution Errors**: Log error, continue or abort
-3. **API Errors**: Retry with exponential backoff
-4. **User Errors**: Return clear error messages
-
-## Logging
-
-### Log Levels
-
-- **DEBUG**: Detailed diagnostic information
-- **INFO**: General informational messages
-- **WARNING**: Warning messages
-- **ERROR**: Error messages
-- **CRITICAL**: Critical failures
-
-### Log Structure
+All workflow execution produces structured JSON logs with correlation IDs:
 
 ```json
 {
-  "timestamp": "2024-12-08T20:00:00Z",
-  "workflow_id": "simple_ai_completion",
-  "execution_id": "uuid",
+  "timestamp": "2025-01-18T10:30:00Z",
+  "level": "INFO",
+  "event": "step_completed",
+  "workflow_id": "wf-a3b8c1d2e4f5",
+  "execution_id": "exec-7890abcd",
+  "step_id": "build",
+  "step_type": "claude_code",
+  "duration_ms": 12847,
+  "tokens_used": 4230,
   "status": "success",
-  "steps": [
-    {
-      "step_id": "generate",
-      "status": "success",
-      "output": "...",
-      "duration_ms": 1234
-    }
-  ]
+  "trace_id": "req-1234-5678-abcd"
 }
 ```
 
-## Security Considerations
+When `SANITIZE_LOGS=true`, sensitive data (API keys, tokens, passwords) is automatically redacted.
 
-### Authentication
-- Token-based authentication required for API
-- Secure token generation using secrets
-- Token expiration enforced
+### Alerting Rules (Prometheus)
 
-### API Keys
-- Stored in environment variables
-- Never logged or exposed in responses
-- Validated on startup
+```yaml
+groups:
+  - name: gorgon
+    rules:
+      - alert: HighFailureRate
+        expr: >
+          rate(gorgon_workflows_total{status="failed"}[5m])
+          / rate(gorgon_workflows_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
 
-### Data Handling
-- No sensitive data in logs
-- OAuth tokens stored securely
-- HTTPS recommended for production
+      - alert: TokenBudgetExceeded
+        expr: gorgon_tokens_used_daily > gorgon_token_budget_daily * 0.9
+        for: 1m
+        labels:
+          severity: critical
 
-## Performance
-
-### Optimization Strategies
-
-1. **Async Operations**: FastAPI async endpoints
-2. **Connection Pooling**: Reuse HTTP connections
-3. **Caching**: Cache frequent API responses
-4. **Lazy Loading**: Load workflows on demand
-
-### Scalability
-
-- **Horizontal**: Run multiple API instances
-- **Vertical**: Increase resources per instance
-- **Queue**: Add task queue for async execution
-
-## Testing Strategy
-
-### Unit Tests
-- Test individual components in isolation
-- Mock external dependencies
-- High coverage target (>80%)
-
-### Integration Tests
-- Test component interactions
-- Use test API credentials
-- Verify end-to-end flows
-
-### End-to-End Tests
-- Test complete user workflows
-- Validate UI functionality
-- Check API contracts
-
-## Deployment
-
-### Development
-```bash
-./run_api.sh      # API on localhost:8000
-./run_dashboard.sh # Dashboard on localhost:8501
+      - alert: ProviderCircuitOpen
+        expr: gorgon_circuit_breaker_state{state="open"} == 1
+        for: 0m
+        labels:
+          severity: warning
 ```
 
-### Production Considerations
+### Dashboard Monitoring
 
-1. **Environment Variables**: Use production secrets
-2. **HTTPS**: Enable SSL/TLS
-3. **Database**: Add persistent storage
-4. **Monitoring**: Add APM and logging
-5. **Scaling**: Use load balancer
-6. **Backup**: Regular workflow/config backups
+The Streamlit dashboard provides real-time visibility into:
 
-## Future Enhancements
+- **Active workflows**: Progress, current stage, elapsed time.
+- **Execution history**: Success/failure rates, duration trends.
+- **Cost breakdown**: Per-provider, per-workflow, per-agent spend.
+- **Rate limit status**: Per-provider throttling gauges and 429 counts.
+- **Parallel execution**: Fan-out branch progress, map-reduce status.
 
-### Planned Features
+---
 
-1. **Database Integration**: PostgreSQL for persistence
-2. **Async Execution**: Background job processing
-3. **Webhooks**: Event-driven workflows
-4. **Monitoring**: Metrics and alerts
-5. **Multi-tenancy**: User isolation
-6. **Workflow Versioning**: Version control for workflows
-7. **Visual Editor**: Drag-and-drop workflow builder
-8. **Plugin System**: Custom integrations
-9. **Parallel Agent Execution**: Run multiple Claude agents concurrently
-10. **Agent Memory**: Persistent context across workflow executions
+## Security and Governance
 
-### Technical Debt
+### Authentication
 
-- Add comprehensive test suite
-- Implement connection pooling
-- Add request rate limiting
-- Improve error recovery
-- Add workflow retry logic
+- **Token-based auth**: Cryptographically secure tokens via `secrets.token_urlsafe(32)`.
+- **Token lifecycle**: Configurable expiration, revocation support.
+- **Brute force protection**: Per-IP rate limiting with exponential backoff — 5 attempts/min, 20/hour, 24-hour lockout after 10+ failures.
 
-## Conclusion
+### Multi-Tenant Isolation
 
-Gorgon is designed with modularity, extensibility, and maintainability in mind. The architecture supports easy addition of new integrations, workflow types, and features while maintaining a clean separation of concerns.
+- **TenantAuth**: Separate tenant contexts with per-tenant configuration.
+- **Namespace isolation**: Each tenant's workflows, schedules, and execution history are isolated.
+- **Per-tenant quotas**: Token budgets and resource limits enforced per tenant.
+
+### Secrets Management
+
+- **Environment-based**: All API keys and secrets loaded from environment variables, never hardcoded.
+- **Field-level encryption**: Sensitive data (API keys, tokens, PII) encrypted at rest using Fernet symmetric encryption with PBKDF2-HMAC-SHA256 key derivation (480,000 iterations). Encrypted values prefixed with `enc:`.
+- **Log sanitization**: When `SANITIZE_LOGS=true`, API keys, tokens, and passwords are redacted from all log output.
+- **Gmail tokens**: Stored with 600 permissions (user-read only).
+
+### Execution Sandboxing
+
+- **Shell step constraints**: Configurable timeout (default 300s), output limit (10MB), optional command whitelist.
+- **Self-improvement safety**: Protected files list (auth, security, credentials cannot be modified). Max 10 files / 500 lines per PR. Human approval gates at plan, apply, and merge stages. Auto-rollback on test failure.
+- **Request size limits**: JSON 1MB, form data 50MB, general 10MB.
+
+### Workflow Approval Gates
+
+The self-improvement system enforces human-in-the-loop checkpoints:
+
+1. **Plan gate**: AI proposes changes → human reviews plan before any code is written.
+2. **Apply gate**: Generated code is reviewed before being applied to the codebase.
+3. **Merge gate**: Final human approval before PR is merged.
+4. **Auto-rollback**: If tests fail after apply, changes are reverted automatically.
+
+### Production Safety Checklist
+
+| Setting | Requirement |
+|---------|------------|
+| `SECRET_KEY` | ≥32 characters, not default |
+| `DATABASE_URL` | PostgreSQL (not SQLite) |
+| `ALLOW_DEMO_AUTH` | `false` |
+| `PRODUCTION` | `true` |
+| `DEBUG` | `false` |
+| `LOG_FORMAT` | `json` |
+| `SANITIZE_LOGS` | `true` |
+
+The `settings.is_production_safe` property validates all of the above. Violations raise errors when `PRODUCTION=true`.
+
+---
+
+## Plugin System
+
+### Lifecycle Hooks
+
+```python
+class PluginHook(Enum):
+    WORKFLOW_START  = "workflow_start"
+    WORKFLOW_END    = "workflow_end"
+    WORKFLOW_ERROR  = "workflow_error"
+    STEP_START      = "step_start"
+    STEP_END        = "step_end"
+    STEP_ERROR      = "step_error"
+    STEP_RETRY      = "step_retry"
+    PRE_EXECUTE     = "pre_execute"
+    POST_EXECUTE    = "post_execute"
+    CUSTOM          = "custom"
+```
+
+Plugins receive a `PluginContext` with workflow ID, step ID, inputs, outputs, metadata, and error state. Plugins can also transform inputs and outputs via `transform_input()` / `transform_output()` pipelines.
+
+### Plugin Marketplace
+
+Plugins are categorized (INTEGRATION, MONITORING, SECURITY, AI_PROVIDER, etc.) and can be sourced from MARKETPLACE, LOCAL, GITHUB, PYPI, or URL. Each plugin listing includes version history, ratings, verification status, and download counts.
+
+---
+
+## Parallel Execution Patterns
+
+| Pattern | Mechanism | Use Case |
+|---------|-----------|----------|
+| **Fan-Out** | Execute step template per item in a list | Review N files concurrently |
+| **Fan-In** | Aggregate parallel results (concat, AI summary) | Combine review findings |
+| **Map-Reduce** | Combined scatter-gather | Analyze + summarize in one step |
+| **Auto-Parallel** | Build dependency graph, parallelize independent groups | Any DAG workflow |
+
+Auto-parallel works by:
+1. Parsing `depends_on` edges to build a dependency graph.
+2. Grouping steps with no mutual dependencies.
+3. Executing each group concurrently via `asyncio.gather()`.
+4. Proceeding to the next group only when the current group completes.
+
+Rate-limited parallel execution adds per-provider semaphores with adaptive backoff (halve limit on 429, recover after 10 consecutive successes) and optional distributed rate limiting via Redis sliding windows.
+
+---
+
+## Budget Tracking State
+
+The `CostTracker` maintains a persistent cost ledger:
+
+```python
+@dataclass
+class CostEntry:
+    timestamp: datetime
+    provider: Provider         # OPENAI | ANTHROPIC | GITHUB | NOTION | SLACK
+    model: str                 # "gpt-4", "claude-sonnet-4-20250514", etc.
+    tokens: TokenUsage         # input_tokens, output_tokens, total_tokens
+    cost_usd: float            # Computed from per-model pricing table
+    workflow_id: str | None    # Attribution
+    step_id: str | None
+    agent_role: str | None
+```
+
+**Pricing is maintained per-model** with separate input/output rates. Budget alerts fire when spend crosses configurable thresholds (default: 80% of limit). Daily and monthly limits are enforced independently.
+
+---
+
+## Competitive Positioning
+
+Gorgon's differentiator is **first-class operational primitives** — capabilities that are native to the framework rather than requiring custom implementation on top of a general-purpose library.
+
+| Capability | Gorgon | LangGraph | AutoGen | CrewAI |
+|-----------|--------|-----------|---------|--------|
+| Declarative workflow definitions | Native (JSON/YAML) | Custom code | Custom code | Custom code |
+| Per-step checkpointing and resume | Native (`CheckpointManager`) | Requires custom state | Not built-in | Not built-in |
+| Per-provider circuit breakers | Native (`Bulkhead` + breaker) | Requires custom impl | Not built-in | Not built-in |
+| Contract-driven agent validation | Native (`AgentContract`) | Not built-in | Not built-in | Not built-in |
+| Budget tracking with alerts | Native (`CostTracker`) | Requires custom impl | Requires custom impl | Token limits only |
+| Prometheus metrics export | Native (`PrometheusExporter`) | Requires custom impl | Requires custom impl | Not built-in |
+| Multi-tenant isolation | Native (`TenantAuth`) | Not built-in | Not built-in | Not built-in |
+| Cron/interval scheduling | Native (`ScheduleManager`) | Not built-in | Not built-in | Not built-in |
+| Plugin marketplace | Native | Not built-in | Extensions | Tools only |
+| Webhook triggers | Native | Not built-in | Not built-in | Not built-in |
+
+These capabilities can be implemented in other frameworks with additional code. The difference is that Gorgon provides them as default operational structure — production-ready governance, observability, and resilience without assembly required.
+
+The closer competitive frame is not other agent frameworks but **enterprise workflow engines**: Temporal.io for AI agents, Airflow for AI pipelines, Zapier for AI automation. Gorgon is positioned as the **AI Workflow Operating System** — the operational layer between AI providers and enterprise production requirements.
+
+---
+
+## Deployment Tiers
+
+| | Tier 1: Team | Tier 2: Department | Tier 3: Enterprise |
+|---|---|---|---|
+| **Users** | 1–5 developers | 5–20 developers | 20+ developers |
+| **Compute** | 1 CPU, 2GB RAM | 2–4 CPU, 4–8GB RAM | Kubernetes cluster |
+| **Database** | SQLite | PostgreSQL | Managed PostgreSQL + Redis |
+| **State** | Local file | PostgreSQL backend | Distributed with replicas |
+| **Multi-tenant** | No | Yes | Yes + SSO (SAML/OIDC) |
+| **Audit** | Basic logging | Full structured logs | Full + compliance export |
+| **SLA** | Best effort | 99.5% | 99.9% |
+
+---
+
+## Design Patterns
+
+| Pattern | Where Used | Purpose |
+|---------|-----------|---------|
+| Factory | `get_api_client()` | Dynamic API client instantiation by step type |
+| Strategy | `WorkflowEngine.execute_step()` | Dispatch to different execution strategies |
+| Template Method | `execute_workflow()` | Common flow (validate → setup → execute → cleanup → log) |
+| Circuit Breaker | `resilience/` | Prevent cascading failures from provider outages |
+| Bulkhead | `resilience/bulkhead.py` | Resource isolation per provider |
+| Observer | `MetricsCollector` callbacks | Decouple metrics events from handling |
+| Context Manager | `CheckpointManager.workflow()` / `.stage()` | Automatic state capture with cleanup |
+| Singleton | `get_collector()`, `get_settings()` | Global instances for metrics and config |
+| Registry | `PluginManager`, `ContractRegistry` | Dynamic registration and lookup |
+
+---
+
+## Error Hierarchy
+
+```
+GorgonError (base)
+├── ValidationError          # Invalid workflow schema or parameters
+├── ExecutionError           # Step execution failure
+├── ConfigurationError       # Missing config or env vars
+├── AuthenticationError      # Invalid credentials or expired token
+├── ContractViolation        # Agent input/output schema mismatch
+└── BulkheadFull             # Provider concurrency limit exceeded
+```
+
+---
+
+## Key File Reference
+
+| File | Purpose |
+|------|---------|
+| `src/test_ai/api.py` | FastAPI application, all REST endpoints, middleware stack |
+| `src/test_ai/orchestrator/workflow_engine.py` | Core sequential workflow execution |
+| `src/test_ai/workflow/graph_executor.py` | DAG-based parallel workflow execution |
+| `src/test_ai/workflow/parallel.py` | Fan-out/fan-in/map-reduce patterns |
+| `src/test_ai/workflow/rate_limited_executor.py` | Rate-limited parallel execution |
+| `src/test_ai/contracts/base.py` | Agent contract definitions and enforcement |
+| `src/test_ai/contracts/definitions.py` | Predefined contracts per agent role |
+| `src/test_ai/state/checkpoint.py` | Checkpoint manager for workflow state |
+| `src/test_ai/state/persistence.py` | Database persistence layer |
+| `src/test_ai/metrics/collector.py` | Thread-safe metrics collection |
+| `src/test_ai/metrics/cost_tracker.py` | API cost tracking and budget management |
+| `src/test_ai/metrics/exporters.py` | Prometheus and CSV metrics export |
+| `src/test_ai/resilience/bulkhead.py` | Bulkhead pattern for resource isolation |
+| `src/test_ai/plugins/base.py` | Plugin system base classes and registry |
+| `src/test_ai/scheduler/schedule_manager.py` | APScheduler-backed workflow scheduling |
+| `src/test_ai/auth/token_auth.py` | Token authentication |
+| `src/test_ai/auth/tenants.py` | Multi-tenant isolation |
+
+---
+
+## Related Documentation
+
+| Document | Focus |
+|----------|-------|
+| `docs/ENTERPRISE_PATTERNS.md` | Deployment patterns, HA, disaster recovery |
+| `docs/PARALLEL_EXECUTION.md` | Parallel execution API reference |
+| `docs/security.md` | Security configuration checklist |
+| `docs/performance.md` | Performance tuning guide |
+| `docs/architecture.md` | Mermaid visual diagrams |
+| `QUICKSTART.md` | Getting started guide |
