@@ -370,7 +370,9 @@ async def get_session_jobs(
     # Fetch full job details from JobManager
     jobs = []
     try:
-        from test_ai.api import job_manager
+        from test_ai import api_state
+
+        job_manager = api_state.job_manager
 
         if job_manager:
             for job_id in job_ids:

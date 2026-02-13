@@ -83,13 +83,14 @@ def client(backend, mcp_manager, monkeypatch):
     with patch("test_ai.api.get_database", return_value=backend):
         with patch("test_ai.api.run_migrations", return_value=[]):
             # Import after patching
-            import test_ai.api as api_module
+            import test_ai.api_state as api_state
 
             # Manually set the mcp_manager
-            original_mcp_manager = api_module.mcp_manager
-            api_module.mcp_manager = mcp_manager
+            original_mcp_manager = api_state.mcp_manager
+            api_state.mcp_manager = mcp_manager
 
-            from test_ai.api import app, limiter
+            from test_ai.api import app
+            from test_ai.api_state import limiter
             from test_ai.security.brute_force import get_brute_force_protection
 
             # Disable rate limiting for tests
@@ -104,7 +105,7 @@ def client(backend, mcp_manager, monkeypatch):
             yield TestClient(app)
 
             # Restore original
-            api_module.mcp_manager = original_mcp_manager
+            api_state.mcp_manager = original_mcp_manager
 
 
 @pytest.fixture

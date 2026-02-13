@@ -77,7 +77,8 @@ def client(backend, monkeypatch):
                             mock_result
                         )
 
-                        from test_ai.api import app, limiter
+                        from test_ai.api import app
+                        from test_ai.api_state import limiter
                         from test_ai.security.brute_force import (
                             get_brute_force_protection,
                         )
@@ -572,7 +573,8 @@ class TestRateLimiting:
                                 mock_workflow
                             )
 
-                            from test_ai.api import app, limiter
+                            from test_ai.api import app
+                            from test_ai.api_state import limiter
                             from test_ai.security.brute_force import (
                                 get_brute_force_protection,
                             )
