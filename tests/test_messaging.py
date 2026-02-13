@@ -151,8 +151,11 @@ class TestBotMessage:
     def test_defaults(self):
         user = _make_user()
         msg = BotMessage(
-            id="1", platform=MessagePlatform.TELEGRAM, user=user,
-            content="hi", chat_id="c1",
+            id="1",
+            platform=MessagePlatform.TELEGRAM,
+            user=user,
+            content="hi",
+            chat_id="c1",
         )
         assert msg.reply_to_id is None
         assert msg.attachments == []
@@ -376,7 +379,10 @@ class TestMessageHandler:
 
     @pytest.fixture
     def handler(self, mock_session_manager, mock_supervisor):
-        with patch("test_ai.messaging.handler.MessageHandler.__init__", lambda self, *a, **kw: None):
+        with patch(
+            "test_ai.messaging.handler.MessageHandler.__init__",
+            lambda self, *a, **kw: None,
+        ):
             pass
         # Construct normally — the above is just to prove it's not needed
         from test_ai.messaging.handler import MessageHandler
@@ -495,7 +501,9 @@ class TestMessageHandler:
 
     # -- handle_message --
 
-    def test_handle_message_with_supervisor(self, handler, mock_session_manager, mock_supervisor):
+    def test_handle_message_with_supervisor(
+        self, handler, mock_session_manager, mock_supervisor
+    ):
         async def _test():
             msg = _make_message(content="What is AI?")
             resp = await handler.handle_message(msg)
@@ -506,7 +514,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_message_without_supervisor(self, handler_no_supervisor, mock_session_manager):
+    def test_handle_message_without_supervisor(
+        self, handler_no_supervisor, mock_session_manager
+    ):
         async def _test():
             msg = _make_message()
             resp = await handler_no_supervisor.handle_message(msg)
@@ -516,7 +526,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_message_supervisor_error(self, handler, mock_supervisor, mock_session_manager):
+    def test_handle_message_supervisor_error(
+        self, handler, mock_supervisor, mock_session_manager
+    ):
         async def _test():
             mock_supervisor.process.side_effect = RuntimeError("agent crash")
             msg = _make_message()
@@ -543,7 +555,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_message_stores_response_none_skips(self, handler, mock_supervisor, mock_session_manager):
+    def test_handle_message_stores_response_none_skips(
+        self, handler, mock_supervisor, mock_session_manager
+    ):
         async def _test():
             mock_supervisor.process.return_value = {"response": ""}
             msg = _make_message()
@@ -558,7 +572,9 @@ class TestMessageHandler:
 
     # -- _process_with_supervisor --
 
-    def test_process_with_supervisor_builds_context(self, handler, mock_supervisor, mock_session_manager):
+    def test_process_with_supervisor_builds_context(
+        self, handler, mock_supervisor, mock_session_manager
+    ):
         async def _test():
             msg_mock = MagicMock()
             msg_mock.role.value = "user"
@@ -677,7 +693,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_command_status_session_not_found(self, handler, mock_session_manager):
+    def test_handle_command_status_session_not_found(
+        self, handler, mock_session_manager
+    ):
         async def _test():
             user = _make_user()
             handler._user_sessions[user.identifier] = "gone-sess"
@@ -737,7 +755,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_command_history_limit_capped_at_20(self, handler, mock_session_manager):
+    def test_handle_command_history_limit_capped_at_20(
+        self, handler, mock_session_manager
+    ):
         async def _test():
             user = _make_user()
             handler._user_sessions[user.identifier] = "sess-1"
@@ -748,7 +768,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_command_history_non_numeric_limit(self, handler, mock_session_manager):
+    def test_handle_command_history_non_numeric_limit(
+        self, handler, mock_session_manager
+    ):
         async def _test():
             user = _make_user()
             handler._user_sessions[user.identifier] = "sess-1"
@@ -760,7 +782,9 @@ class TestMessageHandler:
 
         asyncio.run(_test())
 
-    def test_handle_command_history_truncates_long_messages(self, handler, mock_session_manager):
+    def test_handle_command_history_truncates_long_messages(
+        self, handler, mock_session_manager
+    ):
         async def _test():
             user = _make_user()
             handler._user_sessions[user.identifier] = "sess-1"
@@ -800,7 +824,10 @@ class TestDiscordBotImportGuard:
     """Test the import availability guard."""
 
     def test_discord_not_available_raises(self):
-        with patch.dict("sys.modules", {"discord": None, "discord.ext": None, "discord.ext.commands": None}):
+        with patch.dict(
+            "sys.modules",
+            {"discord": None, "discord.ext": None, "discord.ext.commands": None},
+        ):
             with patch("test_ai.messaging.discord_bot.DISCORD_AVAILABLE", False):
                 from test_ai.messaging.discord_bot import DiscordBot
 
@@ -840,9 +867,11 @@ class TestDiscordBot:
         mock_discord_mod.MessageReference.return_value = MagicMock()
         mock_discord_mod.Embed.return_value = MagicMock()
 
-        with patch("test_ai.messaging.discord_bot.DISCORD_AVAILABLE", True), \
-             patch("test_ai.messaging.discord_bot.discord", mock_discord_mod), \
-             patch("test_ai.messaging.discord_bot.commands", mock_commands):
+        with (
+            patch("test_ai.messaging.discord_bot.DISCORD_AVAILABLE", True),
+            patch("test_ai.messaging.discord_bot.discord", mock_discord_mod),
+            patch("test_ai.messaging.discord_bot.commands", mock_commands),
+        ):
             self.mock_discord_mod = mock_discord_mod
             self.mock_commands = mock_commands
             self.mock_bot_instance = mock_bot_instance
@@ -1241,7 +1270,9 @@ class TestDiscordBot:
             channel.send = AsyncMock(return_value=sent_msg)
             self.mock_bot_instance.get_channel.return_value = channel
             result = await bot.send_embed(
-                "100", "Title", "Description",
+                "100",
+                "Title",
+                "Description",
                 fields=[{"name": "F1", "value": "V1", "inline": True}],
             )
             assert result == "555"
@@ -1423,9 +1454,11 @@ class TestCreateDiscordBot:
         mock_discord_mod = MagicMock()
         mock_discord_mod.Intents = mock_intents_cls
 
-        with patch("test_ai.messaging.discord_bot.DISCORD_AVAILABLE", True), \
-             patch("test_ai.messaging.discord_bot.discord", mock_discord_mod), \
-             patch("test_ai.messaging.discord_bot.commands", mock_commands):
+        with (
+            patch("test_ai.messaging.discord_bot.DISCORD_AVAILABLE", True),
+            patch("test_ai.messaging.discord_bot.discord", mock_discord_mod),
+            patch("test_ai.messaging.discord_bot.commands", mock_commands),
+        ):
             yield
 
     def test_create_with_token(self):
@@ -1452,8 +1485,10 @@ class TestCreateDiscordBot:
         from test_ai.messaging.discord_bot import create_discord_bot
 
         bot = create_discord_bot(
-            token="t", allowed_users=["u1", "u2"],
-            admin_users=["a1"], allowed_guilds=["g1"],
+            token="t",
+            allowed_users=["u1", "u2"],
+            admin_users=["a1"],
+            allowed_guilds=["g1"],
         )
         assert bot.allowed_users == {"u1", "u2"}
         assert bot.admin_users == {"a1"}
@@ -1502,7 +1537,9 @@ class TestTelegramBotImportGuard:
         with patch("test_ai.messaging.telegram_bot.TELEGRAM_AVAILABLE", False):
             from test_ai.messaging.telegram_bot import TelegramBot
 
-            with pytest.raises(ImportError, match="python-telegram-bot is not installed"):
+            with pytest.raises(
+                ImportError, match="python-telegram-bot is not installed"
+            ):
                 TelegramBot(token="fake")
 
 
@@ -1538,13 +1575,20 @@ class TestTelegramBot:
         mock_chat_action = MagicMock()
         mock_chat_action.TYPING = "typing"
 
-        with patch("test_ai.messaging.telegram_bot.TELEGRAM_AVAILABLE", True), \
-             patch("test_ai.messaging.telegram_bot.Application", mock_application), \
-             patch("test_ai.messaging.telegram_bot.CommandHandler", mock_command_handler), \
-             patch("test_ai.messaging.telegram_bot.TGMessageHandler", mock_tg_message_handler), \
-             patch("test_ai.messaging.telegram_bot.filters", mock_filters), \
-             patch("test_ai.messaging.telegram_bot.ChatAction", mock_chat_action), \
-             patch("test_ai.messaging.telegram_bot.Update", MagicMock()):
+        with (
+            patch("test_ai.messaging.telegram_bot.TELEGRAM_AVAILABLE", True),
+            patch("test_ai.messaging.telegram_bot.Application", mock_application),
+            patch(
+                "test_ai.messaging.telegram_bot.CommandHandler", mock_command_handler
+            ),
+            patch(
+                "test_ai.messaging.telegram_bot.TGMessageHandler",
+                mock_tg_message_handler,
+            ),
+            patch("test_ai.messaging.telegram_bot.filters", mock_filters),
+            patch("test_ai.messaging.telegram_bot.ChatAction", mock_chat_action),
+            patch("test_ai.messaging.telegram_bot.Update", MagicMock()),
+        ):
             self.mock_app_instance = mock_app_instance
             self.mock_application = mock_application
             self.mock_bot_obj = mock_bot_obj
@@ -1973,7 +2017,9 @@ class TestTelegramBot:
             doc.file_name = "report.pdf"
             doc.mime_type = "application/pdf"
             doc.file_size = 10000
-            doc.get_file = AsyncMock(return_value=MagicMock(file_path="/tmp/report.pdf"))
+            doc.get_file = AsyncMock(
+                return_value=MagicMock(file_path="/tmp/report.pdf")
+            )
 
             update = MagicMock()
             msg = MagicMock()
@@ -2087,7 +2133,9 @@ class TestTelegramBot:
             voice.duration = 10
             voice.mime_type = "audio/ogg"
             voice.file_size = 15000
-            voice.get_file = AsyncMock(return_value=MagicMock(file_path="/tmp/voice.ogg"))
+            voice.get_file = AsyncMock(
+                return_value=MagicMock(file_path="/tmp/voice.ogg")
+            )
 
             update = MagicMock()
             msg = MagicMock()
@@ -2356,7 +2404,9 @@ class TestTelegramBot:
             self.mock_bot_obj.send_message = AsyncMock(return_value=sent_msg)
             long = "x" * 10000  # > 4096
             await bot.send_message("123", long)
-            assert self.mock_bot_obj.send_message.await_count == 3  # ceil(10000/4096) = 3
+            assert (
+                self.mock_bot_obj.send_message.await_count == 3
+            )  # ceil(10000/4096) = 3
 
         asyncio.run(_test())
 
@@ -2416,7 +2466,9 @@ class TestTelegramBot:
         async def _test():
             bot = self._make_bot()
             await bot.start()
-            self.mock_bot_obj.send_chat_action = AsyncMock(side_effect=Exception("fail"))
+            self.mock_bot_obj.send_chat_action = AsyncMock(
+                side_effect=Exception("fail")
+            )
             await bot.send_typing("123")  # Should not raise
 
         asyncio.run(_test())
@@ -2442,7 +2494,9 @@ class TestTelegramBot:
             sent_msg = MagicMock()
             sent_msg.message_id = 1
             self.mock_bot_obj.send_photo = AsyncMock(return_value=sent_msg)
-            await bot.send_photo("123", "http://example.com/photo.jpg", reply_to_id="50")
+            await bot.send_photo(
+                "123", "http://example.com/photo.jpg", reply_to_id="50"
+            )
             call_kwargs = self.mock_bot_obj.send_photo.call_args[1]
             assert call_kwargs["reply_to_message_id"] == 50
 
@@ -2476,7 +2530,9 @@ class TestTelegramBot:
             sent_msg = MagicMock()
             sent_msg.message_id = 333
             self.mock_bot_obj.send_document = AsyncMock(return_value=sent_msg)
-            result = await bot.send_document("123", b"docbytes", filename="doc.pdf", caption="A doc")
+            result = await bot.send_document(
+                "123", b"docbytes", filename="doc.pdf", caption="A doc"
+            )
             assert result == "333"
 
         asyncio.run(_test())
@@ -2519,13 +2575,15 @@ class TestCreateTelegramBot:
 
     @pytest.fixture(autouse=True)
     def mock_telegram_available(self):
-        with patch("test_ai.messaging.telegram_bot.TELEGRAM_AVAILABLE", True), \
-             patch("test_ai.messaging.telegram_bot.Application", MagicMock()), \
-             patch("test_ai.messaging.telegram_bot.CommandHandler", MagicMock()), \
-             patch("test_ai.messaging.telegram_bot.TGMessageHandler", MagicMock()), \
-             patch("test_ai.messaging.telegram_bot.filters", MagicMock()), \
-             patch("test_ai.messaging.telegram_bot.ChatAction", MagicMock()), \
-             patch("test_ai.messaging.telegram_bot.Update", MagicMock()):
+        with (
+            patch("test_ai.messaging.telegram_bot.TELEGRAM_AVAILABLE", True),
+            patch("test_ai.messaging.telegram_bot.Application", MagicMock()),
+            patch("test_ai.messaging.telegram_bot.CommandHandler", MagicMock()),
+            patch("test_ai.messaging.telegram_bot.TGMessageHandler", MagicMock()),
+            patch("test_ai.messaging.telegram_bot.filters", MagicMock()),
+            patch("test_ai.messaging.telegram_bot.ChatAction", MagicMock()),
+            patch("test_ai.messaging.telegram_bot.Update", MagicMock()),
+        ):
             yield
 
     def test_create_with_token(self):

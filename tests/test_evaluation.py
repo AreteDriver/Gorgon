@@ -214,9 +214,7 @@ class TestEvalResult:
 
     def test_defaults(self):
         case = _make_case()
-        result = EvalResult(
-            case=case, status=EvalStatus.PASSED, score=1.0, output="ok"
-        )
+        result = EvalResult(case=case, status=EvalStatus.PASSED, score=1.0, output="ok")
         assert result.error is None
         assert result.latency_ms == 0
         assert result.tokens_used == 0
@@ -333,8 +331,9 @@ class TestEvalSuite:
                 {"input": "q2", "name": "case_2", "metadata": {"tags": ["hard"]}},
             ],
         }
-        with patch("builtins.open", mock_open()), patch(
-            "yaml.safe_load", return_value=yaml_data
+        with (
+            patch("builtins.open", mock_open()),
+            patch("yaml.safe_load", return_value=yaml_data),
         ):
             suite = EvalSuite.from_yaml("/fake/path.yaml")
         assert suite.name == "yaml_suite"
@@ -347,8 +346,9 @@ class TestEvalSuite:
 
     def test_from_yaml_minimal(self):
         yaml_data = {}
-        with patch("builtins.open", mock_open()), patch(
-            "yaml.safe_load", return_value=yaml_data
+        with (
+            patch("builtins.open", mock_open()),
+            patch("yaml.safe_load", return_value=yaml_data),
         ):
             suite = EvalSuite.from_yaml("/fake/path.yaml")
         assert suite.name == "unnamed"
@@ -363,8 +363,9 @@ class TestEvalSuite:
         def mock_dump(data, f, **kwargs):
             written_data.update(data)
 
-        with patch("builtins.open", mock_open()), patch(
-            "yaml.dump", side_effect=mock_dump
+        with (
+            patch("builtins.open", mock_open()),
+            patch("yaml.dump", side_effect=mock_dump),
         ):
             suite.to_yaml("/fake/path.yaml")
 
@@ -929,7 +930,7 @@ class TestCodeExecutionMetric:
 
         m = CodeExecutionMetric()
         code = 'print("hello")'
-        output = '```python\n' + code + "\n```"
+        output = "```python\n" + code + "\n```"
         assert m.score(output, "hello", _make_case()) == 1.0
 
     @patch("subprocess.run")
@@ -943,7 +944,7 @@ class TestCodeExecutionMetric:
         mock_run.return_value = MagicMock(stdout="ok\n", stderr="")
 
         m = CodeExecutionMetric()
-        assert m.score('```python\nprint(1)\n```', None, _make_case()) == 1.0
+        assert m.score("```python\nprint(1)\n```", None, _make_case()) == 1.0
 
     @patch("subprocess.run")
     @patch("tempfile.NamedTemporaryFile")
@@ -956,7 +957,7 @@ class TestCodeExecutionMetric:
         mock_run.return_value = MagicMock(stdout="wrong\n", stderr="")
 
         m = CodeExecutionMetric()
-        assert m.score('```python\nprint(1)\n```', "hello", _make_case()) == 0.0
+        assert m.score("```python\nprint(1)\n```", "hello", _make_case()) == 0.0
 
     @patch("subprocess.run")
     @patch("tempfile.NamedTemporaryFile")
@@ -969,7 +970,7 @@ class TestCodeExecutionMetric:
         mock_run.side_effect = OSError("no python")
 
         m = CodeExecutionMetric()
-        assert m.score('```python\nprint(1)\n```', "1", _make_case()) == 0.0
+        assert m.score("```python\nprint(1)\n```", "1", _make_case()) == 0.0
 
     @patch("subprocess.run")
     @patch("tempfile.NamedTemporaryFile")
@@ -1289,7 +1290,9 @@ class TestEvalRunner:
         suite = EvalSuite(name="test_suite", threshold=0.5)
         suite.add_metric(_DummyMetric())
         for i in range(n):
-            suite.add_case(input=f"input_{i}", expected=f"expected_{i}", name=f"case_{i}")
+            suite.add_case(
+                input=f"input_{i}", expected=f"expected_{i}", name=f"case_{i}"
+            )
         return suite
 
     def test_run_sequential(self):
@@ -1712,7 +1715,9 @@ class TestConsoleReporter:
         assert "Something went wrong" in report
 
     def test_metrics_displayed(self):
-        sr = _make_reporter_suite_result(include_metrics=True, pass_rate_above_threshold=False)
+        sr = _make_reporter_suite_result(
+            include_metrics=True, pass_rate_above_threshold=False
+        )
         reporter = ConsoleReporter(verbose=True)
         report = reporter.report(sr)
         assert "accuracy" in report
@@ -1753,7 +1758,9 @@ class TestConsoleReporter:
             (EvalStatus.SKIPPED, "[SKIP]"),
         ]
         for status, icon in results_data:
-            result = _make_result(case=_make_case(name=f"{status.value}_case"), status=status, score=0.5)
+            result = _make_result(
+                case=_make_case(name=f"{status.value}_case"), status=status, score=0.5
+            )
             sr = SuiteResult(
                 suite=suite,
                 results=[result],
@@ -2031,5 +2038,3 @@ class TestEndToEnd:
         )
         assert result.passed == 2
         assert result.pass_rate == 1.0
-
-

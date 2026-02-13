@@ -391,7 +391,9 @@ class TestDetailedViewAllStatuses:
     def test_detailed_running_status(self, mock_streamlit):
         from test_ai.dashboard.workflow_visualizer import render_workflow_visualizer
 
-        steps = [{"id": "run_step", "type": "claude_code", "params": {"role": "builder"}}]
+        steps = [
+            {"id": "run_step", "type": "claude_code", "params": {"role": "builder"}}
+        ]
 
         render_workflow_visualizer(steps, current_step="run_step")
         mock_streamlit.markdown.assert_called()

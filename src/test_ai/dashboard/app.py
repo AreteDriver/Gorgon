@@ -36,7 +36,9 @@ try:
 
     NEW_COMPONENTS_AVAILABLE = True
 except ImportError:
-    NEW_COMPONENTS_AVAILABLE = False  # Optional import: dashboard components not available
+    NEW_COMPONENTS_AVAILABLE = (
+        False  # Optional import: dashboard components not available
+    )
 
 
 def _get_workflow_builder_renderer() -> Callable[[], None] | None:

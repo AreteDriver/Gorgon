@@ -986,7 +986,9 @@ class TestAutoRefreshBranch:
         mock_st_module.rerun = MagicMock()
 
         with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
-            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+            with patch(
+                "test_ai.dashboard.monitoring_pages.get_tracker"
+            ) as mock_tracker_fn:
                 mock_tracker = MagicMock()
                 mock_tracker.get_dashboard_data.return_value = {
                     "summary": {
@@ -1000,7 +1002,9 @@ class TestAutoRefreshBranch:
                 }
                 mock_tracker_fn.return_value = mock_tracker
                 with patch("test_ai.dashboard.monitoring_pages.time"):
-                    from test_ai.dashboard.monitoring_pages import render_monitoring_page
+                    from test_ai.dashboard.monitoring_pages import (
+                        render_monitoring_page,
+                    )
 
                     render_monitoring_page()
                     mock_st_module.rerun.assert_called()
@@ -1072,7 +1076,9 @@ class TestMetricsPageTokenBranches:
         """Test branch where token_data exists but all tokens are 0 (line 367)."""
         mock_st_module = _make_mock_st()
         with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
-            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+            with patch(
+                "test_ai.dashboard.monitoring_pages.get_tracker"
+            ) as mock_tracker_fn:
                 mock_tracker = MagicMock()
                 mock_tracker.get_dashboard_data.return_value = {
                     "summary": {
@@ -1101,7 +1107,9 @@ class TestMetricsPageTokenBranches:
         """Test branch where recent execs exist but duration_ms is falsy (line 384)."""
         mock_st_module = _make_mock_st()
         with patch("test_ai.dashboard.monitoring_pages.st", mock_st_module):
-            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+            with patch(
+                "test_ai.dashboard.monitoring_pages.get_tracker"
+            ) as mock_tracker_fn:
                 mock_tracker = MagicMock()
                 mock_tracker.get_dashboard_data.return_value = {
                     "summary": {
@@ -1301,7 +1309,9 @@ class TestRecentExecutionWithStepStatuses:
 
     def test_execution_with_failed_step(self):
         with patch("test_ai.dashboard.monitoring_pages.st", _make_mock_st()):
-            with patch("test_ai.dashboard.monitoring_pages.get_tracker") as mock_tracker_fn:
+            with patch(
+                "test_ai.dashboard.monitoring_pages.get_tracker"
+            ) as mock_tracker_fn:
                 mock_tracker = MagicMock()
                 mock_tracker.get_dashboard_data.return_value = {
                     "summary": {
