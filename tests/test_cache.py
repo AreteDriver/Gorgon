@@ -2,7 +2,7 @@
 
 import asyncio
 import time
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -513,8 +513,10 @@ class TestGetCacheAdditional:
         reset_cache()
 
     def test_redis_url_without_redis_installed(self):
-        """Falls back to MemoryCache when REDIS_URL set but redis not installed."""
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379/0"}):
+        """Falls back to MemoryCache when redis_url set but redis not installed."""
+        mock_settings = MagicMock()
+        mock_settings.redis_url = "redis://localhost:6379/0"
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             with patch("importlib.util.find_spec", return_value=None):
                 reset_cache()
                 cache = get_cache()

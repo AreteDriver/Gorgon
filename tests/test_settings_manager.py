@@ -1,6 +1,5 @@
 """Comprehensive tests for settings/manager.py and settings/models.py."""
 
-import os
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
@@ -297,10 +296,11 @@ def mock_backend():
 
 @pytest.fixture
 def manager(mock_backend):
-    """Create SettingsManager with mocked backend and env."""
-    with patch.dict(
-        os.environ, {"JWT_SECRET": "test-secret-key-for-testing"}, clear=False
-    ):
+    """Create SettingsManager with mocked backend and settings."""
+    mock_settings = MagicMock()
+    mock_settings.settings_encryption_key = None
+    mock_settings.jwt_secret = "test-secret-key-for-testing"
+    with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
         mgr = SettingsManager(mock_backend)
     return mgr
 
@@ -326,44 +326,39 @@ class TestSettingsManagerEncryption:
         assert c1 != c2
 
     def test_derive_key_from_jwt_secret(self):
-        with patch.dict(os.environ, {"JWT_SECRET": "my-jwt-secret"}, clear=False):
-            with patch.dict(os.environ, {}, clear=False):
-                # Remove SETTINGS_ENCRYPTION_KEY if set
-                os.environ.pop("SETTINGS_ENCRYPTION_KEY", None)
-                mgr = SettingsManager(MagicMock())
-                assert mgr._encryption_key is not None
-                assert len(mgr._encryption_key) == 44  # base64-encoded 32 bytes
+        mock_settings = MagicMock()
+        mock_settings.settings_encryption_key = None
+        mock_settings.jwt_secret = "my-jwt-secret"
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
+            mgr = SettingsManager(MagicMock())
+            assert mgr._encryption_key is not None
+            assert len(mgr._encryption_key) == 44  # base64-encoded 32 bytes
 
     def test_derive_key_from_valid_fernet_key(self):
         from cryptography.fernet import Fernet
 
         fernet_key = Fernet.generate_key().decode()
-        with patch.dict(
-            os.environ,
-            {"SETTINGS_ENCRYPTION_KEY": fernet_key},
-            clear=False,
-        ):
+        mock_settings = MagicMock()
+        mock_settings.settings_encryption_key = fernet_key
+        mock_settings.jwt_secret = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             mgr = SettingsManager(MagicMock())
             assert mgr._encryption_key == fernet_key.encode()
 
     def test_derive_key_invalid_encryption_key_falls_back(self):
-        with patch.dict(
-            os.environ,
-            {"SETTINGS_ENCRYPTION_KEY": "not-a-valid-fernet-key"},
-            clear=False,
-        ):
+        mock_settings = MagicMock()
+        mock_settings.settings_encryption_key = "not-a-valid-fernet-key"
+        mock_settings.jwt_secret = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             mgr = SettingsManager(MagicMock())
             # Should fall back to JWT_SECRET derivation
             assert mgr._encryption_key is not None
 
     def test_derive_key_default_secret(self):
-        with patch.dict(
-            os.environ,
-            {},
-            clear=False,
-        ):
-            os.environ.pop("SETTINGS_ENCRYPTION_KEY", None)
-            os.environ.pop("JWT_SECRET", None)
+        mock_settings = MagicMock()
+        mock_settings.settings_encryption_key = None
+        mock_settings.jwt_secret = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             mgr = SettingsManager(MagicMock())
             assert mgr._encryption_key is not None
 

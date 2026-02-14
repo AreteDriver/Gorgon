@@ -570,22 +570,24 @@ def create_telegram_bot(
     Returns:
         Configured TelegramBot instance.
     """
-    import os
+    from test_ai.config.settings import get_settings
 
-    bot_token = token or os.environ.get("TELEGRAM_BOT_TOKEN")
+    settings = get_settings()
+
+    bot_token = token or settings.telegram_bot_token
     if not bot_token:
         raise ValueError(
             "Telegram bot token not provided. "
             "Set TELEGRAM_BOT_TOKEN environment variable or pass token parameter."
         )
 
-    # Load allowed/admin users from env if not provided
+    # Load allowed/admin users from settings if not provided
     if allowed_users is None:
-        allowed_env = os.environ.get("TELEGRAM_ALLOWED_USERS", "")
+        allowed_env = settings.telegram_allowed_users or ""
         allowed_users = [u.strip() for u in allowed_env.split(",") if u.strip()] or None
 
     if admin_users is None:
-        admin_env = os.environ.get("TELEGRAM_ADMIN_USERS", "")
+        admin_env = settings.telegram_admin_users or ""
         admin_users = [u.strip() for u in admin_env.split(",") if u.strip()] or None
 
     return TelegramBot(

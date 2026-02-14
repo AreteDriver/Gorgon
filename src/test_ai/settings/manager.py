@@ -2,7 +2,6 @@
 
 import base64
 import logging
-import os
 from datetime import datetime
 from typing import Optional
 
@@ -41,7 +40,10 @@ class SettingsManager:
         Uses SETTINGS_ENCRYPTION_KEY env var, or generates from JWT_SECRET.
         """
         # Try dedicated encryption key first
-        key = os.environ.get("SETTINGS_ENCRYPTION_KEY")
+        from test_ai.config.settings import get_settings
+
+        settings = get_settings()
+        key = settings.settings_encryption_key
         if key:
             # If it's already a valid Fernet key, use it directly
             if len(key) == 44:
@@ -52,7 +54,7 @@ class SettingsManager:
                     pass  # Graceful degradation: invalid Fernet key falls through to derived key
 
         # Fall back to deriving from JWT_SECRET or a default
-        secret = os.environ.get("JWT_SECRET", "gorgon-default-secret-change-me")
+        secret = settings.jwt_secret or "gorgon-default-secret-change-me"
         salt = b"gorgon-settings-salt"
 
         kdf = PBKDF2HMAC(

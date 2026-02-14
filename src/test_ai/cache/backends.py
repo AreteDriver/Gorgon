@@ -361,9 +361,10 @@ def get_cache() -> Cache:
 def _create_cache() -> Cache:
     """Create cache based on configuration."""
     import importlib.util
-    import os
 
-    redis_url = os.environ.get("REDIS_URL")
+    from test_ai.config.settings import get_settings
+
+    redis_url = get_settings().redis_url
 
     if redis_url:
         if importlib.util.find_spec("redis") is not None:

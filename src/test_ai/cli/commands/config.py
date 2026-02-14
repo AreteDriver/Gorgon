@@ -57,10 +57,19 @@ def config_show(
 @config_app.command("path")
 def config_path() -> None:
     """Show configuration file paths."""
-    from pathlib import Path
     import os
+    from pathlib import Path
+
+    from test_ai.config.settings import _YAML_SEARCH_PATHS, _find_yaml_config
 
     console.print("[bold]Configuration Sources[/bold]\n")
+
+    # gorgon.yaml
+    yaml_path = _find_yaml_config()
+    if yaml_path:
+        console.print(f"[green]✓[/green] gorgon.yaml: {yaml_path.absolute()}")
+    else:
+        console.print("[yellow]○[/yellow] gorgon.yaml: not found")
 
     # .env file
     env_path = Path(".env")
@@ -78,10 +87,11 @@ def config_path() -> None:
     else:
         console.print("\n[dim]No GORGON_* environment variables set[/dim]")
 
-    # Config directories
-    console.print("\n[bold]Search Paths:[/bold]")
-    console.print("  ./config/")
-    console.print("  ~/.config/gorgon/")
+    # YAML search paths
+    console.print("\n[bold]YAML Search Paths:[/bold]")
+    for p in _YAML_SEARCH_PATHS:
+        marker = "[green]✓[/green]" if p.is_file() else "[dim]○[/dim]"
+        console.print(f"  {marker} {p}")
 
 
 @config_app.command("env")

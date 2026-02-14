@@ -1,14 +1,24 @@
 """Settings and configuration management."""
 
 import logging
+import re
 import secrets
 import warnings
 from functools import lru_cache
 from pathlib import Path
-from typing import Optional
+from typing import ClassVar, Optional
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, model_validator
+from pydantic_settings import (
+    BaseSettings,
+    PydanticBaseSettingsSource,
+    SettingsConfigDict,
+)
+
+try:
+    from pydantic_settings import YamlConfigSettingsSource
+except ImportError:  # pydantic-settings < 2.6
+    YamlConfigSettingsSource = None
 
 logger = logging.getLogger(__name__)
 
@@ -20,13 +30,92 @@ _INSECURE_DATABASE_URL = "sqlite:///gorgon-state.db"
 _MIN_SECRET_KEY_LENGTH = 32
 _MIN_SECRET_KEY_ENTROPY_BITS = 128
 
+# Regex for ${ENV_VAR} placeholders in YAML values
+_ENV_VAR_PLACEHOLDER_RE = re.compile(r"^\$\{[A-Z_][A-Z0-9_]*\}$")
+
+# YAML config search paths (checked in order, first found wins)
+_YAML_SEARCH_PATHS = [
+    Path("gorgon.yaml"),
+    Path("config/gorgon.yaml"),
+    Path.home() / ".config" / "gorgon" / "gorgon.yaml",
+]
+
+
+def _find_yaml_config() -> Optional[Path]:
+    """Find the first gorgon.yaml in search paths."""
+    for path in _YAML_SEARCH_PATHS:
+        if path.is_file():
+            return path
+    return None
+
 
 class Settings(BaseSettings):
-    """Application settings."""
+    """Application settings.
+
+    Priority chain: init kwargs > env vars > .env file > gorgon.yaml > defaults
+    """
 
     model_config = SettingsConfigDict(
-        env_file=".env", env_file_encoding="utf-8", case_sensitive=False, extra="ignore"
+        env_file=".env",
+        env_file_encoding="utf-8",
+        yaml_file="gorgon.yaml",
+        yaml_file_encoding="utf-8",
+        case_sensitive=False,
+        extra="ignore",
     )
+
+    # Class-level cache for the resolved YAML path (not a pydantic field)
+    _yaml_path: ClassVar[Optional[Path]] = None
+
+    @classmethod
+    def settings_customise_sources(
+        cls,
+        settings_cls: type[BaseSettings],
+        init_settings: PydanticBaseSettingsSource,
+        env_settings: PydanticBaseSettingsSource,
+        dotenv_settings: PydanticBaseSettingsSource,
+        file_secret_settings: PydanticBaseSettingsSource,
+    ) -> tuple[PydanticBaseSettingsSource, ...]:
+        """Customise settings source priority.
+
+        Priority: init kwargs > env vars > .env file > gorgon.yaml > file secrets > defaults
+        """
+        sources: list[PydanticBaseSettingsSource] = [
+            init_settings,
+            env_settings,
+            dotenv_settings,
+        ]
+
+        if YamlConfigSettingsSource is not None:
+            yaml_path = _find_yaml_config()
+            cls._yaml_path = yaml_path
+            if yaml_path:
+                sources.append(
+                    YamlConfigSettingsSource(
+                        settings_cls,
+                        yaml_file=yaml_path,
+                        yaml_file_encoding="utf-8",
+                    )
+                )
+
+        sources.append(file_secret_settings)
+        return tuple(sources)
+
+    @model_validator(mode="before")
+    @classmethod
+    def _resolve_env_var_placeholders(cls, data: dict) -> dict:
+        """Strip unresolved ${VAR} placeholders so they become None.
+
+        YAML files may contain ${ENV_VAR} syntax for secrets. When the env var
+        is not set, the raw placeholder string would pollute the field value.
+        This validator converts those to None so the field default applies.
+        """
+        if not isinstance(data, dict):
+            return data
+        for key, value in data.items():
+            if isinstance(value, str) and _ENV_VAR_PLACEHOLDER_RE.match(value):
+                data[key] = None
+        return data
 
     # API Keys
     openai_api_key: str = Field(default="", description="OpenAI API key")
@@ -201,6 +290,60 @@ class Settings(BaseSettings):
         1.0, description="Trace sampling rate (0.0-1.0, default: trace all)"
     )
 
+    # Azure OpenAI
+    azure_openai_api_key: Optional[str] = Field(
+        None, description="Azure OpenAI API key"
+    )
+    azure_openai_endpoint: Optional[str] = Field(
+        None, description="Azure OpenAI endpoint URL"
+    )
+    azure_openai_deployment: Optional[str] = Field(
+        None, description="Azure OpenAI deployment name"
+    )
+
+    # Google Cloud / Vertex AI
+    google_application_credentials: Optional[str] = Field(
+        None, description="Path to Google Cloud service account JSON"
+    )
+    google_cloud_project: Optional[str] = Field(
+        None, description="Google Cloud project ID"
+    )
+    google_cloud_location: Optional[str] = Field(
+        None, description="Google Cloud region (e.g. us-central1)"
+    )
+
+    # Redis
+    redis_url: Optional[str] = Field(None, description="Redis connection URL")
+
+    # Telegram
+    telegram_bot_token: Optional[str] = Field(None, description="Telegram bot token")
+    telegram_allowed_users: Optional[str] = Field(
+        None, description="Comma-separated Telegram user IDs"
+    )
+    telegram_admin_users: Optional[str] = Field(
+        None, description="Comma-separated Telegram admin user IDs"
+    )
+
+    # Discord
+    discord_bot_token: Optional[str] = Field(None, description="Discord bot token")
+    discord_allowed_users: Optional[str] = Field(
+        None, description="Comma-separated Discord user IDs"
+    )
+    discord_admin_users: Optional[str] = Field(
+        None, description="Comma-separated Discord admin user IDs"
+    )
+    discord_allowed_guilds: Optional[str] = Field(
+        None, description="Comma-separated Discord guild IDs"
+    )
+
+    # Security / Encryption
+    settings_encryption_key: Optional[str] = Field(
+        None, description="Fernet key for settings encryption"
+    )
+    jwt_secret: Optional[str] = Field(
+        None, description="JWT secret for settings encryption fallback"
+    )
+
     @property
     def has_secure_secret_key(self) -> bool:
         """Check if secret key meets security requirements.
@@ -356,3 +499,7 @@ class Settings(BaseSettings):
 def get_settings() -> Settings:
     """Get cached settings instance."""
     return Settings()
+
+
+# Alias for CLI and other consumers that expect get_config()
+get_config = get_settings

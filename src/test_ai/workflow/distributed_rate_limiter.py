@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import asyncio
 import logging
-import os
 import sqlite3
 import time
 from abc import ABC, abstractmethod
@@ -87,7 +86,11 @@ class RedisRateLimiter(DistributedRateLimiter):
         url: Optional[str] = None,
         prefix: str = "gorgon:ratelimit:",
     ):
-        self._url = url or os.environ.get("REDIS_URL", "redis://localhost:6379/0")
+        if url is None:
+            from test_ai.config.settings import get_settings
+
+            url = get_settings().redis_url
+        self._url = url or "redis://localhost:6379/0"
         self._prefix = prefix
         self._client = None
         self._async_client = None
@@ -421,7 +424,9 @@ def _create_rate_limiter() -> DistributedRateLimiter:
     """Create rate limiter based on environment."""
     import importlib.util
 
-    redis_url = os.environ.get("REDIS_URL")
+    from test_ai.config.settings import get_settings
+
+    redis_url = get_settings().redis_url
 
     if redis_url:
         if importlib.util.find_spec("redis") is not None:

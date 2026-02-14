@@ -5,7 +5,6 @@ with all external dependencies mocked.
 """
 
 import asyncio
-import os
 from datetime import datetime
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, MagicMock, patch
@@ -1470,14 +1469,21 @@ class TestCreateDiscordBot:
     def test_create_from_env(self):
         from test_ai.messaging.discord_bot import create_discord_bot
 
-        with patch.dict(os.environ, {"DISCORD_BOT_TOKEN": "env-token"}):
+        mock_settings = MagicMock()
+        mock_settings.discord_bot_token = "env-token"
+        mock_settings.discord_allowed_users = None
+        mock_settings.discord_admin_users = None
+        mock_settings.discord_allowed_guilds = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             bot = create_discord_bot()
         assert bot.token == "env-token"
 
     def test_create_no_token_raises(self):
         from test_ai.messaging.discord_bot import create_discord_bot
 
-        with patch.dict(os.environ, {}, clear=True):
+        mock_settings = MagicMock()
+        mock_settings.discord_bot_token = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             with pytest.raises(ValueError, match="bot token not provided"):
                 create_discord_bot()
 
@@ -1497,13 +1503,12 @@ class TestCreateDiscordBot:
     def test_create_loads_users_from_env(self):
         from test_ai.messaging.discord_bot import create_discord_bot
 
-        env = {
-            "DISCORD_BOT_TOKEN": "t",
-            "DISCORD_ALLOWED_USERS": "u1, u2",
-            "DISCORD_ADMIN_USERS": "a1",
-            "DISCORD_ALLOWED_GUILDS": "g1, g2",
-        }
-        with patch.dict(os.environ, env):
+        mock_settings = MagicMock()
+        mock_settings.discord_bot_token = "t"
+        mock_settings.discord_allowed_users = "u1, u2"
+        mock_settings.discord_admin_users = "a1"
+        mock_settings.discord_allowed_guilds = "g1, g2"
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             bot = create_discord_bot()
         assert bot.allowed_users == {"u1", "u2"}
         assert bot.admin_users == {"a1"}
@@ -1512,13 +1517,12 @@ class TestCreateDiscordBot:
     def test_create_empty_env_vars(self):
         from test_ai.messaging.discord_bot import create_discord_bot
 
-        env = {
-            "DISCORD_BOT_TOKEN": "t",
-            "DISCORD_ALLOWED_USERS": "",
-            "DISCORD_ADMIN_USERS": "",
-            "DISCORD_ALLOWED_GUILDS": "",
-        }
-        with patch.dict(os.environ, env):
+        mock_settings = MagicMock()
+        mock_settings.discord_bot_token = "t"
+        mock_settings.discord_allowed_users = ""
+        mock_settings.discord_admin_users = ""
+        mock_settings.discord_allowed_guilds = ""
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             bot = create_discord_bot()
         assert bot.allowed_users is None
         assert bot.admin_users == set()
@@ -2595,14 +2599,20 @@ class TestCreateTelegramBot:
     def test_create_from_env(self):
         from test_ai.messaging.telegram_bot import create_telegram_bot
 
-        with patch.dict(os.environ, {"TELEGRAM_BOT_TOKEN": "env-tg-token"}):
+        mock_settings = MagicMock()
+        mock_settings.telegram_bot_token = "env-tg-token"
+        mock_settings.telegram_allowed_users = None
+        mock_settings.telegram_admin_users = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             bot = create_telegram_bot()
         assert bot.token == "env-tg-token"
 
     def test_create_no_token_raises(self):
         from test_ai.messaging.telegram_bot import create_telegram_bot
 
-        with patch.dict(os.environ, {}, clear=True):
+        mock_settings = MagicMock()
+        mock_settings.telegram_bot_token = None
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             with pytest.raises(ValueError, match="bot token not provided"):
                 create_telegram_bot()
 
@@ -2620,12 +2630,11 @@ class TestCreateTelegramBot:
     def test_create_loads_users_from_env(self):
         from test_ai.messaging.telegram_bot import create_telegram_bot
 
-        env = {
-            "TELEGRAM_BOT_TOKEN": "t",
-            "TELEGRAM_ALLOWED_USERS": "u1, u2",
-            "TELEGRAM_ADMIN_USERS": "a1",
-        }
-        with patch.dict(os.environ, env):
+        mock_settings = MagicMock()
+        mock_settings.telegram_bot_token = "t"
+        mock_settings.telegram_allowed_users = "u1, u2"
+        mock_settings.telegram_admin_users = "a1"
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             bot = create_telegram_bot()
         assert bot.allowed_users == {"u1", "u2"}
         assert bot.admin_users == {"a1"}
@@ -2633,12 +2642,11 @@ class TestCreateTelegramBot:
     def test_create_empty_env_vars(self):
         from test_ai.messaging.telegram_bot import create_telegram_bot
 
-        env = {
-            "TELEGRAM_BOT_TOKEN": "t",
-            "TELEGRAM_ALLOWED_USERS": "",
-            "TELEGRAM_ADMIN_USERS": "",
-        }
-        with patch.dict(os.environ, env):
+        mock_settings = MagicMock()
+        mock_settings.telegram_bot_token = "t"
+        mock_settings.telegram_allowed_users = ""
+        mock_settings.telegram_admin_users = ""
+        with patch("test_ai.config.settings.get_settings", return_value=mock_settings):
             bot = create_telegram_bot()
         assert bot.allowed_users is None
         assert bot.admin_users == set()
