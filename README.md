@@ -16,19 +16,34 @@
 
 ## What's New in v1.0.0
 
-🎨 **Visual Workflow Builder** — Drag-and-drop workflow creation with canvas, visual graph, and YAML export
+**Budgeted multi-agent workflows with checkpoint/resume and cost observability.**
 
-🧩 **Plugin Marketplace** — Discover, install, and manage workflow plugins with multi-source support
+Define a workflow, set a token/dollar budget, and let specialized agents execute it step-by-step. If a run is interrupted or exceeds its budget, it checkpoints automatically and resumes where it left off. Every step emits cost and latency metrics you can query from the dashboard or the `/v1/jobs` API.
 
-📊 **Agent Evaluation Framework** — Benchmark and compare agent performance across tasks
+```bash
+curl -X POST http://localhost:8000/v1/workflows/execute \
+  -H "Authorization: Bearer $TOKEN" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "workflow_id": "dev_workflow_plan_build_test_review",
+    "variables": { "feature_request": "Build user auth" },
+    "budget": { "max_cost_usd": 2.00 }
+  }'
+```
 
-💬 **Messaging Bots** — Telegram, Discord, and Slack integration for workflow triggers
+### Optional Modules
 
-🗣️ **Chat Interface** — Conversational AI with session persistence and agent attribution
+These ship with v1.0.0 but are **not required** for the core workflow engine:
 
-🤖 **Supervisor Agent** — Intelligent task delegation to specialized sub-agents
-
-🔄 **Self-Improvement System** — Autonomous codebase improvement with safety guards and human approval gates
+| Module | What it adds |
+|--------|-------------|
+| Visual Workflow Builder | Drag-and-drop canvas with YAML export |
+| Plugin Marketplace | Discover and install community workflow plugins |
+| Agent Eval Framework | Benchmark and compare agent performance |
+| Messaging Bots | Trigger workflows from Telegram, Discord, Slack |
+| Chat Interface | Conversational AI with session persistence |
+| Supervisor Agent | Auto-delegate tasks to specialized sub-agents |
+| Self-Improvement | Autonomous codebase improvement with safety guards |
 
 ---
 
@@ -298,7 +313,7 @@ Gorgon supports both SQLite (default) and PostgreSQL backends.
 
 ### SQLite (Default)
 
-No configuration needed. Data stored in `gorgon-state.db`.
+No configuration needed. The database file (`gorgon-state.db`) is created automatically on first run. Do not commit it to version control.
 
 ### PostgreSQL
 
@@ -437,6 +452,8 @@ Define workflows as JSON:
 
 ## Roadmap
 
+### Core (shipped in v1.0.0)
+
 - [x] Multi-agent Claude integration
 - [x] Development workflow (Plan → Build → Test → Review)
 - [x] Analytics workflow (Ingest → Analyze → Visualize → Report)
@@ -445,21 +462,32 @@ Define workflows as JSON:
 - [x] Job queue with async execution
 - [x] Scheduled workflows (cron/interval)
 - [x] Webhook triggers
+- [x] Checkpoint/resume for long-running workflows
+- [x] Budget enforcement and cost observability
 - [x] Request logging with tracing
 - [x] Rate limiting
 - [x] CI/CD pipeline
 - [x] Parallel agent execution
+- [x] API resilience (retry, circuit breaker, fallbacks)
+
+### Optional modules (shipped, opt-in)
+
 - [x] Visual workflow builder
+- [x] Plugin marketplace
+- [x] Chat interface with session persistence
+- [x] Supervisor agent for task delegation
+- [x] Self-improvement system with safety guards
+- [x] Messaging bots (Telegram, Discord, Slack)
 - [x] Agent memory/context persistence
 - [x] Skill context injection
-- [x] Slack integration
-- [x] API resilience (retry, circuit breaker, fallbacks)
-- [x] **Chat interface** with session persistence
-- [x] **Supervisor agent** for task delegation
-- [x] **Self-improvement system** with safety guards
-- [x] Plugin marketplace
 - [x] Multi-tenant support
 - [x] Workflow version control
+
+### Planned
+
+- [ ] Streaming execution logs via SSE/WebSocket
+- [ ] Per-agent cost attribution in dashboard
+- [ ] Workflow marketplace (share across orgs)
 
 ---
 

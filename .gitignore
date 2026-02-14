@@ -39,6 +39,9 @@ logs/
 !migrations/*.sql
 *.sqlite
 *.db
+*.db-journal
+*.db-wal
+*.db-shm
 
 # Testing
 .pytest_cache/
