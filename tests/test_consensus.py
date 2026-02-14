@@ -819,7 +819,7 @@ class TestOrchestratorConsensusIntegration:
         mock_client.execute_agent.return_value = rejected_result
 
         with patch(
-            "test_ai.workflow.executor._get_claude_client", return_value=mock_client
+            "test_ai.workflow.executor_ai._get_claude_client", return_value=mock_client
         ):
             with pytest.raises(RuntimeError, match="Consensus rejected"):
                 executor._execute_claude_code(step, {})
@@ -853,7 +853,7 @@ class TestOrchestratorConsensusIntegration:
         mock_client.execute_agent.return_value = confirmed_result
 
         with patch(
-            "test_ai.workflow.executor._get_claude_client", return_value=mock_client
+            "test_ai.workflow.executor_ai._get_claude_client", return_value=mock_client
         ):
             output = executor._execute_claude_code(step, {})
 
@@ -884,7 +884,7 @@ class TestOrchestratorConsensusIntegration:
         mock_client.execute_agent.return_value = result
 
         with patch(
-            "test_ai.workflow.executor._get_claude_client", return_value=mock_client
+            "test_ai.workflow.executor_ai._get_claude_client", return_value=mock_client
         ):
             output = executor._execute_claude_code(step, {})
 
