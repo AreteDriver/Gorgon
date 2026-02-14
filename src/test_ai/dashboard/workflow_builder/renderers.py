@@ -184,11 +184,15 @@ def _render_node_card(node: dict) -> None:
     # Selection and delete buttons with better styling
     col1, col2 = st.columns(2)
     with col1:
-        if st.button("\u270f\ufe0f Edit", key=f"select_{node_id}", use_container_width=True):
+        if st.button(
+            "\u270f\ufe0f Edit", key=f"select_{node_id}", use_container_width=True
+        ):
             st.session_state.selected_node = node_id
             st.rerun()
     with col2:
-        if st.button("\U0001f5d1\ufe0f Delete", key=f"delete_{node_id}", use_container_width=True):
+        if st.button(
+            "\U0001f5d1\ufe0f Delete", key=f"delete_{node_id}", use_container_width=True
+        ):
             _delete_node(node_id)
             st.rerun()
 
@@ -262,7 +266,9 @@ def _render_canvas() -> None:
             target = st.selectbox("To", target_options, key="conn_target")
         with col3:
             st.markdown("<br>", unsafe_allow_html=True)
-            if st.button("\U0001f517 Connect", use_container_width=True, type="primary"):
+            if st.button(
+                "\U0001f517 Connect", use_container_width=True, type="primary"
+            ):
                 if source and target:
                     _add_edge(source, target)
                     # Also update depends_on
@@ -872,7 +878,9 @@ def _render_visual_graph() -> None:
 
         for i, node_id in enumerate(node_ids):
             node = node_map[node_id]
-            config = NODE_TYPE_CONFIG.get(node["type"], {"icon": "\U0001f4e6", "color": "#666"})
+            config = NODE_TYPE_CONFIG.get(
+                node["type"], {"icon": "\U0001f4e6", "color": "#666"}
+            )
 
             # Get execution status for visual indicator
             status_color, status_icon = _get_node_execution_status(node_id)

@@ -29,9 +29,7 @@ class StepExecutionMixin:
     - fallback_callbacks: dict
     """
 
-    def _check_step_preconditions(
-        self, step: StepConfig, result: StepResult
-    ) -> tuple:
+    def _check_step_preconditions(self, step: StepConfig, result: StepResult) -> tuple:
         """Check step preconditions and return handler/circuit breaker.
 
         Returns:
