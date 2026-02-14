@@ -110,6 +110,10 @@ async def lifespan(app: FastAPI):
     state.settings_manager = SettingsManager(backend=backend)
     state.budget_manager = PersistentBudgetManager(backend=backend)
 
+    from test_ai.db import TaskStore
+
+    state.task_store = TaskStore(backend=backend)
+
     # Initialize WebSocket components
     state.ws_manager = ConnectionManager()
     state.ws_broadcaster = Broadcaster(state.ws_manager)
@@ -394,6 +398,7 @@ from test_ai.api_routes import (  # noqa: E402
     dashboard,
     executions,
     health,
+    history,
     jobs,
     mcp,
     prompts,
@@ -416,6 +421,7 @@ v1_router.include_router(prompts.router)
 v1_router.include_router(settings.router)
 v1_router.include_router(budgets.router)
 v1_router.include_router(dashboard.router)
+v1_router.include_router(history.router)
 
 app.include_router(v1_router)
 app.include_router(health.router)

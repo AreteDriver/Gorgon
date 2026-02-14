@@ -19,6 +19,7 @@ from slowapi.util import get_remote_address
 
 if TYPE_CHECKING:
     from test_ai.budget import PersistentBudgetManager
+    from test_ai.db import TaskStore
     from test_ai.executions import ExecutionManager
     from test_ai.jobs import JobManager
     from test_ai.mcp import MCPConnectorManager
@@ -61,6 +62,7 @@ execution_manager: Optional[ExecutionManager] = None
 mcp_manager: Optional[MCPConnectorManager] = None
 settings_manager: Optional[SettingsManager] = None
 budget_manager: Optional[PersistentBudgetManager] = None
+task_store: Optional[TaskStore] = None
 
 # ---------------------------------------------------------------------------
 # WebSocket components (initialized in lifespan)

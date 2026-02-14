@@ -194,6 +194,23 @@ class WorkflowExecutor(
             except Exception as fb_err:
                 logger.debug(f"Feedback engine error (non-fatal): {fb_err}")
 
+        # Record in task history (analytics, non-critical)
+        try:
+            from test_ai.db import get_task_store
+
+            get_task_store().record_task(
+                job_id=step.id,
+                workflow_id=self._current_workflow_id or "",
+                status=step_result.status.value,
+                agent_role=step.params.get("role", step.type),
+                model=step.params.get("model", ""),
+                total_tokens=step_result.tokens_used,
+                duration_ms=step_result.duration_ms,
+                error=step_result.error,
+            )
+        except Exception:
+            logger.debug("Task history recording failed", exc_info=True)
+
     def _store_step_outputs(self, step: StepConfig, step_result: StepResult) -> None:
         """Store step outputs in execution context.
 
