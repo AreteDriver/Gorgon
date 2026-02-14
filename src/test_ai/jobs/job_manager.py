@@ -237,6 +237,8 @@ class JobManager:
                     job.error = "; ".join(result.errors)
                 self._save_job(job)
 
+            self._record_task_history(job)
+
         except Exception as e:
             logger.error(f"Job {job_id} failed: {e}")
             with self._lock:
@@ -245,6 +247,38 @@ class JobManager:
                 job.completed_at = datetime.now()
                 job.progress = None
                 self._save_job(job)
+
+            self._record_task_history(job)
+
+    def _record_task_history(self, job: Job) -> None:
+        """Record task completion/failure to analytics history."""
+        try:
+            from test_ai.db import get_task_store
+
+            result = job.result or {}
+            duration_ms = 0
+            if job.started_at and job.completed_at:
+                duration_ms = int(
+                    (job.completed_at - job.started_at).total_seconds() * 1000
+                )
+
+            get_task_store().record_task(
+                job_id=job.id,
+                workflow_id=job.workflow_id,
+                status=job.status.value,
+                agent_role=result.get("agent_role"),
+                model=result.get("model"),
+                input_tokens=result.get("input_tokens", 0),
+                output_tokens=result.get("output_tokens", 0),
+                total_tokens=result.get("total_tokens", 0),
+                cost_usd=result.get("cost_usd", 0.0),
+                duration_ms=duration_ms,
+                error=job.error,
+                created_at=job.created_at,
+                completed_at=job.completed_at,
+            )
+        except Exception as e:
+            logger.warning(f"Failed to record task history for job {job.id}: {e}")
 
     def submit(self, workflow_id: str, variables: Optional[Dict] = None) -> Job:
         """Submit a workflow for async execution."""

@@ -306,18 +306,36 @@ class MessageHandler:
         )
 
     async def _cmd_history(self, message: BotMessage, args: list[str]) -> str:
-        """Handle /history command."""
-        session_id = self.get_session_for_user(message.user)
-        if not session_id:
-            return "No active session."
-
+        """Handle /history command — show recent task history."""
         limit = 5
         if args and args[0].isdigit():
             limit = min(int(args[0]), 20)
 
+        try:
+            from test_ai.db import get_task_store
+
+            tasks = get_task_store().query_tasks(limit=limit)
+            if tasks:
+                lines = [f"Last {len(tasks)} tasks:\n"]
+                for t in tasks:
+                    status = t["status"]
+                    wf = t["workflow_id"][:20]
+                    agent = t.get("agent_role") or "?"
+                    dur = f"{t['duration_ms']}ms" if t.get("duration_ms") else "-"
+                    cost = f"${t['cost_usd']:.4f}" if t.get("cost_usd") else "-"
+                    lines.append(f"[{status}] {wf} | {agent} | {dur} | {cost}")
+                return "\n".join(lines)
+        except Exception:
+            pass
+
+        # Fallback: show session messages
+        session_id = self.get_session_for_user(message.user)
+        if not session_id:
+            return "No task history or active session."
+
         messages = self.session_manager.get_messages(session_id, limit=limit)
         if not messages:
-            return "No messages in this session yet."
+            return "No task history or messages yet."
 
         lines = [f"Last {len(messages)} messages:\n"]
         for msg in messages:

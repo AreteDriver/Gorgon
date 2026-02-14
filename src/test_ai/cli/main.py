@@ -81,6 +81,7 @@ from .commands.admin import plugins_app  # noqa: E402
 from .commands.bot import bot_app  # noqa: E402
 from .commands.calendar_cmd import calendar_app  # noqa: E402
 from .commands.browser import browser_app  # noqa: E402
+from .commands.history import history_app  # noqa: E402
 
 app.add_typer(schedule_app, name="schedule")
 app.add_typer(memory_app, name="memory")
@@ -91,6 +92,7 @@ app.add_typer(plugins_app, name="plugins")
 app.add_typer(bot_app, name="bot")
 app.add_typer(calendar_app, name="calendar")
 app.add_typer(browser_app, name="browser")
+app.add_typer(history_app, name="history")
 
 
 # =============================================================================

@@ -709,7 +709,7 @@ class TestMessageHandler:
         async def _test():
             msg = _make_message(user=_make_user(id="no-sess"))
             resp = await handler.handle_command(msg, "history", [])
-            assert "No active session" in resp
+            assert "No task history" in resp
 
         asyncio.run(_test())
 
@@ -720,7 +720,7 @@ class TestMessageHandler:
             mock_session_manager.get_messages.return_value = []
             msg = _make_message(user=user)
             resp = await handler.handle_command(msg, "history", [])
-            assert "No messages" in resp
+            assert "No task history" in resp
 
         asyncio.run(_test())
 
