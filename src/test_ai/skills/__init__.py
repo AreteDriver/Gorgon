@@ -1,7 +1,20 @@
 """Skills module — load and query skill definitions for Gorgon agents."""
 
 from .library import SkillLibrary
-from .models import SkillCapability, SkillDefinition, SkillRegistry
+from .models import (
+    ContractProvides,
+    ContractRequires,
+    EscalationRule,
+    RoutingExclusion,
+    SkillCapability,
+    SkillContracts,
+    SkillDefinition,
+    SkillErrorHandling,
+    SkillRegistry,
+    SkillRouting,
+    SkillVerification,
+    VerificationCheckpoint,
+)
 from .enforcer import (
     EnforcementAction,
     EnforcementResult,
@@ -22,13 +35,22 @@ __all__ = [
     "ConsensusLevel",
     "ConsensusVerdict",
     "ConsensusVoter",
+    "ContractProvides",
+    "ContractRequires",
     "EnforcementAction",
     "EnforcementResult",
-    "SkillEnforcer",
-    "SkillLibrary",
+    "EscalationRule",
+    "RoutingExclusion",
     "SkillCapability",
+    "SkillContracts",
     "SkillDefinition",
+    "SkillEnforcer",
+    "SkillErrorHandling",
+    "SkillLibrary",
     "SkillRegistry",
+    "SkillRouting",
+    "SkillVerification",
+    "VerificationCheckpoint",
     "Violation",
     "ViolationType",
     "Vote",

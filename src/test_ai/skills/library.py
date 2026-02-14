@@ -7,11 +7,20 @@ from pathlib import Path
 
 from .consensus import consensus_level_order
 from .loader import load_registry
-from .models import SkillCapability, SkillDefinition, SkillRegistry
+from .models import (
+    SkillCapability,
+    SkillDefinition,
+    SkillRegistry,
+)
 
 logger = logging.getLogger(__name__)
 
 _DEFAULT_SKILLS_DIR = Path(__file__).parent.parent.parent.parent / "skills"
+
+
+def _tokenize(text: str) -> set[str]:
+    """Extract lowercase word tokens (3+ chars) from text."""
+    return {w.lower() for w in text.split() if len(w) >= 3}
 
 
 class SkillLibrary:
@@ -72,6 +81,70 @@ class SkillLibrary:
                         highest_level = cap.consensus_required
         return highest_level
 
+    # --- v2 routing queries ---
+
+    def find_skills_for_task(self, task_description: str) -> list[SkillDefinition]:
+        """Find skills whose routing.use_when matches the task description.
+
+        Uses keyword-overlap matching: a skill matches if any word token (3+ chars)
+        from the task appears in any of its use_when phrases.
+        """
+        task_tokens = _tokenize(task_description)
+        if not task_tokens:
+            return []
+
+        matches: list[SkillDefinition] = []
+        for skill in self._registry.skills:
+            if skill.status != "active" or not skill.routing:
+                continue
+            for phrase in skill.routing.use_when:
+                phrase_tokens = _tokenize(phrase)
+                if task_tokens & phrase_tokens:
+                    matches.append(skill)
+                    break
+        return matches
+
+    def get_routing_exclusions(
+        self, task_description: str
+    ) -> list[dict[str, str | SkillDefinition]]:
+        """Return do_not_use_when exclusions that match the task description.
+
+        Returns a list of dicts with keys: skill, exclusion (RoutingExclusion).
+        """
+        task_tokens = _tokenize(task_description)
+        if not task_tokens:
+            return []
+
+        results: list[dict[str, str | SkillDefinition]] = []
+        for skill in self._registry.skills:
+            if skill.status != "active" or not skill.routing:
+                continue
+            for exc in skill.routing.do_not_use_when:
+                exc_tokens = _tokenize(exc.condition)
+                if task_tokens & exc_tokens:
+                    results.append({"skill": skill, "exclusion": exc})
+        return results
+
+    def get_skill_consensus(
+        self, skill_name: str, capability_name: str | None = None
+    ) -> str:
+        """Get consensus level for a skill/capability.
+
+        If capability_name is given and found, returns its consensus_required.
+        Otherwise falls back to the skill-level consensus_level.
+        Returns "any" if the skill is not found.
+        """
+        skill = self._registry.get_skill(skill_name)
+        if skill is None:
+            return "any"
+        if capability_name:
+            cap = skill.get_capability(capability_name)
+            if cap is not None:
+                return cap.consensus_required
+        return skill.consensus_level
+
+    # --- Context building ---
+
     def build_skill_context(self, agent: str) -> str:
         """Render skill docs into a prompt-injectable string for an agent."""
         skills = self.get_skills_for_agent(agent)
@@ -83,6 +156,23 @@ class SkillLibrary:
             sections.append(f"## {skill.name} (v{skill.version})")
             sections.append(skill.description.strip())
             sections.append("")
+
+            # Routing guidance (v2)
+            if skill.routing:
+                if skill.routing.use_when:
+                    sections.append("### When to use")
+                    for phrase in skill.routing.use_when:
+                        sections.append(f"- {phrase}")
+                    sections.append("")
+                if skill.routing.do_not_use_when:
+                    sections.append("### When NOT to use")
+                    for exc in skill.routing.do_not_use_when:
+                        line = f"- {exc.condition}"
+                        if exc.instead:
+                            line += f" → use {exc.instead}"
+                        sections.append(line)
+                    sections.append("")
+
             sections.append("### Capabilities")
             for cap in skill.capabilities:
                 risk = cap.risk_level
@@ -91,11 +181,77 @@ class SkillLibrary:
                     f"- **{cap.name}** — {cap.description} "
                     f"[risk={risk}, consensus={consensus}]"
                 )
+                # v2: inputs/outputs types
+                if cap.inputs:
+                    for inp_name, inp_spec in cap.inputs.items():
+                        if isinstance(inp_spec, dict):
+                            inp_type = inp_spec.get("type", "any")
+                            req = " (required)" if inp_spec.get("required") else ""
+                            sections.append(f"  - input: `{inp_name}`: {inp_type}{req}")
+                if cap.outputs:
+                    for out_name, out_spec in cap.outputs.items():
+                        if isinstance(out_spec, dict):
+                            out_type = out_spec.get("type", "any")
+                            sections.append(f"  - output: `{out_name}`: {out_type}")
+                # v2: post-execution guidance
+                if cap.post_execution:
+                    sections.append("  - post-execution:")
+                    for step in cap.post_execution:
+                        sections.append(f"    - {step}")
+
             if skill.protected_paths:
                 sections.append("")
                 sections.append("### Protected paths")
                 for p in skill.protected_paths:
                     sections.append(f"- `{p}`")
+
+            # v2: verification
+            if skill.verification:
+                if skill.verification.completion_checklist:
+                    sections.append("")
+                    sections.append("### Completion checklist")
+                    for item in skill.verification.completion_checklist:
+                        sections.append(f"- [ ] {item}")
+
+            # v2: error handling
+            if skill.error_handling and skill.error_handling.escalation:
+                sections.append("")
+                sections.append("### Error escalation")
+                for rule in skill.error_handling.escalation:
+                    sections.append(
+                        f"- **{rule.error_class}**: {rule.action}"
+                        + (
+                            f" (max {rule.max_retries} retries)"
+                            if rule.max_retries
+                            else ""
+                        )
+                    )
+
             sections.append("")
 
         return "\n".join(sections)
+
+    def build_routing_summary(self) -> str:
+        """Render a compact routing summary for the supervisor prompt.
+
+        Lists each active skill with its use_when and do_not_use_when entries.
+        """
+        lines: list[str] = ["# Available Skills\n"]
+        for skill in self._registry.skills:
+            if skill.status != "active":
+                continue
+            lines.append(f"## {skill.name}")
+            lines.append(f"{skill.description.strip()}")
+            if skill.routing:
+                if skill.routing.use_when:
+                    lines.append("**Use when:** " + "; ".join(skill.routing.use_when))
+                if skill.routing.do_not_use_when:
+                    exclusions = [
+                        exc.condition for exc in skill.routing.do_not_use_when
+                    ]
+                    lines.append("**Do NOT use when:** " + "; ".join(exclusions))
+            cap_names = [c.name for c in skill.capabilities]
+            if cap_names:
+                lines.append(f"**Capabilities:** {', '.join(cap_names)}")
+            lines.append("")
+        return "\n".join(lines)

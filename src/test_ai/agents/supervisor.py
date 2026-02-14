@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from test_ai.chat.models import ChatMessage, ChatMode, ChatSession
     from test_ai.state.backends import DatabaseBackend
     from test_ai.agents.convergence import DelegationConvergenceChecker
+    from test_ai.skills.library import SkillLibrary
 
 logger = logging.getLogger(__name__)
 
@@ -161,6 +162,8 @@ class SupervisorAgent:
         session: "ChatSession | None" = None,
         backend: "DatabaseBackend | None" = None,
         convergence_checker: "DelegationConvergenceChecker | None" = None,
+        skill_library: "SkillLibrary | None" = None,
+        coordination_bridge: Any = None,
     ):
         """Initialize the Supervisor agent.
 
@@ -170,12 +173,16 @@ class SupervisorAgent:
             session: Chat session for filesystem access context.
             backend: Database backend for proposal storage.
             convergence_checker: Optional Convergent coherence checker.
+            skill_library: Optional skill library for v2 routing and context.
+            coordination_bridge: Optional Convergent GorgonBridge for prompt enrichment.
         """
         self.provider = provider
         self.mode = mode
         self.session = session
         self.backend = backend
         self._convergence_checker = convergence_checker
+        self._skill_library = skill_library
+        self._bridge = coordination_bridge
         self._active_delegations: list[AgentDelegation] = []
         self._filesystem_tools = None
         self._proposal_manager = None
@@ -208,6 +215,10 @@ class SupervisorAgent:
             prompt += SELF_IMPROVE_PROMPT_ADDITION
         if self._filesystem_tools:
             prompt += FILESYSTEM_TOOLS_PROMPT
+        if self._skill_library:
+            routing_summary = self._skill_library.build_routing_summary()
+            if routing_summary:
+                prompt += "\n\n" + routing_summary
         return prompt
 
     def _build_context(
@@ -436,6 +447,24 @@ class SupervisorAgent:
                     original_count,
                 )
 
+        # Check skill consensus levels before execution
+        if self._skill_library:
+            for delegation in delegations:
+                agent = delegation.get("agent", "unknown")
+                task_desc = delegation.get("task", "")
+                matched_skills = self._skill_library.find_skills_for_task(task_desc)
+                for skill in matched_skills:
+                    if skill.consensus_level not in ("any", ""):
+                        delegation["_skill_consensus"] = skill.consensus_level
+                        delegation["_skill_name"] = skill.name
+                        logger.info(
+                            "Skill %s requires %s consensus for agent %s",
+                            skill.name,
+                            skill.consensus_level,
+                            agent,
+                        )
+                        break
+
         # Group by dependency (for now, run all in parallel)
         tasks = []
         for delegation in delegations:
@@ -453,6 +482,23 @@ class SupervisorAgent:
                 results[agent] = f"Error: {str(result)}"
             else:
                 results[agent] = result
+
+        if self._bridge is not None:
+            for agent_name, agent_result in results.items():
+                try:
+                    is_error = agent_result.startswith("Error:") or (
+                        agent_result.startswith("Agent ") and "error:" in agent_result
+                    )
+                    outcome = "failed" if is_error else "approved"
+                    self._bridge.record_task_outcome(
+                        agent_id=agent_name,
+                        skill_domain=agent_name,
+                        outcome=outcome,
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Bridge outcome recording failed for %s: %s", agent_name, e
+                    )
 
         return results
 
@@ -473,6 +519,19 @@ class SupervisorAgent:
             Agent's response.
         """
         agent_prompt = self._get_agent_prompt(agent)
+
+        if self._bridge is not None:
+            try:
+                enrichment = self._bridge.enrich_prompt(
+                    agent_id=agent,
+                    task_description=task,
+                    file_paths=[],
+                    current_work=task,
+                )
+                if enrichment:
+                    agent_prompt += "\n\n" + enrichment
+            except Exception as e:
+                logger.warning("Bridge enrichment failed for %s: %s", agent, e)
 
         messages = [
             {"role": "system", "content": agent_prompt},
@@ -553,7 +612,12 @@ Respond with well-formatted documentation.""",
 - Identify trends and anomalies
 Respond with data-driven analysis.""",
         }
-        return prompts.get(agent, f"You are a helpful {agent} agent.")
+        base_prompt = prompts.get(agent, f"You are a helpful {agent} agent.")
+        if self._skill_library:
+            skill_context = self._skill_library.build_skill_context(agent)
+            if skill_context:
+                base_prompt += "\n\n" + skill_context
+        return base_prompt
 
     async def _synthesize_results(
         self,
