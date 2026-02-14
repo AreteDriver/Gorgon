@@ -100,17 +100,18 @@ class AzureOpenAIProvider(Provider):
 
         if not self.config.api_key:
             try:
-                import os
+                from test_ai.config.settings import get_settings
 
-                self.config.api_key = os.environ.get("AZURE_OPENAI_API_KEY")
+                settings = get_settings()
+                self.config.api_key = settings.azure_openai_api_key
                 if not self.config.base_url:
-                    self.config.base_url = os.environ.get("AZURE_OPENAI_ENDPOINT")
+                    self.config.base_url = settings.azure_openai_endpoint
                 if not self.config.metadata.get("deployment"):
-                    self.config.metadata["deployment"] = os.environ.get(
-                        "AZURE_OPENAI_DEPLOYMENT"
+                    self.config.metadata["deployment"] = (
+                        settings.azure_openai_deployment
                     )
             except Exception:
-                pass  # Non-critical fallback: config loading optional, fall back to env vars below
+                pass  # Non-critical fallback: config loading optional
 
         if not self.config.api_key:
             raise ProviderNotConfiguredError("Azure OpenAI API key not configured")

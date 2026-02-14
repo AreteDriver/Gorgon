@@ -1,7 +1,6 @@
 """Tests for the distributed rate limiter module."""
 
 import asyncio
-import os
 import time
 from unittest.mock import patch, MagicMock
 
@@ -308,32 +307,43 @@ class TestGlobalRateLimiter:
         b = get_rate_limiter()
         assert a is not b
 
-    @patch.dict(os.environ, {}, clear=False)
     def test_create_sqlite_without_redis_url(self):
-        """Without REDIS_URL, creates SQLite limiter."""
-        # Make sure REDIS_URL is not set
-        env = os.environ.copy()
-        env.pop("REDIS_URL", None)
-        with patch.dict(os.environ, env, clear=True):
+        """Without redis_url, creates SQLite limiter."""
+        mock_settings = MagicMock()
+        mock_settings.redis_url = None
+        with patch(
+            "test_ai.config.settings.get_settings",
+            return_value=mock_settings,
+        ):
             limiter = _create_rate_limiter()
             assert isinstance(limiter, SQLiteRateLimiter)
 
-    @patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379/0"})
     def test_create_with_redis_url_but_no_package(self):
-        """REDIS_URL set but redis package missing falls back to SQLite."""
-        with patch("importlib.util.find_spec", return_value=None):
-            limiter = _create_rate_limiter()
-            assert isinstance(limiter, SQLiteRateLimiter)
+        """redis_url set but redis package missing falls back to SQLite."""
+        mock_settings = MagicMock()
+        mock_settings.redis_url = "redis://localhost:6379/0"
+        with patch(
+            "test_ai.config.settings.get_settings",
+            return_value=mock_settings,
+        ):
+            with patch("importlib.util.find_spec", return_value=None):
+                limiter = _create_rate_limiter()
+                assert isinstance(limiter, SQLiteRateLimiter)
 
-    @patch.dict(os.environ, {"REDIS_URL": "redis://localhost:6379/0"})
     def test_create_with_redis_url_and_package(self):
-        """REDIS_URL set with redis package returns Redis limiter."""
-        mock_spec = MagicMock()
-        with patch("importlib.util.find_spec", return_value=mock_spec):
-            from test_ai.workflow.distributed_rate_limiter import RedisRateLimiter
+        """redis_url set with redis package returns Redis limiter."""
+        mock_settings = MagicMock()
+        mock_settings.redis_url = "redis://localhost:6379/0"
+        with patch(
+            "test_ai.config.settings.get_settings",
+            return_value=mock_settings,
+        ):
+            mock_spec = MagicMock()
+            with patch("importlib.util.find_spec", return_value=mock_spec):
+                from test_ai.workflow.distributed_rate_limiter import RedisRateLimiter
 
-            limiter = _create_rate_limiter()
-            assert isinstance(limiter, RedisRateLimiter)
+                limiter = _create_rate_limiter()
+                assert isinstance(limiter, RedisRateLimiter)
 
 
 # ---------------------------------------------------------------------------

@@ -315,18 +315,25 @@ class TestGetRateLimiter:
 
     def test_returns_sqlite_by_default(self):
         """Returns SQLiteRateLimiter when no Redis URL."""
-        import os
-
-        os.environ.pop("REDIS_URL", None)
-
-        reset_rate_limiter()
-        limiter = get_rate_limiter()
+        mock_settings = MagicMock()
+        mock_settings.redis_url = None
+        with patch(
+            "test_ai.config.settings.get_settings",
+            return_value=mock_settings,
+        ):
+            reset_rate_limiter()
+            limiter = get_rate_limiter()
 
         assert isinstance(limiter, SQLiteRateLimiter)
 
     def test_returns_redis_when_url_set_and_installed(self):
-        """Returns RedisRateLimiter when REDIS_URL set and redis installed."""
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
+        """Returns RedisRateLimiter when redis_url set and redis installed."""
+        mock_settings = MagicMock()
+        mock_settings.redis_url = "redis://localhost:6379"
+        with patch(
+            "test_ai.config.settings.get_settings",
+            return_value=mock_settings,
+        ):
             with patch("importlib.util.find_spec") as mock_find_spec:
                 mock_find_spec.return_value = MagicMock()
 
@@ -336,8 +343,13 @@ class TestGetRateLimiter:
                 assert isinstance(limiter, RedisRateLimiter)
 
     def test_falls_back_to_sqlite_when_redis_not_installed(self):
-        """Falls back to SQLite when REDIS_URL set but redis not installed."""
-        with patch.dict("os.environ", {"REDIS_URL": "redis://localhost:6379"}):
+        """Falls back to SQLite when redis_url set but redis not installed."""
+        mock_settings = MagicMock()
+        mock_settings.redis_url = "redis://localhost:6379"
+        with patch(
+            "test_ai.config.settings.get_settings",
+            return_value=mock_settings,
+        ):
             with patch("importlib.util.find_spec") as mock_find_spec:
                 mock_find_spec.return_value = None
 

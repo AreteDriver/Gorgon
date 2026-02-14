@@ -503,26 +503,28 @@ def create_discord_bot(
     Returns:
         Configured DiscordBot instance.
     """
-    import os
+    from test_ai.config.settings import get_settings
 
-    bot_token = token or os.environ.get("DISCORD_BOT_TOKEN")
+    settings = get_settings()
+
+    bot_token = token or settings.discord_bot_token
     if not bot_token:
         raise ValueError(
             "Discord bot token not provided. "
             "Set DISCORD_BOT_TOKEN environment variable or pass token parameter."
         )
 
-    # Load from env if not provided
+    # Load from settings if not provided
     if allowed_users is None:
-        allowed_env = os.environ.get("DISCORD_ALLOWED_USERS", "")
+        allowed_env = settings.discord_allowed_users or ""
         allowed_users = [u.strip() for u in allowed_env.split(",") if u.strip()] or None
 
     if admin_users is None:
-        admin_env = os.environ.get("DISCORD_ADMIN_USERS", "")
+        admin_env = settings.discord_admin_users or ""
         admin_users = [u.strip() for u in admin_env.split(",") if u.strip()] or None
 
     if allowed_guilds is None:
-        guilds_env = os.environ.get("DISCORD_ALLOWED_GUILDS", "")
+        guilds_env = settings.discord_allowed_guilds or ""
         allowed_guilds = [g.strip() for g in guilds_env.split(",") if g.strip()] or None
 
     return DiscordBot(

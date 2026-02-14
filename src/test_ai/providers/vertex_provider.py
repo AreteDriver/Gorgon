@@ -88,9 +88,12 @@ class VertexProvider(Provider):
         try:
             import os
 
+            from test_ai.config.settings import get_settings
+
+            settings = get_settings()
             # Check for credentials
             has_creds = bool(
-                os.environ.get("GOOGLE_APPLICATION_CREDENTIALS")
+                settings.google_application_credentials
                 or os.path.exists(
                     os.path.expanduser(
                         "~/.config/gcloud/application_default_credentials.json"
@@ -99,7 +102,7 @@ class VertexProvider(Provider):
             )
             has_project = bool(
                 self.config.metadata.get("project")
-                or os.environ.get("GOOGLE_CLOUD_PROJECT")
+                or settings.google_cloud_project
                 or os.environ.get("GCLOUD_PROJECT")
             )
             return has_creds and has_project
@@ -113,12 +116,19 @@ class VertexProvider(Provider):
 
         import os
 
+        from test_ai.config.settings import get_settings
+
+        settings = get_settings()
         project = (
             self.config.metadata.get("project")
-            or os.environ.get("GOOGLE_CLOUD_PROJECT")
+            or settings.google_cloud_project
             or os.environ.get("GCLOUD_PROJECT")
         )
-        location = self.config.metadata.get("location", "us-central1")
+        location = (
+            self.config.metadata.get("location")
+            or settings.google_cloud_location
+            or "us-central1"
+        )
 
         if not project:
             raise ProviderNotConfiguredError("GCP project not configured")

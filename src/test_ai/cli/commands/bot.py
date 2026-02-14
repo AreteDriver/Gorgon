@@ -262,14 +262,16 @@ def bot_discord(
 @bot_app.command("status")
 def bot_status() -> None:
     """Show messaging bot configuration status."""
-    import os
+    from test_ai.config.settings import get_settings
+
+    settings = get_settings()
 
     console.print("[bold]Messaging Bot Configuration[/bold]\n")
 
     # Check Telegram
-    telegram_token = os.environ.get("TELEGRAM_BOT_TOKEN")
-    telegram_users = os.environ.get("TELEGRAM_ALLOWED_USERS")
-    telegram_admins = os.environ.get("TELEGRAM_ADMIN_USERS")
+    telegram_token = settings.telegram_bot_token
+    telegram_users = settings.telegram_allowed_users
+    telegram_admins = settings.telegram_admin_users
 
     table = Table(title="Telegram")
     table.add_column("Setting", style="cyan")
