@@ -2,13 +2,14 @@
 
 Provides a unified interface for multiple AI providers (OpenAI, Anthropic, Azure,
 AWS Bedrock, Google Vertex AI, Ollama) with automatic fallback, streaming support,
-and provider-agnostic operations.
+tier-based routing, and provider-agnostic operations.
 """
 
 from .base import (
     Provider,
     ProviderConfig,
     ProviderType,
+    ModelTier,
     CompletionRequest,
     CompletionResponse,
     StreamChunk,
@@ -29,12 +30,15 @@ from .manager import (
     list_providers,
     reset_manager,
 )
+from .router import TierRouter, RoutingConfig, RoutingMode, RoutingDecision
+from .hardware import detect_hardware, HardwareProfile
 
 __all__ = [
     # Base classes
     "Provider",
     "ProviderConfig",
     "ProviderType",
+    "ModelTier",
     "CompletionRequest",
     "CompletionResponse",
     "StreamChunk",
@@ -54,4 +58,12 @@ __all__ = [
     "get_manager",
     "list_providers",
     "reset_manager",
+    # Router
+    "TierRouter",
+    "RoutingConfig",
+    "RoutingMode",
+    "RoutingDecision",
+    # Hardware
+    "detect_hardware",
+    "HardwareProfile",
 ]
