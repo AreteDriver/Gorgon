@@ -10,6 +10,7 @@ from .base import (
     Provider,
     ProviderConfig,
     ProviderType,
+    ModelTier,
     CompletionRequest,
     CompletionResponse,
     StreamChunk,
@@ -22,6 +23,36 @@ try:
     import httpx
 except ImportError:
     httpx = None  # Optional import: httpx package not installed
+
+
+# Ordered preference lists per tier — first available model wins
+DEFAULT_TIER_MODELS: dict[str, list[str]] = {
+    "reasoning": [
+        "qwen2.5:72b",
+        "deepseek-r1:70b",
+        "llama3.1:70b",
+        "qwen2.5:32b",
+        "deepseek-r1:32b",
+    ],
+    "standard": [
+        "qwen2.5:14b",
+        "qwen2.5",
+        "llama3.2",
+        "mistral",
+        "deepseek-r1:8b",
+        "gemma2",
+    ],
+    "fast": [
+        "qwen2.5:3b",
+        "llama3.2:1b",
+        "phi3",
+    ],
+    "embedding": [
+        "nomic-embed-text",
+        "all-minilm",
+        "mxbai-embed-large",
+    ],
+}
 
 
 class OllamaProvider(Provider):
@@ -66,6 +97,7 @@ class OllamaProvider(Provider):
         config: ProviderConfig | None = None,
         host: str = "http://localhost:11434",
         model: str | None = None,
+        tier_models: dict[str, list[str]] | None = None,
     ):
         """Initialize Ollama provider.
 
@@ -73,6 +105,7 @@ class OllamaProvider(Provider):
             config: Provider configuration
             host: Ollama server URL
             model: Default model to use
+            tier_models: Override default tier→model preference lists
         """
         if config is None:
             config = ProviderConfig(
@@ -83,6 +116,7 @@ class OllamaProvider(Provider):
         super().__init__(config)
         self._client: httpx.Client | None = None
         self._async_client: httpx.AsyncClient | None = None
+        self._tier_models = tier_models or DEFAULT_TIER_MODELS
 
     @property
     def name(self) -> str:
@@ -433,3 +467,50 @@ class OllamaProvider(Provider):
             return response.status_code == 200
         except Exception:
             return False
+
+    def select_model_for_tier(
+        self, tier: ModelTier, available_models: list[str] | None = None
+    ) -> str | None:
+        """Select the best locally-available model for a capability tier.
+
+        Walks the preference list for the tier and returns the first model
+        that is actually pulled on the Ollama server.
+
+        Args:
+            tier: Capability tier to select for
+            available_models: Pre-fetched model list (avoids extra API call)
+
+        Returns:
+            Model name or None if no matching model is available
+        """
+        candidates = self._tier_models.get(tier.value, [])
+        if not candidates:
+            return None
+
+        if available_models is None:
+            available_models = self.list_models()
+
+        # Normalize: strip tag suffixes for comparison (e.g. "llama3.2:latest" matches "llama3.2")
+        available_set = set(available_models)
+        available_bases = {m.split(":")[0] for m in available_models}
+
+        for model in candidates:
+            if model in available_set:
+                return model
+            # Check without tag — "llama3.2" matches "llama3.2:latest"
+            base = model.split(":")[0]
+            if base in available_bases and ":" not in model:
+                return model
+
+        return None
+
+    def supports_tier(self, tier: ModelTier) -> bool:
+        """Check if any model is available for the given tier.
+
+        Args:
+            tier: Capability tier to check
+
+        Returns:
+            True if at least one model is available for the tier
+        """
+        return self.select_model_for_tier(tier) is not None

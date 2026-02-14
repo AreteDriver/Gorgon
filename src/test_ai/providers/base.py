@@ -42,6 +42,18 @@ class ProviderType(Enum):
     OLLAMA = "ollama"
 
 
+class ModelTier(Enum):
+    """Capability tier for model selection routing.
+
+    Used by TierRouter to pick the right model class for a given task.
+    """
+
+    REASONING = "reasoning"  # Deep thinking: 70B+, o1, Claude Opus
+    STANDARD = "standard"  # General tasks: 7B-14B, GPT-4o, Claude Sonnet
+    FAST = "fast"  # Quick/cheap: 1B-3B, GPT-4o-mini, Claude Haiku
+    EMBEDDING = "embedding"  # Vector embeddings: nomic-embed-text, text-embedding-3
+
+
 @dataclass
 class ProviderConfig:
     """Configuration for an AI provider."""
@@ -69,6 +81,11 @@ class CompletionRequest:
 
     # Message history for conversation context
     messages: list[dict] | None = None
+
+    # Tier-based routing fields (used by TierRouter, ignored by providers)
+    model_tier: ModelTier | None = None
+    agent_id: str | None = None
+    workflow_id: str | None = None
 
 
 @dataclass
