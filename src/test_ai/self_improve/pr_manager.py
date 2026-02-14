@@ -13,6 +13,15 @@ from typing import Any
 logger = logging.getLogger(__name__)
 
 
+@dataclass
+class ConflictResult:
+    """Result of a conflict check between branches."""
+
+    has_conflicts: bool = False
+    conflicting_files: list[str] = field(default_factory=list)
+    error: str | None = None
+
+
 class PRStatus(str, Enum):
     """Status of a pull request."""
 
@@ -332,6 +341,85 @@ Please review carefully before merging.
         """
         result = self._run_git(["status", "--porcelain"])
         return bool(result.stdout.strip())
+
+    def check_conflicts(self, branch: str) -> ConflictResult:
+        """Check for merge conflicts via dry-run merge.
+
+        Performs a non-committing merge attempt, inspects the result,
+        then aborts to leave the working tree clean.
+
+        Args:
+            branch: Branch name to check for conflicts against HEAD.
+
+        Returns:
+            ConflictResult with conflict details.
+        """
+        try:
+            result = subprocess.run(
+                ["git", "merge", "--no-commit", "--no-ff", branch],
+                cwd=str(self.repo_path),
+                capture_output=True,
+                text=True,
+                timeout=60,
+            )
+
+            if result.returncode == 0:
+                # Clean merge — abort the uncommitted merge
+                subprocess.run(
+                    ["git", "merge", "--abort"],
+                    cwd=str(self.repo_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                return ConflictResult(has_conflicts=False)
+
+            # Merge conflict — extract conflicting file names
+            conflicting_files: list[str] = []
+            try:
+                diff_result = subprocess.run(
+                    ["git", "diff", "--name-only", "--diff-filter=U"],
+                    cwd=str(self.repo_path),
+                    capture_output=True,
+                    text=True,
+                    timeout=30,
+                )
+                if diff_result.returncode == 0:
+                    conflicting_files = [
+                        f for f in diff_result.stdout.strip().split("\n") if f.strip()
+                    ]
+            except Exception:
+                pass  # Best-effort: conflict file listing is advisory
+
+            # Always abort to restore clean state
+            subprocess.run(
+                ["git", "merge", "--abort"],
+                cwd=str(self.repo_path),
+                capture_output=True,
+                text=True,
+                timeout=30,
+            )
+
+            return ConflictResult(
+                has_conflicts=True,
+                conflicting_files=conflicting_files,
+            )
+
+        except FileNotFoundError:
+            return ConflictResult(
+                has_conflicts=False,
+                error="git not found",
+            )
+        except subprocess.TimeoutExpired:
+            return ConflictResult(
+                has_conflicts=False,
+                error="git merge check timed out",
+            )
+        except Exception as e:
+            return ConflictResult(
+                has_conflicts=False,
+                error=str(e),
+            )
 
     def _run_git(self, args: list[str]) -> subprocess.CompletedProcess:
         """Run a git command.

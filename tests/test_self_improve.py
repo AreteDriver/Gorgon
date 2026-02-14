@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import MagicMock, patch
 
 from test_ai.self_improve import (
     SafetyConfig,
@@ -186,3 +188,123 @@ class TestCodebaseAnalyzer:
         suggestions = analyzer._parse_ai_suggestions(response)
         assert len(suggestions) == 1
         assert suggestions[0].category == ImprovementCategory.CODE_QUALITY
+
+
+# ---------------------------------------------------------------------------
+# Git Conflict Detection (TODO 5)
+# ---------------------------------------------------------------------------
+
+
+class TestConflictResult:
+    """Test the ConflictResult dataclass."""
+
+    def test_default_no_conflicts(self):
+        from test_ai.self_improve.pr_manager import ConflictResult
+
+        result = ConflictResult()
+        assert not result.has_conflicts
+        assert result.conflicting_files == []
+        assert result.error is None
+
+    def test_with_conflicts(self):
+        from test_ai.self_improve.pr_manager import ConflictResult
+
+        result = ConflictResult(
+            has_conflicts=True,
+            conflicting_files=["src/main.py", "README.md"],
+        )
+        assert result.has_conflicts
+        assert len(result.conflicting_files) == 2
+
+    def test_with_error(self):
+        from test_ai.self_improve.pr_manager import ConflictResult
+
+        result = ConflictResult(error="git not found")
+        assert not result.has_conflicts
+        assert result.error == "git not found"
+
+
+class TestCheckConflicts:
+    """Test PRManager.check_conflicts() method."""
+
+    def test_clean_merge_detected(self, tmp_path):
+        from test_ai.self_improve.pr_manager import PRManager
+
+        pr = PRManager(repo_path=tmp_path)
+
+        with patch("subprocess.run") as mock_run:
+            # First call: merge succeeds (returncode=0)
+            # Second call: merge --abort succeeds
+            mock_run.side_effect = [
+                MagicMock(returncode=0, stdout="", stderr=""),
+                MagicMock(returncode=0, stdout="", stderr=""),
+            ]
+            result = pr.check_conflicts("feature-branch")
+
+        assert not result.has_conflicts
+        assert result.conflicting_files == []
+        assert result.error is None
+
+    def test_conflicting_files_listed(self, tmp_path):
+        from test_ai.self_improve.pr_manager import PRManager
+
+        pr = PRManager(repo_path=tmp_path)
+
+        with patch("subprocess.run") as mock_run:
+            # Merge fails (conflict), diff lists files, abort cleans up
+            mock_run.side_effect = [
+                MagicMock(returncode=1, stdout="CONFLICT", stderr=""),
+                MagicMock(
+                    returncode=0,
+                    stdout="src/main.py\nREADME.md\n",
+                    stderr="",
+                ),
+                MagicMock(returncode=0, stdout="", stderr=""),
+            ]
+            result = pr.check_conflicts("feature-branch")
+
+        assert result.has_conflicts
+        assert "src/main.py" in result.conflicting_files
+        assert "README.md" in result.conflicting_files
+
+    def test_merge_aborted_cleanly(self, tmp_path):
+        from test_ai.self_improve.pr_manager import PRManager
+
+        pr = PRManager(repo_path=tmp_path)
+
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = [
+                MagicMock(returncode=1, stdout="CONFLICT", stderr=""),
+                MagicMock(returncode=0, stdout="file.py\n", stderr=""),
+                MagicMock(returncode=0, stdout="", stderr=""),
+            ]
+            pr.check_conflicts("feature-branch")
+
+        # Verify merge --abort was called
+        abort_calls = [c for c in mock_run.call_args_list if "--abort" in c[0][0]]
+        assert len(abort_calls) == 1
+
+    def test_git_not_available(self, tmp_path):
+        from test_ai.self_improve.pr_manager import PRManager
+
+        pr = PRManager(repo_path=tmp_path)
+
+        with patch("subprocess.run", side_effect=FileNotFoundError("git")):
+            result = pr.check_conflicts("feature-branch")
+
+        assert not result.has_conflicts
+        assert result.error == "git not found"
+
+    def test_timeout_handled(self, tmp_path):
+        from test_ai.self_improve.pr_manager import PRManager
+
+        pr = PRManager(repo_path=tmp_path)
+
+        with patch(
+            "subprocess.run",
+            side_effect=subprocess.TimeoutExpired(cmd="git", timeout=60),
+        ):
+            result = pr.check_conflicts("feature-branch")
+
+        assert not result.has_conflicts
+        assert "timed out" in result.error
