@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from unittest.mock import MagicMock
+import asyncio
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -10,6 +11,7 @@ from test_ai.agents.convergence import (
     ConvergenceResult,
     DelegationConvergenceChecker,
     HAS_CONVERGENT,
+    create_bridge,
     create_checker,
     format_convergence_alert,
 )
@@ -172,3 +174,165 @@ class TestFormatConvergenceAlert:
         assert "Conflicts" in alert
         assert "Dropped agents" in alert
         assert "Adjustments" in alert
+
+
+class TestCreateBridge:
+    """Test the create_bridge factory function."""
+
+    @pytest.mark.skipif(not HAS_CONVERGENT, reason="convergent not installed")
+    def test_returns_bridge_when_convergent_available(self, tmp_path):
+        db_path = str(tmp_path / "coord.db")
+        bridge = create_bridge(db_path=db_path)
+        assert bridge is not None
+        bridge.close()
+
+    @pytest.mark.skipif(not HAS_CONVERGENT, reason="convergent not installed")
+    def test_in_memory_mode(self):
+        bridge = create_bridge(db_path=":memory:")
+        assert bridge is not None
+        bridge.close()
+
+    def test_returns_none_when_convergent_unavailable(self, monkeypatch):
+        import test_ai.agents.convergence as conv_mod
+
+        monkeypatch.setattr(conv_mod, "HAS_CONVERGENT", False)
+        assert create_bridge() is None
+
+    @pytest.mark.skipif(not HAS_CONVERGENT, reason="convergent not installed")
+    def test_returns_none_on_exception(self):
+        with patch("convergent.GorgonBridge", side_effect=RuntimeError("boom")):
+            result = create_bridge(db_path=":memory:")
+            assert result is None
+
+
+class TestSupervisorBridgeIntegration:
+    """Test that SupervisorAgent properly uses the coordination bridge."""
+
+    def test_supervisor_accepts_bridge_kwarg(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        bridge = MagicMock()
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        assert sup._bridge is bridge
+
+    def test_supervisor_works_without_bridge(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        sup = SupervisorAgent(provider=provider)
+        assert sup._bridge is None
+
+    def test_enrichment_adds_to_prompt(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="agent result")
+        bridge = MagicMock()
+        bridge.enrich_prompt.return_value = "## Coordination Context\nTest enrichment"
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+
+        asyncio.run(sup._run_agent("builder", "Build auth", []))
+
+        bridge.enrich_prompt.assert_called_once_with(
+            agent_id="builder",
+            task_description="Build auth",
+            file_paths=[],
+            current_work="Build auth",
+        )
+        # Verify the system prompt sent to provider includes enrichment
+        call_args = provider.complete.call_args[0][0]
+        system_msg = call_args[0]["content"]
+        assert "Coordination Context" in system_msg
+
+    def test_enrichment_exception_does_not_break_agent(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="agent result")
+        bridge = MagicMock()
+        bridge.enrich_prompt.side_effect = RuntimeError("stigmergy DB locked")
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+
+        result = asyncio.run(sup._run_agent("builder", "Build auth", []))
+        assert result == "agent result"
+
+    def test_outcome_recording_after_delegations(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="done")
+        bridge = MagicMock()
+        bridge.record_task_outcome.return_value = 0.6
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {"agent": "builder", "task": "Build it"},
+                    {"agent": "tester", "task": "Test it"},
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert "builder" in results
+        assert "tester" in results
+
+        # Both outcomes should be recorded
+        assert bridge.record_task_outcome.call_count == 2
+        calls = bridge.record_task_outcome.call_args_list
+        agents_recorded = {c.kwargs["agent_id"] for c in calls}
+        assert agents_recorded == {"builder", "tester"}
+
+    def test_outcome_recording_detects_errors(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(
+            side_effect=[RuntimeError("provider down"), "success result"]
+        )
+        bridge = MagicMock()
+        bridge.record_task_outcome.return_value = 0.5
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+
+        asyncio.run(
+            sup._execute_delegations(
+                [
+                    {"agent": "builder", "task": "Build it"},
+                    {"agent": "tester", "task": "Test it"},
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+
+        # Check that the error agent got "failed" outcome
+        calls = bridge.record_task_outcome.call_args_list
+        outcomes = {c.kwargs["agent_id"]: c.kwargs["outcome"] for c in calls}
+        assert outcomes["builder"] == "failed"
+        assert outcomes["tester"] == "approved"
+
+    def test_outcome_recording_exception_does_not_break_results(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="done")
+        bridge = MagicMock()
+        bridge.record_task_outcome.side_effect = RuntimeError("DB error")
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+
+        result = asyncio.run(
+            sup._execute_delegations(
+                [{"agent": "builder", "task": "Build it"}],
+                [],
+                lambda _: None,
+            )
+        )
+        assert "builder" in result
+        assert result["builder"] == "done"

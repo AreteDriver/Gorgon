@@ -130,6 +130,14 @@ async def lifespan(app: FastAPI):
     from test_ai.chat import router as chat_router
     from test_ai.chat.router import init_chat_module
 
+    # Create coordination bridge once (persistent across supervisor instances)
+    try:
+        from test_ai.agents.convergence import create_bridge
+
+        _coordination_bridge = create_bridge()
+    except Exception:
+        _coordination_bridge = None
+
     def create_supervisor(mode=None, session=None, backend=None):
         """Factory function to create Supervisor agent."""
         try:
@@ -146,6 +154,7 @@ async def lifespan(app: FastAPI):
                 session=session,
                 backend=backend or state._app_state.get("backend"),
                 convergence_checker=checker,
+                coordination_bridge=_coordination_bridge,
             )
         except Exception as e:
             logger.warning(f"Could not create supervisor: {e}")
@@ -198,6 +207,13 @@ async def lifespan(app: FastAPI):
     # Shutdown WebSocket broadcaster
     if state.ws_broadcaster:
         await state.ws_broadcaster.stop()
+
+    # Close coordination bridge
+    if _coordination_bridge is not None:
+        try:
+            _coordination_bridge.close()
+        except Exception as e:
+            logger.warning("Failed to close coordination bridge: %s", e)
 
     # Reset circuit breakers
     reset_all_circuits()

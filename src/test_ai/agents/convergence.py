@@ -171,3 +171,29 @@ def format_convergence_alert(result: ConvergenceResult) -> str:
             parts.append(f"  - {a.get('agent', '?')}: {a.get('description', '?')}")
 
     return "\n".join(parts)
+
+
+def create_bridge(db_path: str | None = None) -> Any:
+    """Create a GorgonBridge for coordination protocol features.
+
+    Returns None if Convergent is not installed.
+    """
+    if not HAS_CONVERGENT:
+        logger.info("Convergent not installed — coordination bridge disabled")
+        return None
+    try:
+        from pathlib import Path
+
+        from convergent import CoordinationConfig, GorgonBridge
+
+        if db_path is None:
+            db_dir = Path.home() / ".gorgon"
+            db_dir.mkdir(parents=True, exist_ok=True)
+            db_path = str(db_dir / "coordination.db")
+
+        bridge = GorgonBridge(CoordinationConfig(db_path=db_path))
+        logger.info("Convergent coordination bridge enabled (db=%s)", db_path)
+        return bridge
+    except Exception as e:
+        logger.warning("Failed to create coordination bridge: %s", e)
+        return None

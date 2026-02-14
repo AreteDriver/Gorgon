@@ -266,9 +266,18 @@ class GorgonApp(App):
                     checker = create_checker()
                 except Exception:
                     checker = None
+                # Wire Convergent coordination bridge if available
+                try:
+                    from test_ai.agents.convergence import create_bridge
+
+                    bridge = create_bridge()
+                except Exception:
+                    bridge = None
+                self._coordination_bridge = bridge
                 self._supervisor = SupervisorAgent(
                     provider=agent_provider,
                     convergence_checker=checker,
+                    coordination_bridge=bridge,
                 )
             except Exception as e:
                 cs.chat_display.add_error_message(
