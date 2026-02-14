@@ -22,6 +22,7 @@ from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from test_ai.providers.base import BaseProvider
+    from test_ai.budget.manager import BudgetManager
     from test_ai.chat.models import ChatMessage, ChatMode, ChatSession
     from test_ai.state.backends import DatabaseBackend
     from test_ai.agents.convergence import DelegationConvergenceChecker
@@ -155,6 +156,9 @@ Tool results will be injected as:
 class SupervisorAgent:
     """Orchestrates multi-agent workflows through intelligent delegation."""
 
+    # Minimum tokens required to proceed with a delegation
+    MIN_DELEGATION_TOKENS = 5000
+
     def __init__(
         self,
         provider: "BaseProvider",
@@ -164,6 +168,7 @@ class SupervisorAgent:
         convergence_checker: "DelegationConvergenceChecker | None" = None,
         skill_library: "SkillLibrary | None" = None,
         coordination_bridge: Any = None,
+        budget_manager: "BudgetManager | None" = None,
     ):
         """Initialize the Supervisor agent.
 
@@ -175,6 +180,7 @@ class SupervisorAgent:
             convergence_checker: Optional Convergent coherence checker.
             skill_library: Optional skill library for v2 routing and context.
             coordination_bridge: Optional Convergent GorgonBridge for prompt enrichment.
+            budget_manager: Optional BudgetManager for token budget enforcement.
         """
         self.provider = provider
         self.mode = mode
@@ -183,6 +189,7 @@ class SupervisorAgent:
         self._convergence_checker = convergence_checker
         self._skill_library = skill_library
         self._bridge = coordination_bridge
+        self._budget_manager = budget_manager
         self._active_delegations: list[AgentDelegation] = []
         self._filesystem_tools = None
         self._proposal_manager = None
@@ -465,6 +472,22 @@ class SupervisorAgent:
                         )
                         break
 
+        # Budget gate: skip delegations when budget is critically low
+        if self._budget_manager is not None:
+            if not self._budget_manager.can_allocate(self.MIN_DELEGATION_TOKENS):
+                logger.warning(
+                    "Budget critical (%d tokens remaining) — skipping %d delegation(s)",
+                    self._budget_manager.remaining,
+                    len(delegations),
+                )
+                for d in delegations:
+                    agent = d.get("agent", "unknown")
+                    results[agent] = (
+                        f"Delegation skipped: budget critical "
+                        f"({self._budget_manager.remaining} tokens remaining)"
+                    )
+                return results
+
         # Group by dependency (for now, run all in parallel)
         tasks = []
         for delegation in delegations:
@@ -482,6 +505,22 @@ class SupervisorAgent:
                 results[agent] = f"Error: {str(result)}"
             else:
                 results[agent] = result
+
+        # Record token usage estimates per agent
+        if self._budget_manager is not None:
+            for agent_name, agent_result in results.items():
+                try:
+                    # Rough estimate: 4 chars ≈ 1 token
+                    estimated_tokens = max(len(agent_result) // 4, 100)
+                    self._budget_manager.record_usage(
+                        agent_id=agent_name,
+                        tokens=estimated_tokens,
+                        operation="delegation",
+                    )
+                except Exception as e:
+                    logger.warning(
+                        "Budget recording failed for %s: %s", agent_name, e
+                    )
 
         if self._bridge is not None:
             for agent_name, agent_result in results.items():
@@ -532,6 +571,15 @@ class SupervisorAgent:
                     agent_prompt += "\n\n" + enrichment
             except Exception as e:
                 logger.warning("Bridge enrichment failed for %s: %s", agent, e)
+
+        # Inject budget context if available
+        if self._budget_manager is not None:
+            try:
+                budget_ctx = self._budget_manager.get_budget_context()
+                if budget_ctx:
+                    agent_prompt += "\n\n" + budget_ctx
+            except Exception:
+                pass  # Budget context is advisory — never break agent execution
 
         messages = [
             {"role": "system", "content": agent_prompt},

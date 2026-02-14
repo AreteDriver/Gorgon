@@ -274,10 +274,18 @@ class GorgonApp(App):
                 except Exception:
                     bridge = None
                 self._coordination_bridge = bridge
+                # Create budget manager for agent session
+                try:
+                    from test_ai.budget import BudgetManager
+
+                    budget_mgr = BudgetManager()
+                except Exception:
+                    budget_mgr = None
                 self._supervisor = SupervisorAgent(
                     provider=agent_provider,
                     convergence_checker=checker,
                     coordination_bridge=bridge,
+                    budget_manager=budget_mgr,
                 )
             except Exception as e:
                 cs.chat_display.add_error_message(
