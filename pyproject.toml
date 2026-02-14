@@ -34,7 +34,7 @@ slowapi = "^0.1.9"
 bcrypt = "^4.0.0"
 cryptography = "^46.0.5"
 textual = "^2.1.0"
-convergent = {git = "https://github.com/AreteDriver/convergent.git", branch = "main"}
+convergent = {git = "https://github.com/AreteDriver/convergent.git", tag = "v0.5.0"}
 psycopg2-binary = {version = "^2.9.0", optional = true}
 python-telegram-bot = {version = "^21.0", optional = true}
 discord-py = {version = "^2.3.0", optional = true}
