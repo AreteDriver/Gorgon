@@ -518,9 +518,7 @@ class SupervisorAgent:
                         operation="delegation",
                     )
                 except Exception as e:
-                    logger.warning(
-                        "Budget recording failed for %s: %s", agent_name, e
-                    )
+                    logger.warning("Budget recording failed for %s: %s", agent_name, e)
 
         if self._bridge is not None:
             for agent_name, agent_result in results.items():
@@ -573,13 +571,14 @@ class SupervisorAgent:
                 logger.warning("Bridge enrichment failed for %s: %s", agent, e)
 
         # Inject budget context if available
-        if self._budget_manager is not None:
-            try:
-                budget_ctx = self._budget_manager.get_budget_context()
-                if budget_ctx:
-                    agent_prompt += "\n\n" + budget_ctx
-            except Exception:
-                pass  # Budget context is advisory — never break agent execution
+        try:
+            from test_ai.budget import get_budget_tracker
+
+            budget_ctx = get_budget_tracker().get_budget_context()
+            if budget_ctx:
+                agent_prompt += "\n\n" + budget_ctx
+        except Exception:
+            pass
 
         messages = [
             {"role": "system", "content": agent_prompt},
