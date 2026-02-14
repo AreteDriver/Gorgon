@@ -159,6 +159,7 @@ async def lifespan(app: FastAPI):
                 backend=backend or state._app_state.get("backend"),
                 convergence_checker=checker,
                 coordination_bridge=_coordination_bridge,
+                budget_manager=state.budget_manager,
             )
         except Exception as e:
             logger.warning(f"Could not create supervisor: {e}")
