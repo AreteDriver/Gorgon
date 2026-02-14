@@ -55,6 +55,10 @@ class RoutingConfig:
     # Max routing decisions to keep in history
     history_limit: int = 200
 
+    # Explicit fallback chain: ordered list of provider names to try on failure.
+    # If empty, falls back to remaining registered providers in registration order.
+    fallback_chain: list[str] = field(default_factory=list)
+
 
 @dataclass
 class RoutingDecision:
@@ -136,9 +140,16 @@ class TierRouter:
             decision.model = resolved_model
 
         try:
-            return self._pm.complete(
+            response = self._pm.complete(
                 request, provider_name=decision.provider_name, use_fallback=False
             )
+            if not self._validate_response(response):
+                logger.warning(
+                    "Empty response from %s — attempting fallback",
+                    decision.provider_name,
+                )
+                raise ProviderError(f"Empty response from {decision.provider_name}")
+            return response
         except ProviderError:
             # Try fallback
             fallback = self._get_fallback(decision.provider_name, request)
@@ -179,9 +190,16 @@ class TierRouter:
             decision.model = resolved_model
 
         try:
-            return await self._pm.complete_async(
+            response = await self._pm.complete_async(
                 request, provider_name=decision.provider_name, use_fallback=False
             )
+            if not self._validate_response(response):
+                logger.warning(
+                    "Empty response from %s — attempting fallback",
+                    decision.provider_name,
+                )
+                raise ProviderError(f"Empty response from {decision.provider_name}")
+            return response
         except ProviderError:
             fallback = self._get_fallback(decision.provider_name, request)
             if fallback is None:
@@ -196,6 +214,16 @@ class TierRouter:
         """Return recent routing decisions for observability."""
         items = list(self._history)
         return items[-limit:]
+
+    @staticmethod
+    def _validate_response(response: CompletionResponse) -> bool:
+        """Validate that a provider response is usable.
+
+        Returns True if the response contains meaningful content.
+        """
+        if not response.content or not response.content.strip():
+            return False
+        return True
 
     # -- Private routing logic --
 
@@ -320,23 +348,36 @@ class TierRouter:
     def _get_fallback(
         self, failed_name: str, request: CompletionRequest
     ) -> RoutingDecision | None:
-        """Find a fallback provider after the primary fails."""
-        all_providers = self._pm.list_providers()
-        remaining = [p for p in all_providers if p != failed_name]
+        """Find a fallback provider after the primary fails.
+
+        Uses the explicit fallback_chain if configured, otherwise falls back
+        to remaining registered providers in registration order.
+        """
+        registered = set(self._pm.list_providers())
+
+        # Build candidate list: prefer explicit chain, then remaining providers
+        if self._config.fallback_chain:
+            candidates = [
+                p
+                for p in self._config.fallback_chain
+                if p != failed_name and p in registered
+            ]
+        else:
+            candidates = [p for p in self._pm.list_providers() if p != failed_name]
 
         # In force-local or LOCAL mode, restrict to local
         if self._force_local or self._config.mode == RoutingMode.LOCAL:
-            remaining = [
+            candidates = [
                 p
-                for p in remaining
+                for p in candidates
                 if self._pm.get(p)
                 and self._pm.get(p).provider_type in _LOCAL_PROVIDER_TYPES
             ]
 
-        if not remaining:
+        if not candidates:
             return None
 
-        provider_name = remaining[0]
+        provider_name = candidates[0]
         return RoutingDecision(
             provider_name=provider_name,
             model=request.model,

@@ -540,3 +540,149 @@ class TestEdgeCases:
         assert ModelTier.STANDARD.value == "standard"
         assert ModelTier.FAST.value == "fast"
         assert ModelTier.EMBEDDING.value == "embedding"
+
+
+# ---------------------------------------------------------------------------
+# Fallback Chain (TODO 4)
+# ---------------------------------------------------------------------------
+
+
+class TestFallbackChain:
+    """Test configurable fallback chain and output validation."""
+
+    def test_fallback_triggers_when_primary_fails(self, manager, request_simple):
+        """Primary provider fails → fallback to next."""
+        manager.get("openai").complete.side_effect = ProviderError("down")
+        config = RoutingConfig(mode=RoutingMode.CLOUD)
+        router = TierRouter(manager, config)
+
+        # Cloud-only mode but openai fails — should try ollama
+        # (ollama is registered, just not cloud, but it's the only remaining)
+        resp = router.complete(request_simple)
+        assert resp.provider == "ollama"
+        history = router.get_routing_history()
+        assert any(d.was_fallback for d in history)
+
+    def test_fallback_chain_respects_order(self, manager, request_simple):
+        """Explicit fallback_chain order is respected."""
+        # Register a third provider
+        mock_anthropic = MagicMock()
+        mock_anthropic.name = "anthropic"
+        mock_anthropic.provider_type = ProviderType.ANTHROPIC
+        mock_anthropic.complete.return_value = _mock_response("anthropic", "claude-3")
+        manager.register("anthropic", provider=mock_anthropic)
+
+        # openai fails, chain says try anthropic before ollama
+        manager.get("openai").complete.side_effect = ProviderError("down")
+        config = RoutingConfig(
+            mode=RoutingMode.CLOUD,
+            fallback_chain=["anthropic", "ollama"],
+        )
+        router = TierRouter(manager, config)
+        resp = router.complete(request_simple)
+        assert resp.provider == "anthropic"
+
+    def test_fallback_chain_skips_failed_provider(self, manager, request_simple):
+        """Fallback chain skips the provider that already failed."""
+        config = RoutingConfig(
+            mode=RoutingMode.HYBRID,
+            fallback_chain=["openai", "ollama"],
+        )
+        manager.get("openai").complete.side_effect = ProviderError("down")
+        router = TierRouter(manager, config)
+        resp = router.complete(request_simple)
+        # openai is in chain but was the one that failed, so ollama should be used
+        assert resp.provider == "ollama"
+
+    def test_output_validation_rejects_empty_response(self, manager, request_simple):
+        """Empty response triggers fallback."""
+        empty_response = CompletionResponse(
+            content="",
+            model="gpt-4o",
+            provider="openai",
+            tokens_used=0,
+        )
+        manager.get("openai").complete.return_value = empty_response
+        config = RoutingConfig(mode=RoutingMode.CLOUD)
+        router = TierRouter(manager, config)
+        resp = router.complete(request_simple)
+        # Should have fallen back to ollama
+        assert resp.provider == "ollama"
+
+    def test_output_validation_rejects_whitespace_only(self, manager, request_simple):
+        """Whitespace-only response triggers fallback."""
+        ws_response = CompletionResponse(
+            content="   \n  ",
+            model="gpt-4o",
+            provider="openai",
+            tokens_used=5,
+        )
+        manager.get("openai").complete.return_value = ws_response
+        config = RoutingConfig(mode=RoutingMode.CLOUD)
+        router = TierRouter(manager, config)
+        resp = router.complete(request_simple)
+        assert resp.provider == "ollama"
+
+    def test_all_providers_fail_raises(self, manager, request_simple):
+        """When all providers fail, ProviderError is raised."""
+        manager.get("openai").complete.side_effect = ProviderError("down")
+        manager.get("ollama").complete.side_effect = ProviderError("also down")
+        config = RoutingConfig(mode=RoutingMode.HYBRID)
+        router = TierRouter(manager, config)
+        with pytest.raises(ProviderError):
+            router.complete(request_simple)
+
+    def test_fallback_chain_empty_uses_registration_order(
+        self, manager, request_simple
+    ):
+        """Empty fallback_chain falls back to remaining providers."""
+        manager.get("openai").complete.side_effect = ProviderError("down")
+        config = RoutingConfig(fallback_chain=[])
+        router = TierRouter(manager, config)
+        resp = router.complete(request_simple)
+        assert resp.provider == "ollama"
+
+    def test_async_fallback_with_validation(self, manager, request_simple):
+        """Async path also validates and falls back."""
+        empty_response = CompletionResponse(
+            content="",
+            model="gpt-4o",
+            provider="openai",
+            tokens_used=0,
+        )
+        manager.get("openai").complete_async = AsyncMock(return_value=empty_response)
+        config = RoutingConfig(mode=RoutingMode.CLOUD)
+        router = TierRouter(manager, config)
+        resp = asyncio.run(router.complete_async(request_simple))
+        assert resp.provider == "ollama"
+
+
+class TestOllamaValidateOutput:
+    """Test OllamaProvider.validate_output()."""
+
+    def test_valid_response(self):
+        resp = CompletionResponse(
+            content="Hello world",
+            model="llama3.2",
+            provider="ollama",
+            tokens_used=10,
+        )
+        assert OllamaProvider.validate_output(resp) is True
+
+    def test_empty_response(self):
+        resp = CompletionResponse(
+            content="",
+            model="llama3.2",
+            provider="ollama",
+            tokens_used=0,
+        )
+        assert OllamaProvider.validate_output(resp) is False
+
+    def test_whitespace_response(self):
+        resp = CompletionResponse(
+            content="  \n\t  ",
+            model="llama3.2",
+            provider="ollama",
+            tokens_used=2,
+        )
+        assert OllamaProvider.validate_output(resp) is False

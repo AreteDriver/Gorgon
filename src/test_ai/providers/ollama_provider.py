@@ -468,6 +468,19 @@ class OllamaProvider(Provider):
         except Exception:
             return False
 
+    @staticmethod
+    def validate_output(response: CompletionResponse) -> bool:
+        """Validate that an Ollama response is usable.
+
+        Checks for empty content and missing token counts.
+
+        Returns:
+            True if the response is valid.
+        """
+        if not response.content or not response.content.strip():
+            return False
+        return True
+
     def select_model_for_tier(
         self, tier: ModelTier, available_models: list[str] | None = None
     ) -> str | None:
