@@ -61,6 +61,16 @@ def _get_plugin_marketplace_renderer() -> Callable[[], None] | None:
         return None
 
 
+def _get_mcp_page_renderer() -> Callable[[], None] | None:
+    """Get the MCP page renderer, importing lazily."""
+    try:
+        from test_ai.dashboard.mcp_page import render_mcp_page
+
+        return render_mcp_page
+    except ImportError:
+        return None
+
+
 # Initialize components
 @st.cache_resource
 def get_workflow_engine() -> WorkflowEngineAdapter:
@@ -87,6 +97,7 @@ def render_sidebar() -> str:
     pages = {
         "Dashboard": "📊",
         "Costs": "💰",
+        "MCP": "🔌",
         "Monitoring": "🔴",
         "Parallel": "🔀",
         "Agents": "🤖",
@@ -462,11 +473,29 @@ def _render_plugins_page() -> None:
         _render_plugins_fallback()
 
 
+def _render_mcp_fallback() -> None:
+    """Fallback when MCP page is not available."""
+    st.title("🔌 MCP Servers")
+    st.warning(
+        "MCP management component not available. Please check your installation."
+    )
+
+
+def _render_mcp_page() -> None:
+    """Render MCP page with lazy import."""
+    renderer = _get_mcp_page_renderer()
+    if renderer:
+        renderer()
+    else:
+        _render_mcp_fallback()
+
+
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
     "Costs": render_cost_dashboard
     if NEW_COMPONENTS_AVAILABLE
     else render_dashboard_page,
+    "MCP": _render_mcp_page,
     "Monitoring": render_monitoring_page,
     "Parallel": render_parallel_execution_page,
     "Agents": render_agents_page,
