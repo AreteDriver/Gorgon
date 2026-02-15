@@ -34,8 +34,7 @@ gorgon/
 │   ├── dashboard/         # Streamlit dashboard
 │   ├── jobs/              # Job management
 │   ├── metrics/           # Metrics collection & export
-│   ├── orchestrators/     # Agent orchestration
-│   │   └── analytics/     # Analytics pipeline
+│   ├── analytics/         # Analytics pipeline
 │   ├── plugins/           # Plugin system
 │   ├── prompts/           # Prompt templates
 │   └── scheduler/         # Job scheduling
@@ -175,7 +174,7 @@ Plan → Build → Test → Review → Deploy
 |------|---------|
 | `src/test_ai/api.py` | FastAPI application entry |
 | `src/test_ai/cli.py` | CLI commands (Typer) |
-| `src/test_ai/orchestrators/` | Agent orchestration logic |
+| `src/test_ai/analytics/` | Analytics pipeline |
 | `src/test_ai/contracts/` | Contract definitions |
 | `pyproject.toml` | Dependencies and project config |
 | `workflows/` | YAML workflow definitions |
@@ -185,7 +184,7 @@ Plan → Build → Test → Review → Deploy
 ## Common Tasks
 
 ### Adding a New Agent
-1. Define agent role in `orchestrators/`
+1. Define agent role in `agents/`
 2. Create prompt template in `prompts/`
 3. Add contract in `contracts/definitions.py`
 4. Register in plugin system if needed

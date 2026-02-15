@@ -15,7 +15,7 @@ import streamlit as st
 if TYPE_CHECKING:
     from test_ai.monitoring.parallel_tracker import ParallelExecutionTracker
     from test_ai.monitoring.tracker import AgentTracker, ExecutionTracker
-    from test_ai.orchestrators.analytics.pipeline import PipelineResult
+    from test_ai.analytics.pipeline import PipelineResult
 
 
 # Import monitoring components - lazy load to avoid dep issues
@@ -483,7 +483,7 @@ def render_analytics_page() -> None:
 
 def _run_analytics_pipeline(pipeline_id: str, hours: int = 24) -> PipelineResult:
     """Run selected analytics pipeline."""
-    from test_ai.orchestrators.analytics.pipeline import PipelineBuilder
+    from test_ai.analytics.pipeline import PipelineBuilder
 
     if pipeline_id == "workflow_metrics":
         pipeline = PipelineBuilder.workflow_metrics_pipeline()

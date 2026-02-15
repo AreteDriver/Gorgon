@@ -893,7 +893,7 @@ class TestOrchestratorConsensusIntegration:
 
     def test_pipeline_agent_handler_raises_on_failure(self):
         """Pipeline agent_handler raises RuntimeError when success=False."""
-        from test_ai.orchestrators.analytics.pipeline import AnalyticsPipeline
+        from test_ai.analytics.pipeline import AnalyticsPipeline
 
         mock_client = MagicMock()
         mock_client.execute_agent.return_value = {
@@ -914,7 +914,7 @@ class TestOrchestratorConsensusIntegration:
 
     def test_pipeline_agent_handler_wraps_pending_confirmation(self):
         """Pipeline agent_handler wraps output with confirmation metadata."""
-        from test_ai.orchestrators.analytics.pipeline import AnalyticsPipeline
+        from test_ai.analytics.pipeline import AnalyticsPipeline
 
         mock_client = MagicMock()
         mock_client.execute_agent.return_value = {

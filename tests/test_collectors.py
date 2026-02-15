@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
 
 
-from test_ai.orchestrators.analytics.collectors import (
+from test_ai.analytics.collectors import (
     CollectedData,
     ExecutionMetricsCollector,
     HistoricalMetricsCollector,

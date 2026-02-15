@@ -1150,7 +1150,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
             mock_builder.workflow_metrics_pipeline.return_value = mock_pipeline
 
             with patch(
-                "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+                "test_ai.analytics.pipeline.PipelineBuilder",
                 mock_builder,
             ):
                 from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
@@ -1166,7 +1166,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         mock_builder.historical_trends_pipeline.return_value = mock_pipeline
 
         with patch(
-            "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+            "test_ai.analytics.pipeline.PipelineBuilder",
             mock_builder,
         ):
             from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
@@ -1181,7 +1181,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         mock_builder.api_health_pipeline.return_value = mock_pipeline
 
         with patch(
-            "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+            "test_ai.analytics.pipeline.PipelineBuilder",
             mock_builder,
         ):
             from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline
@@ -1196,7 +1196,7 @@ class TestRunAnalyticsPipelineKnownPipelines:
         mock_builder.operations_dashboard_pipeline.return_value = mock_pipeline
 
         with patch(
-            "test_ai.orchestrators.analytics.pipeline.PipelineBuilder",
+            "test_ai.analytics.pipeline.PipelineBuilder",
             mock_builder,
         ):
             from test_ai.dashboard.monitoring_pages import _run_analytics_pipeline

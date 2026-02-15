@@ -8,7 +8,7 @@ import pytest
 
 sys.path.insert(0, "src")
 
-from test_ai.orchestrators.analytics.visualizers import (
+from test_ai.analytics.visualizers import (
     ChartSpec,
     DashboardSpec,
     VisualizationResult,

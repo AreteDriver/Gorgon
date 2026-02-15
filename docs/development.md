@@ -76,7 +76,7 @@ src/test_ai/
 ├── config/             # Settings (Pydantic)
 ├── dashboard/          # Streamlit UI (13 pages)
 ├── api_clients/        # OpenAI, GitHub, Notion, Gmail
-├── orchestrators/      # Agent orchestration
+├── analytics/          # Analytics pipeline
 ├── plugins/            # Plugin system
 ├── prompts/            # Prompt template manager
 ├── ratelimit/          # Token bucket + sliding window

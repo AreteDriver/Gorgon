@@ -15,19 +15,19 @@ import pytest
 
 sys.path.insert(0, "src")
 
-from test_ai.orchestrators.analytics.pipeline import (
+from test_ai.analytics.pipeline import (
     AnalyticsPipeline,
     PipelineBuilder,
     PipelineStage,
     PipelineResult,
     StageResult,
 )
-from test_ai.orchestrators.analytics.collectors import (
+from test_ai.analytics.collectors import (
     CollectedData,
     JSONCollector,
     AggregateCollector,
 )
-from test_ai.orchestrators.analytics.analyzers import (
+from test_ai.analytics.analyzers import (
     AnalysisResult,
     TrendAnalyzer,
     ThresholdAnalyzer,

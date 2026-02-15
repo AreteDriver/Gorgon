@@ -5,18 +5,18 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from test_ai.orchestrators.analytics.collectors import (
+from test_ai.analytics.collectors import (
     AggregateCollector,
     CollectedData,
     JSONCollector,
 )
-from test_ai.orchestrators.analytics.analyzers import (
+from test_ai.analytics.analyzers import (
     AnalysisResult,
     CompositeAnalyzer,
     ThresholdAnalyzer,
     TrendAnalyzer,
 )
-from test_ai.orchestrators.analytics.reporters import (
+from test_ai.analytics.reporters import (
     Alert,
     AlertBatch,
     AlertGenerator,
@@ -24,7 +24,7 @@ from test_ai.orchestrators.analytics.reporters import (
     ReportGenerator,
     ReportSection,
 )
-from test_ai.orchestrators.analytics.pipeline import (
+from test_ai.analytics.pipeline import (
     AnalyticsPipeline,
     PipelineBuilder,
     PipelineResult,
