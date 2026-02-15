@@ -1,0 +1,1566 @@
+"""Coverage tests for agent/client modules.
+
+Targets:
+  - agents/provider_wrapper.py (~52 uncovered lines, 16% coverage)
+  - api_clients/resilience.py (~39 uncovered lines, 64% coverage)
+  - api_clients/calendar_client.py (~173 uncovered lines, 28% coverage)
+  - chat/router.py (~159 uncovered lines)
+"""
+
+from __future__ import annotations
+
+import asyncio
+from datetime import datetime, timedelta, timezone
+from unittest.mock import AsyncMock, MagicMock, patch
+
+import pytest
+
+
+# ---------------------------------------------------------------------------
+# Fixtures
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture()
+def mock_provider():
+    """Create a mock Provider for AgentProvider tests."""
+    provider = MagicMock()
+    provider._initialized = True
+    provider._async_client = None
+    provider.default_model = "claude-test"
+
+    response = MagicMock()
+    response.content = "mock response"
+    provider.complete_async = AsyncMock(return_value=response)
+    return provider
+
+
+@pytest.fixture()
+def mock_provider_uninitialized():
+    """Provider that hasn't been initialized yet."""
+    provider = MagicMock()
+    provider._initialized = False
+    provider._async_client = None
+    provider.default_model = "claude-test"
+
+    response = MagicMock()
+    response.content = "initialized response"
+    provider.complete_async = AsyncMock(return_value=response)
+    return provider
+
+
+@pytest.fixture()
+def sample_messages():
+    """Standard message list for tests."""
+    return [
+        {"role": "system", "content": "You are helpful."},
+        {"role": "user", "content": "Hello"},
+    ]
+
+
+@pytest.fixture()
+def sample_api_event():
+    """Sample Google Calendar API event response."""
+    return {
+        "id": "evt-123",
+        "summary": "Team Meeting",
+        "description": "Weekly sync",
+        "location": "Room 42",
+        "start": {"dateTime": "2026-02-15T10:00:00Z"},
+        "end": {"dateTime": "2026-02-15T11:00:00Z"},
+        "attendees": [
+            {"email": "alice@example.com"},
+            {"email": "bob@example.com"},
+        ],
+        "reminders": {
+            "useDefault": False,
+            "overrides": [{"method": "popup", "minutes": 10}],
+        },
+        "recurrence": ["RRULE:FREQ=WEEKLY"],
+        "status": "confirmed",
+        "htmlLink": "https://calendar.google.com/event/evt-123",
+    }
+
+
+@pytest.fixture()
+def sample_allday_event():
+    """All-day event API response."""
+    return {
+        "id": "evt-allday",
+        "summary": "Holiday",
+        "start": {"date": "2026-03-01"},
+        "end": {"date": "2026-03-02"},
+        "status": "confirmed",
+    }
+
+
+@pytest.fixture()
+def mock_session():
+    """Mock ChatSession for router tests."""
+    session = MagicMock()
+    session.id = "sess-test"
+    session.title = "Test Session"
+    session.project_path = "/tmp/project"
+    session.mode = "assistant"
+    session.status = "active"
+    session.created_at = datetime(2026, 2, 15, 10, 0, 0)
+    session.updated_at = datetime(2026, 2, 15, 10, 0, 0)
+    session.messages = []
+    session.allowed_paths = []
+    return session
+
+
+@pytest.fixture()
+def mock_session_manager(mock_session):
+    """Mock ChatSessionManager."""
+    manager = MagicMock()
+    manager.create_session.return_value = mock_session
+    manager.get_session.return_value = mock_session
+    manager.get_session_with_messages.return_value = mock_session
+    manager.list_sessions.return_value = [mock_session]
+    manager.update_session.return_value = mock_session
+    manager.delete_session.return_value = True
+    manager.get_message_count.return_value = 5
+    manager.get_messages.return_value = []
+    manager.generate_title.return_value = "Generated Title"
+    manager.get_session_jobs.return_value = ["job-1", "job-2"]
+    return manager
+
+
+# ===========================================================================
+# 1. agents/provider_wrapper.py
+# ===========================================================================
+
+
+class TestAgentProviderInit:
+    """Test AgentProvider initialization."""
+
+    def test_init_with_initialized_provider(self, mock_provider):
+        """Provider already initialized -- no initialize() call."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        agent = AgentProvider(mock_provider)
+        assert agent.provider is mock_provider
+        mock_provider.initialize.assert_not_called()
+
+    def test_init_with_uninitialized_provider(self, mock_provider_uninitialized):
+        """Provider not yet initialized -- initialize() is called."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        agent = AgentProvider(mock_provider_uninitialized)
+        mock_provider_uninitialized.initialize.assert_called_once()
+        assert agent.provider is mock_provider_uninitialized
+
+
+class TestAgentProviderComplete:
+    """Test AgentProvider.complete()."""
+
+    def test_complete_basic(self, mock_provider, sample_messages):
+        """Basic completion with system + user messages."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        agent = AgentProvider(mock_provider)
+        result = asyncio.run(agent.complete(sample_messages))
+
+        assert result == "mock response"
+        mock_provider.complete_async.assert_awaited_once()
+        req = mock_provider.complete_async.call_args[0][0]
+        assert req.prompt == "Hello"
+        assert req.system_prompt == "You are helpful."
+        assert req.temperature == 0.7
+        assert req.max_tokens == 4096
+
+    def test_complete_multiple_system_prompts(self, mock_provider):
+        """Multiple system messages are concatenated."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        messages = [
+            {"role": "system", "content": "Part 1"},
+            {"role": "system", "content": "Part 2"},
+            {"role": "user", "content": "Go"},
+        ]
+        agent = AgentProvider(mock_provider)
+        asyncio.run(agent.complete(messages))
+
+        req = mock_provider.complete_async.call_args[0][0]
+        assert req.system_prompt == "Part 1\n\nPart 2"
+
+    def test_complete_no_system_prompt(self, mock_provider):
+        """No system message uses default."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        messages = [{"role": "user", "content": "Hello"}]
+        agent = AgentProvider(mock_provider)
+        asyncio.run(agent.complete(messages))
+
+        req = mock_provider.complete_async.call_args[0][0]
+        assert req.system_prompt == "You are a helpful assistant."
+
+    def test_complete_empty_messages(self, mock_provider):
+        """Empty message list still works (prompt='')."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        agent = AgentProvider(mock_provider)
+        asyncio.run(agent.complete([]))
+
+        req = mock_provider.complete_async.call_args[0][0]
+        assert req.prompt == ""
+
+    def test_complete_only_system_messages(self, mock_provider):
+        """Only system messages -- no user content, prompt is empty."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        messages = [{"role": "system", "content": "System only"}]
+        agent = AgentProvider(mock_provider)
+        asyncio.run(agent.complete(messages))
+
+        req = mock_provider.complete_async.call_args[0][0]
+        assert req.prompt == ""
+        assert req.system_prompt == "System only"
+
+
+class TestAgentProviderStreamCompletion:
+    """Test AgentProvider.stream_completion()."""
+
+    def test_stream_fallback_no_async_client(self, mock_provider, sample_messages):
+        """Falls back to non-streaming when no _async_client."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        mock_provider._async_client = None
+        agent = AgentProvider(mock_provider)
+
+        async def _collect():
+            chunks = []
+            async for chunk in agent.stream_completion(sample_messages):
+                chunks.append(chunk)
+            return chunks
+
+        chunks = asyncio.run(_collect())
+        assert chunks == ["mock response"]
+
+    def test_stream_fallback_async_client_false(self, mock_provider, sample_messages):
+        """Falls back when _async_client is falsy."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        mock_provider._async_client = False
+        agent = AgentProvider(mock_provider)
+
+        async def _collect():
+            chunks = []
+            async for chunk in agent.stream_completion(sample_messages):
+                chunks.append(chunk)
+            return chunks
+
+        chunks = asyncio.run(_collect())
+        assert chunks == ["mock response"]
+
+    def test_stream_with_async_client_fallback_on_error(
+        self, mock_provider, sample_messages
+    ):
+        """When streaming raises, falls back to non-streaming."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        mock_provider._async_client = MagicMock()
+
+        agent = AgentProvider(mock_provider)
+        # Make _stream_anthropic raise
+        with patch.object(
+            agent,
+            "_stream_anthropic",
+            side_effect=RuntimeError("stream failed"),
+        ):
+
+            async def _collect():
+                chunks = []
+                async for chunk in agent.stream_completion(sample_messages):
+                    chunks.append(chunk)
+                return chunks
+
+            chunks = asyncio.run(_collect())
+            assert chunks == ["mock response"]
+
+
+class TestAgentProviderStreamAnthropic:
+    """Test AgentProvider._stream_anthropic()."""
+
+    def test_stream_anthropic_success(self, mock_provider, sample_messages):
+        """Anthropic streaming yields text chunks."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        mock_client = MagicMock()
+        mock_provider._async_client = mock_client
+
+        async def _fake_text_stream():
+            for chunk in ["Hello", " World"]:
+                yield chunk
+
+        mock_stream = AsyncMock()
+        mock_stream.text_stream = _fake_text_stream()
+
+        # AsyncContextManager mock
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_client.messages.stream.return_value = mock_cm
+
+        agent = AgentProvider(mock_provider)
+
+        async def _collect():
+            chunks = []
+            async for chunk in agent._stream_anthropic(sample_messages):
+                chunks.append(chunk)
+            return chunks
+
+        chunks = asyncio.run(_collect())
+        assert chunks == ["Hello", " World"]
+
+    def test_stream_anthropic_error_raises(self, mock_provider, sample_messages):
+        """Anthropic streaming error is re-raised."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        mock_client = MagicMock()
+        mock_provider._async_client = mock_client
+
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__ = AsyncMock(side_effect=RuntimeError("API error"))
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_client.messages.stream.return_value = mock_cm
+
+        agent = AgentProvider(mock_provider)
+
+        async def _collect():
+            chunks = []
+            async for chunk in agent._stream_anthropic(sample_messages):
+                chunks.append(chunk)
+            return chunks
+
+        with pytest.raises(RuntimeError, match="API error"):
+            asyncio.run(_collect())
+
+    def test_stream_anthropic_no_system_messages(self, mock_provider):
+        """Streaming without system messages uses default."""
+        from test_ai.agents.provider_wrapper import AgentProvider
+
+        mock_client = MagicMock()
+        mock_provider._async_client = mock_client
+
+        async def _fake_text_stream():
+            yield "response"
+
+        mock_stream = AsyncMock()
+        mock_stream.text_stream = _fake_text_stream()
+
+        mock_cm = AsyncMock()
+        mock_cm.__aenter__ = AsyncMock(return_value=mock_stream)
+        mock_cm.__aexit__ = AsyncMock(return_value=False)
+        mock_client.messages.stream.return_value = mock_cm
+
+        agent = AgentProvider(mock_provider)
+        messages = [{"role": "user", "content": "Hey"}]
+
+        async def _collect():
+            chunks = []
+            async for chunk in agent._stream_anthropic(messages):
+                chunks.append(chunk)
+            return chunks
+
+        asyncio.run(_collect())
+        call_kwargs = mock_client.messages.stream.call_args[1]
+        assert call_kwargs["system"] == "You are a helpful assistant."
+
+
+class TestCreateAgentProvider:
+    """Test create_agent_provider() factory."""
+
+    @patch("test_ai.config.get_settings")
+    @patch("test_ai.providers.anthropic_provider.AnthropicProvider")
+    def test_create_anthropic(self, mock_cls, mock_settings):
+        """Creates an AnthropicProvider-based agent."""
+        from test_ai.agents.provider_wrapper import create_agent_provider
+
+        mock_settings.return_value.anthropic_api_key = "sk-test"
+        mock_instance = MagicMock()
+        mock_instance._initialized = True
+        mock_cls.return_value = mock_instance
+
+        agent = create_agent_provider("anthropic")
+        assert agent.provider is mock_instance
+        mock_cls.assert_called_once_with(api_key="sk-test")
+
+    @patch("test_ai.config.get_settings")
+    @patch("test_ai.providers.openai_provider.OpenAIProvider")
+    def test_create_openai(self, mock_cls, mock_settings):
+        """Creates an OpenAIProvider-based agent."""
+        from test_ai.agents.provider_wrapper import create_agent_provider
+
+        mock_settings.return_value.openai_api_key = "sk-openai"
+        mock_instance = MagicMock()
+        mock_instance._initialized = True
+        mock_cls.return_value = mock_instance
+
+        agent = create_agent_provider("openai")
+        assert agent.provider is mock_instance
+        mock_cls.assert_called_once_with(api_key="sk-openai")
+
+    def test_create_unknown_raises(self):
+        """Unknown provider type raises ValueError."""
+        from test_ai.agents.provider_wrapper import create_agent_provider
+
+        with pytest.raises(ValueError, match="Unknown provider type: llama"):
+            create_agent_provider("llama")
+
+
+# ===========================================================================
+# 2. api_clients/resilience.py — uncovered paths
+# ===========================================================================
+
+
+class TestResilientCallRateLimitDenied:
+    """Test rate-limit denial path in resilient_call."""
+
+    def test_sync_rate_limit_denied(self):
+        """Rate limit not acquired raises RuntimeError."""
+        from test_ai.api_clients.resilience import resilient_call
+
+        mock_limiter = MagicMock()
+        mock_limiter.acquire.return_value = False
+
+        with patch(
+            "test_ai.api_clients.resilience.get_provider_limiter",
+            return_value=mock_limiter,
+        ):
+
+            @resilient_call("openai")
+            def my_func():
+                return "result"
+
+            with pytest.raises(RuntimeError, match="Rate limit exceeded"):
+                my_func()
+
+    def test_sync_bulkhead_denied(self):
+        """Bulkhead not acquired raises RuntimeError."""
+        from test_ai.api_clients.resilience import resilient_call
+
+        mock_limiter = MagicMock()
+        mock_limiter.acquire.return_value = True
+
+        mock_bh = MagicMock()
+        mock_bh.acquire.return_value = False
+
+        with (
+            patch(
+                "test_ai.api_clients.resilience.get_provider_limiter",
+                return_value=mock_limiter,
+            ),
+            patch(
+                "test_ai.api_clients.resilience.get_provider_bulkhead",
+                return_value=mock_bh,
+            ),
+        ):
+
+            @resilient_call("openai")
+            def my_func():
+                return "result"
+
+            with pytest.raises(RuntimeError, match="Bulkhead full"):
+                my_func()
+
+
+class TestResilientCallAsyncDenied:
+    """Test async denial paths."""
+
+    def test_async_rate_limit_denied(self):
+        """Async rate limit denial."""
+        from test_ai.api_clients.resilience import resilient_call_async
+
+        mock_limiter = MagicMock()
+        mock_limiter.acquire_async = AsyncMock(return_value=False)
+
+        with patch(
+            "test_ai.api_clients.resilience.get_provider_limiter",
+            return_value=mock_limiter,
+        ):
+
+            @resilient_call_async("openai")
+            async def my_func():
+                return "result"
+
+            with pytest.raises(RuntimeError, match="Rate limit exceeded"):
+                asyncio.run(my_func())
+
+    def test_async_bulkhead_denied(self):
+        """Async bulkhead denial."""
+        from test_ai.api_clients.resilience import resilient_call_async
+
+        mock_limiter = MagicMock()
+        mock_limiter.acquire_async = AsyncMock(return_value=True)
+
+        mock_bh = MagicMock()
+        mock_bh.acquire_async = AsyncMock(return_value=False)
+
+        with (
+            patch(
+                "test_ai.api_clients.resilience.get_provider_limiter",
+                return_value=mock_limiter,
+            ),
+            patch(
+                "test_ai.api_clients.resilience.get_provider_bulkhead",
+                return_value=mock_bh,
+            ),
+        ):
+
+            @resilient_call_async("openai")
+            async def my_func():
+                return "result"
+
+            with pytest.raises(RuntimeError, match="Bulkhead full"):
+                asyncio.run(my_func())
+
+    def test_async_no_rate_limit(self):
+        """Async with rate_limit=False skips limiter."""
+        from test_ai.api_clients.resilience import resilient_call_async
+
+        @resilient_call_async("openai", rate_limit=False)
+        async def my_func():
+            return "ok"
+
+        result = asyncio.run(my_func())
+        assert result == "ok"
+
+    def test_async_no_bulkhead(self):
+        """Async with bulkhead=False skips bulkhead."""
+        from test_ai.api_clients.resilience import resilient_call_async
+
+        @resilient_call_async("openai", bulkhead=False)
+        async def my_func():
+            return "no-bh"
+
+        result = asyncio.run(my_func())
+        assert result == "no-bh"
+
+
+class TestResilientContext:
+    """Test _ResilientContext sync context manager."""
+
+    def test_sync_context_enter_exit(self):
+        """Sync context acquires and releases resources."""
+        from test_ai.api_clients.resilience import _ResilientContext
+
+        mock_limiter = MagicMock()
+        mock_bh = MagicMock()
+
+        with (
+            patch(
+                "test_ai.api_clients.resilience.get_provider_limiter",
+                return_value=mock_limiter,
+            ),
+            patch(
+                "test_ai.api_clients.resilience.get_provider_bulkhead",
+                return_value=mock_bh,
+            ),
+        ):
+            ctx = _ResilientContext(
+                "openai", rate_limit=True, bulkhead=True, is_async=False
+            )
+            with ctx:
+                mock_limiter.acquire.assert_called_once_with(wait=True)
+                mock_bh.acquire.assert_called_once()
+            mock_bh.release.assert_called_once()
+
+    def test_sync_context_no_rate_limit(self):
+        """Sync context with rate_limit=False."""
+        from test_ai.api_clients.resilience import _ResilientContext
+
+        mock_limiter = MagicMock()
+
+        with patch(
+            "test_ai.api_clients.resilience.get_provider_limiter",
+            return_value=mock_limiter,
+        ):
+            ctx = _ResilientContext(
+                "openai", rate_limit=False, bulkhead=False, is_async=False
+            )
+            with ctx:
+                pass
+            mock_limiter.acquire.assert_not_called()
+
+    def test_sync_context_no_bulkhead(self):
+        """Sync context with bulkhead=False -- no release on exit."""
+        from test_ai.api_clients.resilience import _ResilientContext
+
+        ctx = _ResilientContext(
+            "openai", rate_limit=False, bulkhead=False, is_async=False
+        )
+        with ctx:
+            pass
+        # _bh should be None, no release
+        assert ctx._bh is None
+
+    def test_sync_context_returns_false_on_exit(self):
+        """__exit__ returns False (doesn't suppress exceptions)."""
+        from test_ai.api_clients.resilience import _ResilientContext
+
+        ctx = _ResilientContext(
+            "openai", rate_limit=False, bulkhead=False, is_async=False
+        )
+        result = ctx.__exit__(None, None, None)
+        assert result is False
+
+
+class TestResilientContextAsync:
+    """Test _ResilientContextAsync."""
+
+    def test_async_context_enter_exit(self):
+        """Async context acquires and releases resources."""
+        from test_ai.api_clients.resilience import _ResilientContextAsync
+
+        mock_limiter = MagicMock()
+        mock_limiter.acquire_async = AsyncMock(return_value=True)
+        mock_bh = MagicMock()
+        mock_bh.acquire_async = AsyncMock(return_value=True)
+        mock_bh.release_async = AsyncMock()
+
+        with (
+            patch(
+                "test_ai.api_clients.resilience.get_provider_limiter",
+                return_value=mock_limiter,
+            ),
+            patch(
+                "test_ai.api_clients.resilience.get_provider_bulkhead",
+                return_value=mock_bh,
+            ),
+        ):
+
+            async def _run():
+                ctx = _ResilientContextAsync("openai", rate_limit=True, bulkhead=True)
+                async with ctx:
+                    pass
+                return ctx
+
+            asyncio.run(_run())
+            mock_limiter.acquire_async.assert_awaited_once_with(wait=True)
+            mock_bh.acquire_async.assert_awaited_once()
+            mock_bh.release_async.assert_awaited_once()
+
+    def test_async_context_no_rate_limit(self):
+        """Async context with rate_limit=False skips limiter."""
+        from test_ai.api_clients.resilience import _ResilientContextAsync
+
+        mock_limiter = MagicMock()
+        mock_limiter.acquire_async = AsyncMock()
+
+        with patch(
+            "test_ai.api_clients.resilience.get_provider_limiter",
+            return_value=mock_limiter,
+        ):
+
+            async def _run():
+                ctx = _ResilientContextAsync("openai", rate_limit=False, bulkhead=False)
+                async with ctx:
+                    pass
+
+            asyncio.run(_run())
+            mock_limiter.acquire_async.assert_not_awaited()
+
+    def test_async_context_no_bulkhead_no_release(self):
+        """Async context with bulkhead=False -- no release on exit."""
+        from test_ai.api_clients.resilience import _ResilientContextAsync
+
+        async def _run():
+            ctx = _ResilientContextAsync("openai", rate_limit=False, bulkhead=False)
+            async with ctx:
+                pass
+            return ctx
+
+        ctx = asyncio.run(_run())
+        assert ctx._bh is None
+
+    def test_async_context_aexit_returns_false(self):
+        """__aexit__ returns False."""
+        from test_ai.api_clients.resilience import _ResilientContextAsync
+
+        async def _run():
+            ctx = _ResilientContextAsync("openai", rate_limit=False, bulkhead=False)
+            result = await ctx.__aexit__(None, None, None)
+            return result
+
+        result = asyncio.run(_run())
+        assert result is False
+
+
+class TestResilientClientMixinContexts:
+    """Test ResilientClientMixin.resilient_context / resilient_context_async."""
+
+    def test_resilient_context_sync(self):
+        """Mixin produces sync context manager."""
+        from test_ai.api_clients.resilience import (
+            ResilientClientMixin,
+            _ResilientContext,
+        )
+
+        class MyClient(ResilientClientMixin):
+            PROVIDER = "github"
+
+        client = MyClient()
+        ctx = client.resilient_context()
+        assert isinstance(ctx, _ResilientContext)
+        assert ctx.provider == "github"
+
+    def test_resilient_context_async(self):
+        """Mixin produces async context manager."""
+        from test_ai.api_clients.resilience import (
+            ResilientClientMixin,
+            _ResilientContextAsync,
+        )
+
+        class MyClient(ResilientClientMixin):
+            PROVIDER = "notion"
+
+        client = MyClient()
+        ctx = client.resilient_context_async()
+        assert isinstance(ctx, _ResilientContextAsync)
+        assert ctx.provider == "notion"
+
+    def test_mixin_custom_flags(self):
+        """Mixin passes rate_limit/bulkhead flags through."""
+        from test_ai.api_clients.resilience import ResilientClientMixin
+
+        class MyClient(ResilientClientMixin):
+            PROVIDER = "gmail"
+
+        client = MyClient()
+        ctx = client.resilient_context(rate_limit=False, bulkhead=False)
+        assert ctx.rate_limit is False
+        assert ctx.bulkhead is False
+
+
+class TestGetProviderBulkhead:
+    """Test get_provider_bulkhead with known/unknown providers."""
+
+    def test_known_provider(self):
+        """Known provider uses configured limits."""
+        from test_ai.api_clients.resilience import get_provider_bulkhead
+
+        bh = get_provider_bulkhead("openai")
+        assert bh is not None
+
+    def test_unknown_provider_uses_defaults(self):
+        """Unknown provider falls back to defaults."""
+        from test_ai.api_clients.resilience import get_provider_bulkhead
+
+        bh = get_provider_bulkhead("unknown_provider")
+        assert bh is not None
+
+
+class TestGetAllProviderStatsError:
+    """Test get_all_provider_stats error handling."""
+
+    def test_stats_with_error(self):
+        """Provider that raises gets an error entry."""
+        from test_ai.api_clients.resilience import get_all_provider_stats
+
+        with patch(
+            "test_ai.ratelimit.provider.get_provider_limiter",
+            side_effect=RuntimeError("broken"),
+        ):
+            stats = get_all_provider_stats()
+            for provider_name in stats:
+                assert "error" in stats[provider_name]
+
+
+# ===========================================================================
+# 3. api_clients/calendar_client.py — CalendarEvent + CalendarClient
+# ===========================================================================
+
+
+class TestCalendarEventToApiFormat:
+    """Test CalendarEvent.to_api_format()."""
+
+    def test_timed_event(self):
+        """Timed event with all fields."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        start = datetime(2026, 3, 1, 10, 0, 0, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 1, 11, 0, 0, tzinfo=timezone.utc)
+        event = CalendarEvent(
+            summary="Meeting",
+            description="Sync up",
+            location="Office",
+            start=start,
+            end=end,
+            attendees=["alice@example.com", "bob@example.com"],
+            reminders=[{"method": "popup", "minutes": 10}],
+            recurrence=["RRULE:FREQ=WEEKLY"],
+        )
+        api = event.to_api_format()
+
+        assert api["summary"] == "Meeting"
+        assert api["description"] == "Sync up"
+        assert api["location"] == "Office"
+        assert "dateTime" in api["start"]
+        assert api["start"]["timeZone"] == "UTC"
+        assert "dateTime" in api["end"]
+        assert len(api["attendees"]) == 2
+        assert api["attendees"][0]["email"] == "alice@example.com"
+        assert api["reminders"]["useDefault"] is False
+        assert api["recurrence"] == ["RRULE:FREQ=WEEKLY"]
+
+    def test_allday_event(self):
+        """All-day event uses date format."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        start = datetime(2026, 3, 1, tzinfo=timezone.utc)
+        end = datetime(2026, 3, 2, tzinfo=timezone.utc)
+        event = CalendarEvent(
+            summary="Holiday",
+            all_day=True,
+            start=start,
+            end=end,
+        )
+        api = event.to_api_format()
+
+        assert "date" in api["start"]
+        assert api["start"]["date"] == "2026-03-01"
+        assert "date" in api["end"]
+        assert "dateTime" not in api.get("start", {})
+
+    def test_no_start_end(self):
+        """Event with no start/end timestamps."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent(summary="No times")
+        api = event.to_api_format()
+
+        assert "start" not in api
+        assert "end" not in api
+
+    def test_no_attendees(self):
+        """No attendees omits attendees key."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent(summary="Solo")
+        api = event.to_api_format()
+
+        assert "attendees" not in api
+
+    def test_no_reminders_uses_default(self):
+        """Empty reminders enables useDefault."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent(summary="Default reminders")
+        api = event.to_api_format()
+
+        assert api["reminders"]["useDefault"] is True
+
+    def test_no_recurrence(self):
+        """Empty recurrence omits recurrence key."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent(summary="One-time")
+        api = event.to_api_format()
+
+        assert "recurrence" not in api
+
+    def test_allday_no_start(self):
+        """All-day event with start=None."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent(
+            summary="No start", all_day=True, end=datetime(2026, 3, 2)
+        )
+        api = event.to_api_format()
+        assert "start" not in api
+
+    def test_allday_no_end(self):
+        """All-day event with end=None."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent(
+            summary="No end", all_day=True, start=datetime(2026, 3, 1)
+        )
+        api = event.to_api_format()
+        assert "end" not in api
+
+
+class TestCalendarEventFromApiResponse:
+    """Test CalendarEvent.from_api_response()."""
+
+    def test_timed_event(self, sample_api_event):
+        """Parse timed event from API response."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent.from_api_response(sample_api_event)
+
+        assert event.id == "evt-123"
+        assert event.summary == "Team Meeting"
+        assert event.description == "Weekly sync"
+        assert event.location == "Room 42"
+        assert event.all_day is False
+        assert event.start is not None
+        assert event.end is not None
+        assert event.attendees == ["alice@example.com", "bob@example.com"]
+        assert len(event.reminders) == 1
+        assert event.recurrence == ["RRULE:FREQ=WEEKLY"]
+        assert event.status == "confirmed"
+        assert event.html_link == "https://calendar.google.com/event/evt-123"
+
+    def test_allday_event(self, sample_allday_event):
+        """Parse all-day event."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        event = CalendarEvent.from_api_response(sample_allday_event)
+
+        assert event.all_day is True
+        assert event.start is not None
+        assert event.start.tzinfo == timezone.utc
+        assert event.end is not None
+
+    def test_minimal_event(self):
+        """Parse event with minimal fields."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        data = {"id": "evt-min", "start": {}, "end": {}}
+        event = CalendarEvent.from_api_response(data)
+
+        assert event.id == "evt-min"
+        assert event.summary == ""
+        assert event.start is None
+        assert event.end is None
+        assert event.all_day is False
+        assert event.attendees == []
+        assert event.reminders == []
+
+    def test_attendees_filter_empty_emails(self):
+        """Attendees with missing email are filtered out."""
+        from test_ai.api_clients.calendar_client import CalendarEvent
+
+        data = {
+            "start": {},
+            "end": {},
+            "attendees": [
+                {"email": "valid@example.com"},
+                {"displayName": "No Email"},
+                {},
+            ],
+        }
+        event = CalendarEvent.from_api_response(data)
+        assert event.attendees == ["valid@example.com"]
+
+
+class TestCalendarClientInit:
+    """Test CalendarClient initialization."""
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_init_with_credentials(self, mock_settings):
+        """Init uses explicit credentials_path."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/default/creds.json"
+        client = CalendarClient(credentials_path="/custom/creds.json")
+        assert client.credentials_path == "/custom/creds.json"
+        assert client.service is None
+        assert client._authenticated is False
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_init_uses_settings_default(self, mock_settings):
+        """Init falls back to settings credentials path."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/settings/creds.json"
+        client = CalendarClient()
+        assert client.credentials_path == "/settings/creds.json"
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_is_configured_true(self, mock_settings):
+        """is_configured returns True when credentials_path set."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/some/path"
+        client = CalendarClient()
+        assert client.is_configured() is True
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_is_configured_false(self, mock_settings):
+        """is_configured returns False when credentials_path is None."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = None
+        client = CalendarClient()
+        assert client.is_configured() is False
+
+
+class TestCalendarClientUnauthenticated:
+    """Test CalendarClient methods when not authenticated (service=None)."""
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_list_events_unauthenticated(self, mock_settings):
+        """list_events returns empty list when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.list_events() == []
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_get_event_unauthenticated(self, mock_settings):
+        """get_event returns None when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.get_event("evt-123") is None
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_create_event_unauthenticated(self, mock_settings):
+        """create_event returns None when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient, CalendarEvent
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        event = CalendarEvent(summary="Test")
+        assert client.create_event(event) is None
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_update_event_unauthenticated(self, mock_settings):
+        """update_event returns None when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient, CalendarEvent
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        event = CalendarEvent(id="evt-123", summary="Test")
+        assert client.update_event(event) is None
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_update_event_no_id(self, mock_settings):
+        """update_event returns None when event has no ID."""
+        from test_ai.api_clients.calendar_client import CalendarClient, CalendarEvent
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        client.service = MagicMock()  # Pretend authenticated
+        event = CalendarEvent(summary="No ID")
+        assert client.update_event(event) is None
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_delete_event_unauthenticated(self, mock_settings):
+        """delete_event returns False when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.delete_event("evt-123") is False
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_check_availability_unauthenticated(self, mock_settings):
+        """check_availability returns empty list when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        now = datetime.now(timezone.utc)
+        assert client.check_availability(now, now + timedelta(hours=1)) == []
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_list_calendars_unauthenticated(self, mock_settings):
+        """list_calendars returns empty list when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.list_calendars() == []
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_quick_add_unauthenticated(self, mock_settings):
+        """quick_add returns None when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.quick_add("Lunch tomorrow") is None
+
+
+class TestCalendarClientAuthenticate:
+    """Test CalendarClient.authenticate()."""
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_authenticate_not_configured(self, mock_settings):
+        """authenticate returns False when not configured."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = None
+        client = CalendarClient()
+        assert client.authenticate() is False
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_authenticate_exception(self, mock_settings):
+        """authenticate returns False on exception."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/fake/path"
+        client = CalendarClient()
+        # Will fail because google libraries are mocked/not available
+        result = client.authenticate()
+        assert result is False
+
+
+class TestCalendarClientGetUpcomingToday:
+    """Test CalendarClient.get_upcoming_today()."""
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_get_upcoming_today_unauthenticated(self, mock_settings):
+        """get_upcoming_today returns empty when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.get_upcoming_today() == []
+
+    @patch("test_ai.api_clients.calendar_client.get_settings")
+    def test_get_tomorrow_unauthenticated(self, mock_settings):
+        """get_tomorrow returns empty when not authenticated."""
+        from test_ai.api_clients.calendar_client import CalendarClient
+
+        mock_settings.return_value.gmail_credentials_path = "/path"
+        client = CalendarClient()
+        assert client.get_tomorrow() == []
+
+
+# ===========================================================================
+# 4. chat/router.py — module-level functions + router helpers
+# ===========================================================================
+
+
+class TestChatRouterModuleFunctions:
+    """Test module-level functions in chat/router.py."""
+
+    def test_get_session_manager_not_initialized(self):
+        """get_session_manager raises 503 when not initialized."""
+        from fastapi import HTTPException
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        original = router_mod._session_manager
+        try:
+            router_mod._session_manager = None
+            with pytest.raises(HTTPException) as exc_info:
+                router_mod.get_session_manager()
+            assert exc_info.value.status_code == 503
+            assert "not initialized" in exc_info.value.detail
+        finally:
+            router_mod._session_manager = original
+
+    def test_get_session_manager_initialized(self, mock_session_manager):
+        """get_session_manager returns manager when initialized."""
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        original = router_mod._session_manager
+        try:
+            router_mod._session_manager = mock_session_manager
+            result = router_mod.get_session_manager()
+            assert result is mock_session_manager
+        finally:
+            router_mod._session_manager = original
+
+    def test_get_backend_not_initialized(self):
+        """get_backend raises 503 when not initialized."""
+        from fastapi import HTTPException
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        original = router_mod._backend
+        try:
+            router_mod._backend = None
+            with pytest.raises(HTTPException) as exc_info:
+                router_mod.get_backend()
+            assert exc_info.value.status_code == 503
+            assert "not initialized" in exc_info.value.detail
+        finally:
+            router_mod._backend = original
+
+    def test_get_backend_initialized(self):
+        """get_backend returns backend when initialized."""
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        original = router_mod._backend
+        mock_backend = MagicMock()
+        try:
+            router_mod._backend = mock_backend
+            result = router_mod.get_backend()
+            assert result is mock_backend
+        finally:
+            router_mod._backend = original
+
+
+class TestInitChatModule:
+    """Test init_chat_module()."""
+
+    def test_init_sets_globals(self):
+        """init_chat_module sets module-level globals."""
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        originals = (
+            router_mod._session_manager,
+            router_mod._supervisor_factory,
+            router_mod._backend,
+        )
+        try:
+            mock_backend = MagicMock()
+            mock_factory = MagicMock()
+            router_mod.init_chat_module(mock_backend, supervisor_factory=mock_factory)
+
+            assert router_mod._session_manager is not None
+            assert router_mod._supervisor_factory is mock_factory
+            assert router_mod._backend is mock_backend
+        finally:
+            (
+                router_mod._session_manager,
+                router_mod._supervisor_factory,
+                router_mod._backend,
+            ) = originals
+
+    def test_init_without_supervisor_factory(self):
+        """init_chat_module works without supervisor_factory."""
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        originals = (
+            router_mod._session_manager,
+            router_mod._supervisor_factory,
+            router_mod._backend,
+        )
+        try:
+            mock_backend = MagicMock()
+            router_mod.init_chat_module(mock_backend)
+
+            assert router_mod._session_manager is not None
+            assert router_mod._supervisor_factory is None
+            assert router_mod._backend is mock_backend
+        finally:
+            (
+                router_mod._session_manager,
+                router_mod._supervisor_factory,
+                router_mod._backend,
+            ) = originals
+
+
+class TestUpdateSessionRequest:
+    """Test UpdateSessionRequest model."""
+
+    def test_defaults(self):
+        """Both fields default to None."""
+        from test_ai.chat.router import UpdateSessionRequest
+
+        req = UpdateSessionRequest()
+        assert req.title is None
+        assert req.status is None
+
+    def test_with_values(self):
+        """Explicit values."""
+        from test_ai.chat.router import UpdateSessionRequest
+
+        req = UpdateSessionRequest(title="New Title", status="archived")
+        assert req.title == "New Title"
+        assert req.status == "archived"
+
+
+class TestProposalModels:
+    """Test Pydantic models in chat/router.py."""
+
+    def test_proposal_response(self):
+        """ProposalResponse fields."""
+        from test_ai.chat.router import ProposalResponse
+
+        resp = ProposalResponse(
+            id="p-1",
+            session_id="s-1",
+            file_path="/tmp/test.py",
+            description="Add docstring",
+            status="pending",
+            created_at="2026-02-15T10:00:00",
+        )
+        assert resp.id == "p-1"
+        assert resp.applied_at is None
+        assert resp.error_message is None
+        assert resp.old_content is None
+        assert resp.new_content is None
+
+    def test_approve_proposal_request(self):
+        """ApproveProposalRequest is empty body."""
+        from test_ai.chat.router import ApproveProposalRequest
+
+        req = ApproveProposalRequest()
+        assert req is not None
+
+    def test_reject_proposal_request_defaults(self):
+        """RejectProposalRequest defaults to None reason."""
+        from test_ai.chat.router import RejectProposalRequest
+
+        req = RejectProposalRequest()
+        assert req.reason is None
+
+    def test_reject_proposal_request_with_reason(self):
+        """RejectProposalRequest with explicit reason."""
+        from test_ai.chat.router import RejectProposalRequest
+
+        req = RejectProposalRequest(reason="Not needed")
+        assert req.reason == "Not needed"
+
+
+class TestGetProposalManager:
+    """Test _get_proposal_manager helper."""
+
+    def test_no_session(self, mock_session_manager):
+        """Raises 404 when session not found."""
+        from fastapi import HTTPException
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        originals = (router_mod._session_manager, router_mod._backend)
+        try:
+            mock_session_manager.get_session.return_value = None
+            router_mod._session_manager = mock_session_manager
+            router_mod._backend = MagicMock()
+
+            with pytest.raises(HTTPException) as exc_info:
+                router_mod._get_proposal_manager("non-existent")
+            assert exc_info.value.status_code == 404
+        finally:
+            router_mod._session_manager, router_mod._backend = originals
+
+    def test_no_project_path(self, mock_session_manager, mock_session):
+        """Raises 400 when session has no project path."""
+        from fastapi import HTTPException
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+
+        mock_session.project_path = None
+        mock_session_manager.get_session.return_value = mock_session
+        originals = (router_mod._session_manager, router_mod._backend)
+        try:
+            router_mod._session_manager = mock_session_manager
+            router_mod._backend = MagicMock()
+
+            with pytest.raises(HTTPException) as exc_info:
+                router_mod._get_proposal_manager("sess-test")
+            assert exc_info.value.status_code == 400
+        finally:
+            router_mod._session_manager, router_mod._backend = originals
+
+
+class TestChatRouterEndpoints:
+    """Test chat router endpoints via direct function calls."""
+
+    def test_create_session(self, mock_session_manager, mock_session):
+        """Test create_session endpoint logic."""
+        from test_ai.chat.models import ChatMode, CreateSessionRequest
+        from test_ai.chat.router import create_session
+
+        req = CreateSessionRequest(
+            title="My Chat",
+            project_path="/tmp/project",
+            mode=ChatMode.ASSISTANT,
+        )
+
+        result = asyncio.run(create_session(req, mock_session_manager))
+        assert result.id == "sess-test"
+        assert result.title == "Test Session"
+        mock_session_manager.create_session.assert_called_once()
+
+    def test_create_session_filesystem_enabled(
+        self, mock_session_manager, mock_session
+    ):
+        """Filesystem enabled only when project_path is set."""
+        from test_ai.chat.models import CreateSessionRequest
+        from test_ai.chat.router import create_session
+
+        req = CreateSessionRequest(
+            title="No FS",
+            filesystem_enabled=True,
+            project_path=None,
+        )
+        result = asyncio.run(create_session(req, mock_session_manager))
+        assert result.filesystem_enabled is False
+
+    def test_create_session_with_allowed_paths(
+        self, mock_session_manager, mock_session
+    ):
+        """allowed_paths stored in metadata."""
+        from test_ai.chat.models import CreateSessionRequest
+        from test_ai.chat.router import create_session
+
+        req = CreateSessionRequest(
+            title="With paths",
+            allowed_paths=["/extra/path"],
+        )
+        asyncio.run(create_session(req, mock_session_manager))
+        call_kwargs = mock_session_manager.create_session.call_args[1]
+        assert call_kwargs["metadata"]["allowed_paths"] == ["/extra/path"]
+
+    def test_list_sessions(self, mock_session_manager):
+        """Test list_sessions endpoint."""
+        from test_ai.chat.router import list_sessions
+
+        result = asyncio.run(
+            list_sessions(status=None, limit=50, offset=0, manager=mock_session_manager)
+        )
+        assert len(result) == 1
+        assert result[0].id == "sess-test"
+
+    def test_get_session_found(self, mock_session_manager, mock_session):
+        """Test get_session endpoint when session exists."""
+        from test_ai.chat.router import get_session
+
+        mock_session.messages = []
+        result = asyncio.run(get_session("sess-test", mock_session_manager))
+        assert result.id == "sess-test"
+        assert result.message_count == 0
+
+    def test_get_session_not_found(self, mock_session_manager):
+        """Test get_session endpoint when session doesn't exist."""
+        from fastapi import HTTPException
+        from test_ai.chat.router import get_session
+
+        mock_session_manager.get_session_with_messages.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(get_session("non-existent", mock_session_manager))
+        assert exc_info.value.status_code == 404
+
+    def test_update_session_found(self, mock_session_manager, mock_session):
+        """Test update_session endpoint when session exists."""
+        from test_ai.chat.router import UpdateSessionRequest, update_session
+
+        req = UpdateSessionRequest(title="Updated Title")
+        result = asyncio.run(update_session("sess-test", req, mock_session_manager))
+        assert result.id == "sess-test"
+
+    def test_update_session_not_found(self, mock_session_manager):
+        """Test update_session endpoint when session doesn't exist."""
+        from fastapi import HTTPException
+        from test_ai.chat.router import UpdateSessionRequest, update_session
+
+        mock_session_manager.update_session.return_value = None
+        req = UpdateSessionRequest(title="New")
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(update_session("missing", req, mock_session_manager))
+        assert exc_info.value.status_code == 404
+
+    def test_delete_session_found(self, mock_session_manager):
+        """Test delete_session endpoint success."""
+        from test_ai.chat.router import delete_session
+
+        result = asyncio.run(delete_session("sess-test", mock_session_manager))
+        assert result == {"status": "deleted"}
+
+    def test_delete_session_not_found(self, mock_session_manager):
+        """Test delete_session endpoint when not found."""
+        from fastapi import HTTPException
+        from test_ai.chat.router import delete_session
+
+        mock_session_manager.delete_session.return_value = False
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(delete_session("missing", mock_session_manager))
+        assert exc_info.value.status_code == 404
+
+    def test_cancel_generation_no_session(self, mock_session_manager):
+        """Cancel on non-existent session raises 404."""
+        from fastapi import HTTPException
+        from test_ai.chat.router import cancel_generation
+
+        mock_session_manager.get_session.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(cancel_generation("missing", mock_session_manager))
+        assert exc_info.value.status_code == 404
+
+    def test_cancel_generation_no_active(self, mock_session_manager):
+        """Cancel with no active generation returns status."""
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+        from test_ai.chat.router import cancel_generation
+
+        router_mod._active_generations.clear()
+        result = asyncio.run(cancel_generation("sess-test", mock_session_manager))
+        assert result == {"status": "no_active_generation"}
+
+    def test_cancel_generation_active(self, mock_session_manager):
+        """Cancel sets the event for active generation."""
+        import sys
+        import test_ai.chat.router  # noqa: F401
+
+        router_mod = sys.modules["test_ai.chat.router"]
+        from test_ai.chat.router import cancel_generation
+
+        cancel_event = asyncio.Event()
+        router_mod._active_generations["sess-test"] = cancel_event
+
+        result = asyncio.run(cancel_generation("sess-test", mock_session_manager))
+        assert result == {"status": "cancelled"}
+        assert cancel_event.is_set()
+
+        # Cleanup
+        router_mod._active_generations.clear()
+
+    def test_get_session_jobs_not_found(self, mock_session_manager):
+        """get_session_jobs raises 404 for missing session."""
+        from fastapi import HTTPException
+        from test_ai.chat.router import get_session_jobs
+
+        mock_session_manager.get_session.return_value = None
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(get_session_jobs("missing", mock_session_manager))
+        assert exc_info.value.status_code == 404
+
+    def test_get_session_jobs_no_job_manager(self, mock_session_manager):
+        """get_session_jobs handles missing job_manager gracefully."""
+        from test_ai.chat.router import get_session_jobs
+
+        with patch("test_ai.chat.router.api_state", create=True) as mock_api:
+            mock_api.job_manager = None
+            result = asyncio.run(get_session_jobs("sess-test", mock_session_manager))
+            assert result["session_id"] == "sess-test"
+            assert result["jobs"] == []
+            assert result["job_ids"] == ["job-1", "job-2"]
+
+    def test_get_session_jobs_import_error(self, mock_session_manager):
+        """get_session_jobs handles ImportError gracefully."""
+        from test_ai.chat.router import get_session_jobs
+
+        with patch.dict(
+            "sys.modules",
+            {"test_ai.api_state": None, "test_ai": MagicMock(spec=[])},
+        ):
+            # The ImportError path should be exercised
+            result = asyncio.run(get_session_jobs("sess-test", mock_session_manager))
+            assert result["session_id"] == "sess-test"
+
+    def test_send_message_no_session(self, mock_session_manager):
+        """send_message raises 404 when session not found."""
+        from fastapi import HTTPException
+        from test_ai.chat.models import SendMessageRequest
+        from test_ai.chat.router import send_message
+
+        mock_session_manager.get_session.return_value = None
+        req = SendMessageRequest(content="Hello")
+        with pytest.raises(HTTPException) as exc_info:
+            asyncio.run(send_message("missing", req, mock_session_manager))
+        assert exc_info.value.status_code == 404
