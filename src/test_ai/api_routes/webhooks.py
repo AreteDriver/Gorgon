@@ -25,6 +25,85 @@ router = APIRouter()
 trigger_router = APIRouter()
 
 
+# ---------------------------------------------------------------------------
+# DLQ management endpoints  (must be before /webhooks/{webhook_id} to avoid
+# the path parameter swallowing "dlq" as a webhook_id)
+# ---------------------------------------------------------------------------
+
+
+@router.get("/webhooks/dlq", responses=AUTH_RESPONSES)
+def list_dlq_items(
+    limit: int = 100,
+    authorization: Optional[str] = Header(None),
+):
+    """List pending dead-letter queue items."""
+    verify_auth(authorization)
+    if not state.delivery_manager:
+        raise internal_error("Delivery manager not initialized")
+    return state.delivery_manager.get_dlq_items(limit=limit)
+
+
+@router.get("/webhooks/dlq/stats", responses=AUTH_RESPONSES)
+def get_dlq_stats(authorization: Optional[str] = Header(None)):
+    """Get DLQ statistics: count by URL, oldest item age."""
+    verify_auth(authorization)
+    if not state.delivery_manager:
+        raise internal_error("Delivery manager not initialized")
+    return state.delivery_manager.get_dlq_stats()
+
+
+@router.post("/webhooks/dlq/retry-all", responses=AUTH_RESPONSES)
+def retry_all_dlq(
+    max_items: int = 50,
+    authorization: Optional[str] = Header(None),
+):
+    """Batch retry all pending DLQ items."""
+    verify_auth(authorization)
+    if not state.delivery_manager:
+        raise internal_error("Delivery manager not initialized")
+    results = state.delivery_manager.reprocess_all_dlq(max_items=max_items)
+    return {"status": "success", "processed": len(results), "results": results}
+
+
+@router.post("/webhooks/dlq/{dlq_id}/retry", responses=CRUD_RESPONSES)
+def retry_dlq_item(
+    dlq_id: int,
+    authorization: Optional[str] = Header(None),
+):
+    """Retry a specific DLQ item."""
+    verify_auth(authorization)
+    if not state.delivery_manager:
+        raise internal_error("Delivery manager not initialized")
+    try:
+        delivery = state.delivery_manager.reprocess_dlq_item(dlq_id)
+        return {
+            "status": "success",
+            "delivery_status": delivery.status.value,
+            "dlq_id": dlq_id,
+        }
+    except ValueError:
+        raise not_found("DLQ item", str(dlq_id))
+
+
+@router.delete("/webhooks/dlq/{dlq_id}", responses=CRUD_RESPONSES)
+def delete_dlq_item(
+    dlq_id: int,
+    authorization: Optional[str] = Header(None),
+):
+    """Remove a DLQ item without retrying."""
+    verify_auth(authorization)
+    if not state.delivery_manager:
+        raise internal_error("Delivery manager not initialized")
+    if state.delivery_manager.delete_dlq_item(dlq_id):
+        return {"status": "success"}
+    raise not_found("DLQ item", str(dlq_id))
+
+
+# ---------------------------------------------------------------------------
+# Webhook CRUD endpoints
+# ---------------------------------------------------------------------------
+
+
 @router.get("/webhooks", responses=AUTH_RESPONSES)
 def list_webhooks(authorization: Optional[str] = Header(None)):
     """List all webhooks."""

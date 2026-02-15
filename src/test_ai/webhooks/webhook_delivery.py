@@ -1,8 +1,9 @@
-"""Webhook delivery with retries and dead-letter queue support.
+"""Webhook delivery with retries, circuit breaker, and dead-letter queue.
 
 Provides reliable outbound webhook delivery with:
 - Configurable retry strategy with exponential backoff
-- Dead-letter queue for failed deliveries
+- Per-URL circuit breaker (closed -> open -> half_open -> closed)
+- Dead-letter queue for failed deliveries with batch reprocessing
 - Async and sync delivery options
 - Delivery status tracking and history
 """
@@ -13,7 +14,8 @@ import hmac
 import json
 import logging
 import time
-from datetime import datetime, timedelta
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
 from enum import Enum
 from typing import Any, Dict, List, Optional
 
@@ -27,6 +29,119 @@ from test_ai.state import DatabaseBackend, get_database
 logger = logging.getLogger(__name__)
 
 
+# ---------------------------------------------------------------------------
+# Circuit breaker
+# ---------------------------------------------------------------------------
+
+
+@dataclass
+class CircuitBreakerConfig:
+    """Configuration for per-URL circuit breaker."""
+
+    failure_threshold: int = 5  # Consecutive failures to trip
+    recovery_timeout: float = 300.0  # Seconds before half-open attempt
+
+
+@dataclass
+class CircuitBreakerState:
+    """Mutable state for a single circuit breaker instance."""
+
+    failures: int = 0
+    state: str = "closed"  # closed, open, half_open
+    last_failure_at: float | None = None
+
+
+class CircuitBreaker:
+    """Per-URL circuit breaker that protects downstream endpoints.
+
+    State machine:
+        closed  --[threshold failures]--> open
+        open    --[recovery timeout]----> half_open
+        half_open --[success]-----------> closed
+        half_open --[failure]-----------> open
+    """
+
+    def __init__(self, config: CircuitBreakerConfig | None = None) -> None:
+        self.config = config or CircuitBreakerConfig()
+        self._states: Dict[str, CircuitBreakerState] = {}
+
+    def _get_state(self, url: str) -> CircuitBreakerState:
+        """Get or create state for a URL."""
+        if url not in self._states:
+            self._states[url] = CircuitBreakerState()
+        return self._states[url]
+
+    def allow_request(self, url: str) -> bool:
+        """Return True if the circuit allows a request to *url*."""
+        cb = self._get_state(url)
+
+        if cb.state == "closed":
+            return True
+
+        if cb.state == "open":
+            # Check if recovery timeout has elapsed
+            if (
+                cb.last_failure_at is not None
+                and (time.monotonic() - cb.last_failure_at)
+                >= self.config.recovery_timeout
+            ):
+                cb.state = "half_open"
+                logger.info(f"Circuit breaker half-open for {url}")
+                return True
+            return False
+
+        # half_open — allow exactly one probe request
+        return True
+
+    def record_success(self, url: str) -> None:
+        """Record a successful delivery, resetting the breaker."""
+        cb = self._get_state(url)
+        cb.failures = 0
+        cb.state = "closed"
+        cb.last_failure_at = None
+
+    def record_failure(self, url: str) -> None:
+        """Record a failed delivery, potentially tripping the breaker."""
+        cb = self._get_state(url)
+        cb.failures += 1
+        cb.last_failure_at = time.monotonic()
+
+        if cb.state == "half_open":
+            # Half-open probe failed — reopen
+            cb.state = "open"
+            logger.warning(f"Circuit breaker re-opened for {url}")
+        elif cb.failures >= self.config.failure_threshold:
+            cb.state = "open"
+            logger.warning(
+                f"Circuit breaker opened for {url} after {cb.failures} failures"
+            )
+
+    def get_state(self, url: str) -> str:
+        """Return the current breaker state for *url*."""
+        return self._get_state(url).state
+
+    def get_all_states(self) -> Dict[str, Dict[str, Any]]:
+        """Return snapshot of all tracked URLs and their breaker state."""
+        return {
+            url: {
+                "state": cb.state,
+                "failures": cb.failures,
+                "last_failure_at": cb.last_failure_at,
+            }
+            for url, cb in self._states.items()
+        }
+
+    def reset(self, url: str) -> None:
+        """Manually reset a circuit breaker to closed."""
+        if url in self._states:
+            self._states[url] = CircuitBreakerState()
+
+
+# ---------------------------------------------------------------------------
+# Delivery models
+# ---------------------------------------------------------------------------
+
+
 class DeliveryStatus(str, Enum):
     """Status of a webhook delivery attempt."""
 
@@ -35,6 +150,7 @@ class DeliveryStatus(str, Enum):
     FAILED = "failed"
     RETRYING = "retrying"
     DEAD_LETTER = "dead_letter"
+    CIRCUIT_BROKEN = "circuit_broken"
 
 
 class WebhookDelivery(BaseModel):
@@ -146,6 +262,7 @@ class WebhookDeliveryManager:
         backend: DatabaseBackend | None = None,
         retry_strategy: RetryStrategy | None = None,
         timeout: float = 10.0,
+        circuit_breaker: CircuitBreaker | None = None,
     ):
         """Initialize delivery manager.
 
@@ -153,10 +270,12 @@ class WebhookDeliveryManager:
             backend: Database backend (defaults to global)
             retry_strategy: Custom retry strategy
             timeout: Request timeout in seconds
+            circuit_breaker: Per-URL circuit breaker (created with defaults if None)
         """
         self.backend = backend or get_database()
         self.retry_strategy = retry_strategy or RetryStrategy()
         self.timeout = timeout
+        self.circuit_breaker = circuit_breaker or CircuitBreaker()
         self._init_schema()
 
     def _init_schema(self):
@@ -207,6 +326,16 @@ class WebhookDeliveryManager:
         )
         delivery = self._save_delivery(delivery)
 
+        # Circuit breaker check — skip delivery if circuit is open
+        if not self.circuit_breaker.allow_request(url):
+            delivery.status = DeliveryStatus.CIRCUIT_BROKEN
+            delivery.last_error = "Circuit breaker open"
+            delivery.completed_at = datetime.now()
+            self._save_delivery(delivery)
+            self._add_to_dlq(delivery)
+            logger.warning(f"Circuit breaker open, skipping delivery to DLQ: {url}")
+            return delivery
+
         # Add signature if secret provided
         payload_bytes = json.dumps(payload).encode("utf-8")
         if secret:
@@ -243,6 +372,7 @@ class WebhookDeliveryManager:
                     delivery.status = DeliveryStatus.SUCCESS
                     delivery.completed_at = datetime.now()
                     self._save_delivery(delivery)
+                    self.circuit_breaker.record_success(url)
                     logger.info(f"Webhook delivered successfully: {url}")
                     return delivery
 
@@ -276,7 +406,8 @@ class WebhookDeliveryManager:
             else:
                 break
 
-        # Max retries exceeded - move to dead letter queue
+        # Max retries exceeded - record failure in circuit breaker, move to DLQ
+        self.circuit_breaker.record_failure(url)
         delivery.status = DeliveryStatus.DEAD_LETTER
         delivery.completed_at = datetime.now()
         self._save_delivery(delivery)
@@ -320,6 +451,18 @@ class WebhookDeliveryManager:
         )
         delivery = self._save_delivery(delivery)
 
+        # Circuit breaker check
+        if not self.circuit_breaker.allow_request(url):
+            delivery.status = DeliveryStatus.CIRCUIT_BROKEN
+            delivery.last_error = "Circuit breaker open"
+            delivery.completed_at = datetime.now()
+            self._save_delivery(delivery)
+            self._add_to_dlq(delivery)
+            logger.warning(
+                f"Circuit breaker open, skipping async delivery to DLQ: {url}"
+            )
+            return delivery
+
         # Add signature if secret provided
         payload_bytes = json.dumps(payload).encode("utf-8")
         if secret:
@@ -351,6 +494,7 @@ class WebhookDeliveryManager:
                         delivery.status = DeliveryStatus.SUCCESS
                         delivery.completed_at = datetime.now()
                         self._save_delivery(delivery)
+                        self.circuit_breaker.record_success(url)
                         logger.info(f"Webhook delivered successfully (async): {url}")
                         return delivery
 
@@ -383,7 +527,8 @@ class WebhookDeliveryManager:
                 else:
                     break
 
-        # Max retries exceeded - move to dead letter queue
+        # Max retries exceeded
+        self.circuit_breaker.record_failure(url)
         delivery.status = DeliveryStatus.DEAD_LETTER
         delivery.completed_at = datetime.now()
         self._save_delivery(delivery)
@@ -594,3 +739,126 @@ class WebhookDeliveryManager:
 
         row = self.backend.fetchone("SELECT changes() as deleted")
         return row["deleted"]
+
+    # ------------------------------------------------------------------
+    # DLQ batch management
+    # ------------------------------------------------------------------
+
+    def reprocess_all_dlq(self, max_items: int = 50) -> List[Dict[str, Any]]:
+        """Batch reprocess pending DLQ items.
+
+        Args:
+            max_items: Maximum number of items to reprocess in one batch.
+
+        Returns:
+            List of dicts with ``dlq_id``, ``url``, and ``status`` for each item.
+        """
+        items = self.get_dlq_items(limit=max_items)
+        results: List[Dict[str, Any]] = []
+        for item in items:
+            try:
+                delivery = self.reprocess_dlq_item(item["id"])
+                results.append(
+                    {
+                        "dlq_id": item["id"],
+                        "url": item["webhook_url"],
+                        "status": delivery.status.value,
+                    }
+                )
+            except Exception as e:
+                logger.error(f"Failed to reprocess DLQ item {item['id']}: {e}")
+                results.append(
+                    {
+                        "dlq_id": item["id"],
+                        "url": item["webhook_url"],
+                        "status": "error",
+                        "error": str(e),
+                    }
+                )
+        return results
+
+    def purge_dlq(self, older_than_days: int = 30) -> int:
+        """Remove old DLQ entries (both reprocessed and unprocessed).
+
+        Args:
+            older_than_days: Age threshold in days.
+
+        Returns:
+            Number of DLQ records deleted.
+        """
+        cutoff = datetime.now() - timedelta(days=older_than_days)
+        with self.backend.transaction():
+            self.backend.execute(
+                "DELETE FROM webhook_dead_letter WHERE created_at < ?",
+                (cutoff.isoformat(),),
+            )
+        row = self.backend.fetchone("SELECT changes() as deleted")
+        return row["deleted"]
+
+    def get_dlq_stats(self) -> Dict[str, Any]:
+        """Get DLQ statistics: count by URL, oldest item age.
+
+        Returns:
+            Dict with ``total_pending``, ``by_url`` counts, and ``oldest_age_seconds``.
+        """
+        # Total pending
+        row = self.backend.fetchone(
+            "SELECT COUNT(*) as cnt FROM webhook_dead_letter WHERE reprocessed_at IS NULL"
+        )
+        total = row["cnt"]
+
+        # Count by URL
+        rows = self.backend.fetchall(
+            """
+            SELECT webhook_url, COUNT(*) as cnt
+            FROM webhook_dead_letter
+            WHERE reprocessed_at IS NULL
+            GROUP BY webhook_url
+            ORDER BY cnt DESC
+            """
+        )
+        by_url = {r["webhook_url"]: r["cnt"] for r in rows}
+
+        # Oldest item age
+        row = self.backend.fetchone(
+            """
+            SELECT MIN(created_at) as oldest
+            FROM webhook_dead_letter
+            WHERE reprocessed_at IS NULL
+            """
+        )
+        oldest_age: float | None = None
+        if row and row["oldest"]:
+            try:
+                oldest_dt = datetime.fromisoformat(row["oldest"])
+                # SQLite CURRENT_TIMESTAMP stores UTC; compare in UTC
+                now_utc = datetime.now(tz=UTC).replace(tzinfo=None)
+                oldest_age = (now_utc - oldest_dt).total_seconds()
+            except (ValueError, TypeError):
+                oldest_age = None
+
+        return {
+            "total_pending": total,
+            "by_url": by_url,
+            "oldest_age_seconds": oldest_age,
+        }
+
+    def delete_dlq_item(self, dlq_id: int) -> bool:
+        """Delete a single DLQ item by ID.
+
+        Args:
+            dlq_id: Dead-letter queue item ID.
+
+        Returns:
+            True if the item was deleted, False if not found.
+        """
+        row = self.backend.fetchone(
+            "SELECT id FROM webhook_dead_letter WHERE id = ?", (dlq_id,)
+        )
+        if not row:
+            return False
+        with self.backend.transaction():
+            self.backend.execute(
+                "DELETE FROM webhook_dead_letter WHERE id = ?", (dlq_id,)
+            )
+        return True

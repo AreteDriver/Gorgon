@@ -26,6 +26,7 @@ if TYPE_CHECKING:
     from test_ai.scheduler import ScheduleManager
     from test_ai.settings import SettingsManager
     from test_ai.webhooks import WebhookManager
+    from test_ai.webhooks.webhook_delivery import WebhookDeliveryManager
     from test_ai.websocket import Broadcaster, ConnectionManager
     from test_ai.workflow import WorkflowVersionManager
 
@@ -56,6 +57,7 @@ YAML_WORKFLOWS_DIR = get_settings().base_dir / "workflows"
 # ---------------------------------------------------------------------------
 schedule_manager: Optional[ScheduleManager] = None
 webhook_manager: Optional[WebhookManager] = None
+delivery_manager: Optional[WebhookDeliveryManager] = None
 job_manager: Optional[JobManager] = None
 version_manager: Optional[WorkflowVersionManager] = None
 execution_manager: Optional[ExecutionManager] = None

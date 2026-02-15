@@ -8,6 +8,9 @@ from test_ai.webhooks.webhook_manager import (
     WebhookTriggerLog,
 )
 from test_ai.webhooks.webhook_delivery import (
+    CircuitBreaker,
+    CircuitBreakerConfig,
+    CircuitBreakerState,
     WebhookDeliveryManager,
     WebhookDelivery,
     DeliveryStatus,
@@ -20,6 +23,9 @@ __all__ = [
     "WebhookStatus",
     "PayloadMapping",
     "WebhookTriggerLog",
+    "CircuitBreaker",
+    "CircuitBreakerConfig",
+    "CircuitBreakerState",
     "WebhookDeliveryManager",
     "WebhookDelivery",
     "DeliveryStatus",
