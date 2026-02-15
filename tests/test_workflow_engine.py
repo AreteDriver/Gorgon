@@ -833,6 +833,7 @@ class TestWorkflowEngineAdapterAdditional:
                     contract_validator=None,
                     budget_manager=None,
                     dry_run=False,
+                    execution_manager=None,
                 )
 
     def test_adapter_with_contract_validator(self, mock_settings):

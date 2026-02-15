@@ -102,6 +102,11 @@ def do_task(
         "-j",
         help="Output results as JSON",
     ),
+    live: bool = typer.Option(
+        False,
+        "--live",
+        help="Show real-time execution progress with a Rich Live table",
+    ),
 ):
     """Execute a development task using your agent army.
 
@@ -162,8 +167,58 @@ def do_task(
     }
 
     console.print()
-    with console.status("[bold cyan]Agents working...", spinner="dots"):
-        result = executor.execute(wf_config, inputs=inputs)
+    if live:
+        from rich.live import Live
+        from rich.table import Table
+
+        live_steps: dict[str, dict] = {}
+
+        def _step_callback(event_type: str, execution_id: str, **kwargs):
+            """Update live table from execution events."""
+            if event_type == "status" and kwargs.get("current_step"):
+                step_id = kwargs["current_step"]
+                live_steps.setdefault(step_id, {})
+                live_steps[step_id]["progress"] = kwargs.get("progress", 0)
+            elif event_type == "log" and kwargs.get("step_id"):
+                step_id = kwargs["step_id"]
+                live_steps.setdefault(step_id, {})
+                live_steps[step_id]["status"] = kwargs.get("message", "")
+            elif event_type == "metrics":
+                # Update totals on most recent step
+                if live_steps:
+                    last_key = list(live_steps.keys())[-1]
+                    live_steps[last_key]["tokens"] = kwargs.get("total_tokens", 0)
+
+        # Create an ExecutionManager for local CLI use
+        from test_ai.cli.helpers import _create_cli_execution_manager
+
+        cli_em = _create_cli_execution_manager()
+        if cli_em:
+            cli_em.register_callback(_step_callback)
+            executor.execution_manager = cli_em
+
+        def _build_table() -> Table:
+            table = Table(title="Execution Progress")
+            table.add_column("Step", style="cyan")
+            table.add_column("Status", style="green")
+            table.add_column("Tokens", justify="right")
+            for step_id, info in live_steps.items():
+                status = info.get("status", "pending")
+                # Truncate long status messages
+                if len(status) > 60:
+                    status = status[:57] + "..."
+                tokens = str(info.get("tokens", ""))
+                table.add_row(step_id, status, tokens)
+            return table
+
+        with Live(
+            _build_table(), console=console, refresh_per_second=4
+        ) as live_display:
+            result = executor.execute(wf_config, inputs=inputs)
+            live_display.update(_build_table())
+    else:
+        with console.status("[bold cyan]Agents working...", spinner="dots"):
+            result = executor.execute(wf_config, inputs=inputs)
 
     # Display results
     if json_output:

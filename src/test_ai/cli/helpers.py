@@ -64,6 +64,23 @@ def get_workflow_executor(dry_run: bool = False) -> WorkflowExecutor:
         raise typer.Exit(1)
 
 
+def _create_cli_execution_manager():
+    """Create a lightweight ExecutionManager for CLI --live mode.
+
+    Returns None if dependencies unavailable (graceful degradation).
+    """
+    try:
+        from test_ai.executions import ExecutionManager
+        from test_ai.state.backends import SQLiteBackend
+        from test_ai.state.migrations import run_migrations
+
+        backend = SQLiteBackend(db_path=":memory:")
+        run_migrations(backend)
+        return ExecutionManager(backend=backend)
+    except Exception:
+        return None
+
+
 def get_tracker() -> ExecutionTracker | None:
     """Lazy import execution tracker."""
     try:

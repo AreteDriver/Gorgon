@@ -101,12 +101,14 @@ async def lifespan(app: FastAPI):
     from test_ai.websocket import Broadcaster, ConnectionManager
     from test_ai.workflow import WorkflowVersionManager
 
+    state.execution_manager = ExecutionManager(backend=backend)
     state.schedule_manager = ScheduleManager(backend=backend)
     state.webhook_manager = WebhookManager(backend=backend)
-    state.job_manager = JobManager(backend=backend)
+    state.job_manager = JobManager(
+        backend=backend, execution_manager=state.execution_manager
+    )
     state.version_manager = WorkflowVersionManager(backend=backend)
     state.mcp_manager = MCPConnectorManager(backend=backend)
-    state.execution_manager = ExecutionManager(backend=backend)
     state.settings_manager = SettingsManager(backend=backend)
     state.budget_manager = PersistentBudgetManager(backend=backend)
 

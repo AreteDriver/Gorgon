@@ -53,6 +53,7 @@ class WorkflowExecutor(
         memory_manager: WorkflowMemoryManager | None = None,
         memory_config: MemoryConfig | None = None,
         feedback_engine=None,
+        execution_manager=None,
     ):
         """Initialize executor.
 
@@ -66,6 +67,7 @@ class WorkflowExecutor(
             memory_manager: Optional WorkflowMemoryManager for agent memory
             memory_config: Optional MemoryConfig for memory behavior
             feedback_engine: Optional FeedbackEngine for outcome tracking and learning
+            execution_manager: Optional ExecutionManager for streaming execution logs
         """
         self.checkpoint_manager = checkpoint_manager
         self.contract_validator = contract_validator
@@ -76,6 +78,8 @@ class WorkflowExecutor(
         self.memory_manager = memory_manager
         self.memory_config = memory_config
         self.feedback_engine = feedback_engine
+        self.execution_manager = execution_manager
+        self._execution_id: str | None = None
         self._handlers: dict[str, StepHandler] = {
             "shell": self._execute_shell,
             "checkpoint": self._execute_checkpoint,
@@ -106,6 +110,31 @@ class WorkflowExecutor(
             handler: Function that takes (StepConfig, context) and returns output dict
         """
         self._handlers[step_type] = handler
+
+    def _emit_log(self, level: str, message: str, step_id: str | None = None) -> None:
+        """Emit a log event to the execution manager (non-fatal)."""
+        if not self.execution_manager or not self._execution_id:
+            return
+        try:
+            from test_ai.executions.models import LogLevel
+
+            self.execution_manager.add_log(
+                self._execution_id, LogLevel(level), message, step_id=step_id
+            )
+        except Exception:
+            logger.debug("Execution log emission failed", exc_info=True)
+
+    def _emit_progress(self, step_index: int, total_steps: int, step_id: str) -> None:
+        """Emit a progress update to the execution manager (non-fatal)."""
+        if not self.execution_manager or not self._execution_id:
+            return
+        try:
+            progress = int((step_index / total_steps) * 100) if total_steps else 0
+            self.execution_manager.update_progress(
+                self._execution_id, progress, current_step=step_id
+            )
+        except Exception:
+            logger.debug("Execution progress emission failed", exc_info=True)
 
     def _validate_workflow_inputs(
         self, workflow: WorkflowConfig, result: ExecutionResult
@@ -214,6 +243,28 @@ class WorkflowExecutor(
             except Exception as fb_err:
                 logger.debug(f"Feedback engine error (non-fatal): {fb_err}")
 
+        # Emit step completion to execution manager
+        if self.execution_manager and self._execution_id:
+            try:
+                failed = 1 if step_result.status == StepStatus.FAILED else 0
+                completed = 0 if failed else 1
+                self.execution_manager.update_metrics(
+                    self._execution_id,
+                    tokens=step_result.tokens_used,
+                    duration_ms=step_result.duration_ms,
+                    steps_completed=completed,
+                    steps_failed=failed,
+                )
+                status_label = step_result.status.value
+                self._emit_log(
+                    "info" if status_label == "success" else "warning",
+                    f"Step {step.id} completed: {status_label} "
+                    f"({step_result.tokens_used} tokens, {step_result.duration_ms}ms)",
+                    step_id=step.id,
+                )
+            except Exception:
+                logger.debug("Execution metrics emission failed", exc_info=True)
+
         # Record in task history (analytics, non-critical)
         try:
             from test_ai.db import get_task_store
@@ -317,6 +368,17 @@ class WorkflowExecutor(
                     f"Feedback engine workflow processing error (non-fatal): {fb_err}"
                 )
 
+        # Complete execution tracking
+        if self.execution_manager and self._execution_id:
+            try:
+                error_msg = result.error if result.status != "success" else None
+                self.execution_manager.complete_execution(
+                    self._execution_id, error=error_msg
+                )
+            except Exception:
+                logger.debug("Execution tracking completion failed", exc_info=True)
+        self._execution_id = None
+
         # Clear workflow ID
         self._current_workflow_id = None
 
@@ -352,6 +414,19 @@ class WorkflowExecutor(
                 config={"inputs": self._context},
             )
         self._current_workflow_id = workflow_id
+
+        # Create execution tracking record
+        if self.execution_manager:
+            try:
+                execution = self.execution_manager.create_execution(
+                    workflow_id=workflow_id or workflow.name,
+                    workflow_name=workflow.name,
+                    variables=self._context,
+                )
+                self._execution_id = execution.id
+                self.execution_manager.start_execution(self._execution_id)
+            except Exception:
+                logger.debug("Execution tracking init failed", exc_info=True)
 
         # Initialize memory manager if enabled and not provided
         if enable_memory and not self.memory_manager:
@@ -399,9 +474,15 @@ class WorkflowExecutor(
             workflow_id: Current workflow ID
             result: ExecutionResult to update
         """
-        for step in workflow.steps[start_index:]:
+        total_steps = len(workflow.steps)
+        for i, step in enumerate(workflow.steps[start_index:], start=start_index):
             if self._check_budget_exceeded(step, result):
                 break
+
+            self._emit_log(
+                "info", f"Starting step {step.id} ({step.type})", step_id=step.id
+            )
+            self._emit_progress(i, total_steps, step.id)
 
             step_result = self._execute_step(step, workflow_id)
             self._record_step_completion(step, step_result, result)
@@ -452,6 +533,19 @@ class WorkflowExecutor(
             )
         self._current_workflow_id = workflow_id
 
+        # Create execution tracking record
+        if self.execution_manager:
+            try:
+                execution = self.execution_manager.create_execution(
+                    workflow_id=workflow_id or workflow.name,
+                    workflow_name=workflow.name,
+                    variables=self._context,
+                )
+                self._execution_id = execution.id
+                self.execution_manager.start_execution(self._execution_id)
+            except Exception:
+                logger.debug("Execution tracking init failed", exc_info=True)
+
         start_index = self._find_resume_index(workflow, resume_from)
 
         # Execute steps - use auto-parallel if enabled
@@ -479,9 +573,15 @@ class WorkflowExecutor(
         result: ExecutionResult,
     ) -> None:
         """Execute workflow steps sequentially (async version)."""
-        for step in workflow.steps[start_index:]:
+        total_steps = len(workflow.steps)
+        for i, step in enumerate(workflow.steps[start_index:], start=start_index):
             if self._check_budget_exceeded(step, result):
                 break
+
+            self._emit_log(
+                "info", f"Starting step {step.id} ({step.type})", step_id=step.id
+            )
+            self._emit_progress(i, total_steps, step.id)
 
             step_result = await self._execute_step_async(step, workflow_id)
             self._record_step_completion(step, step_result, result)

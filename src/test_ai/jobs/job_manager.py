@@ -78,10 +78,17 @@ class JobManager:
         CREATE INDEX IF NOT EXISTS idx_jobs_created ON jobs(created_at DESC);
     """
 
-    def __init__(self, backend: DatabaseBackend | None = None, max_workers: int = 4):
+    def __init__(
+        self,
+        backend: DatabaseBackend | None = None,
+        max_workers: int = 4,
+        execution_manager=None,
+    ):
         self.settings = get_settings()
         self.backend = backend or get_database()
-        self.workflow_engine = WorkflowEngineAdapter()
+        self.workflow_engine = WorkflowEngineAdapter(
+            execution_manager=execution_manager
+        )
         self.executor = ThreadPoolExecutor(max_workers=max_workers)
         self._jobs: Dict[str, Job] = {}
         self._futures: Dict[str, Future] = {}

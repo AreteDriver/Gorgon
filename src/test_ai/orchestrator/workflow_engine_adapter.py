@@ -139,6 +139,7 @@ class WorkflowEngineAdapter:
         contract_validator=None,
         budget_manager=None,
         dry_run: bool = False,
+        execution_manager=None,
     ):
         """Initialize adapter with WorkflowExecutor.
 
@@ -147,12 +148,14 @@ class WorkflowEngineAdapter:
             contract_validator: Optional contract validator
             budget_manager: Optional budget manager
             dry_run: If True, use mock responses
+            execution_manager: Optional ExecutionManager for streaming logs
         """
         self._executor = WorkflowExecutor(
             checkpoint_manager=checkpoint_manager,
             contract_validator=contract_validator,
             budget_manager=budget_manager,
             dry_run=dry_run,
+            execution_manager=execution_manager,
         )
         logger.info(
             "Using WorkflowEngineAdapter - consider migrating to WorkflowExecutor directly"

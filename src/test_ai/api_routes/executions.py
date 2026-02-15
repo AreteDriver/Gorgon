@@ -2,9 +2,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import json as json_mod
 from typing import Optional
 
-from fastapi import APIRouter, Header
+from fastapi import APIRouter, Header, Request
+from fastapi.responses import StreamingResponse
 
 from test_ai import api_state as state
 from test_ai.api_errors import (
@@ -102,6 +105,91 @@ def get_execution_logs(
         execution_id, limit=limit, level=level_filter
     )
     return [log.model_dump(mode="json") for log in logs]
+
+
+@router.get("/executions/{execution_id}/stream")
+async def stream_execution(
+    execution_id: str,
+    request: Request,
+    authorization: Optional[str] = Header(None),
+):
+    """Stream execution events via Server-Sent Events (SSE).
+
+    Sends an initial snapshot, then real-time log/progress/metrics/status events.
+    Completes with an 'event: done' when the execution finishes.
+    """
+    verify_auth(authorization)
+
+    execution = state.execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    queue: asyncio.Queue = asyncio.Queue()
+    loop = asyncio.get_running_loop()
+
+    def _callback(event_type: str, eid: str, **kwargs):
+        """Push events from ExecutionManager into the async queue."""
+        if eid != execution_id:
+            return
+        loop.call_soon_threadsafe(queue.put_nowait, {"event": event_type, **kwargs})
+
+    state.execution_manager.register_callback(_callback)
+
+    async def _event_generator():
+        try:
+            # Initial snapshot
+            snap = execution.model_dump(mode="json")
+            snap["logs"] = [
+                log.model_dump(mode="json")
+                for log in state.execution_manager.get_logs(execution_id, limit=50)
+            ]
+            metrics = state.execution_manager.get_metrics(execution_id)
+            if metrics:
+                snap["metrics"] = metrics.model_dump(mode="json")
+            yield f"event: snapshot\ndata: {json_mod.dumps(snap)}\n\n"
+
+            # Check if already terminal
+            from test_ai.executions import ExecutionStatus
+
+            terminal = {
+                ExecutionStatus.COMPLETED,
+                ExecutionStatus.FAILED,
+                ExecutionStatus.CANCELLED,
+            }
+            if execution.status in terminal:
+                yield "event: done\ndata: {}\n\n"
+                return
+
+            # Stream live events
+            while True:
+                if await request.is_disconnected():
+                    break
+                try:
+                    event = await asyncio.wait_for(queue.get(), timeout=30.0)
+                    event_type = event.pop("event", "update")
+                    yield f"event: {event_type}\ndata: {json_mod.dumps(event, default=str)}\n\n"
+
+                    # If status event indicates terminal state, send done
+                    if event_type == "status" and event.get("status") in {
+                        s.value for s in terminal
+                    }:
+                        yield "event: done\ndata: {}\n\n"
+                        break
+                except asyncio.TimeoutError:
+                    # Send keepalive comment
+                    yield ": keepalive\n\n"
+        finally:
+            state.execution_manager.unregister_callback(_callback)
+
+    return StreamingResponse(
+        _event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/executions/{execution_id}/pause", responses=CRUD_RESPONSES)
