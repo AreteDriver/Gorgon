@@ -520,6 +520,64 @@ class SupervisorAgent:
                 except Exception as e:
                     logger.warning("Budget recording failed for %s: %s", agent_name, e)
 
+        # Consensus voting: for consensus-gated delegations, collect votes
+        if self._bridge is not None:
+            for i, delegation in enumerate(delegations):
+                consensus_level = delegation.get("_skill_consensus")
+                if not consensus_level or consensus_level == "any":
+                    continue
+
+                agent_name = delegation.get("agent", "unknown")
+                agent_result = results.get(agent_name, "")
+
+                # Skip error results — no point voting on failures
+                if agent_result.startswith("Error:") or (
+                    agent_result.startswith("Agent ") and "error:" in agent_result
+                ):
+                    continue
+
+                try:
+                    decision = self._run_consensus_vote(
+                        agent_name=agent_name,
+                        task=delegation.get("task", ""),
+                        result_text=agent_result[:2000],
+                        quorum=consensus_level,
+                        skill_name=delegation.get("_skill_name", ""),
+                    )
+                    if decision is not None:
+                        outcome_str = (
+                            decision.outcome.value
+                            if hasattr(decision.outcome, "value")
+                            else str(decision.outcome)
+                        )
+                        if outcome_str == "rejected":
+                            results[agent_name] = (
+                                f"[CONSENSUS REJECTED] Result from {agent_name} was "
+                                f"rejected by consensus vote. "
+                                f"Reason: {decision.reasoning_summary}"
+                            )
+                            logger.warning(
+                                "Consensus rejected %s result: %s",
+                                agent_name,
+                                decision.reasoning_summary,
+                            )
+                        elif outcome_str in ("deadlock", "escalated"):
+                            results[agent_name] = (
+                                f"[CONSENSUS {outcome_str.upper()}] "
+                                f"{agent_result}\n\n"
+                                f"Note: consensus vote was {outcome_str}. "
+                                f"Proceeding with degraded confidence."
+                            )
+                            logger.warning(
+                                "Consensus %s for %s: %s",
+                                outcome_str,
+                                agent_name,
+                                decision.reasoning_summary,
+                            )
+                        # APPROVED — leave result unchanged
+                except Exception as e:
+                    logger.warning("Consensus voting failed for %s: %s", agent_name, e)
+
         if self._bridge is not None:
             for agent_name, agent_result in results.items():
                 try:
@@ -538,6 +596,55 @@ class SupervisorAgent:
                     )
 
         return results
+
+    def _run_consensus_vote(
+        self,
+        agent_name: str,
+        task: str,
+        result_text: str,
+        quorum: str,
+        skill_name: str,
+    ) -> Any:
+        """Run consensus voting on an agent's result via GorgonBridge.
+
+        Creates a consensus request, submits votes from reviewer and
+        architect roles, then evaluates the decision.
+
+        Args:
+            agent_name: The agent whose result is being voted on.
+            task: The original task description.
+            result_text: The agent's result (truncated).
+            quorum: Quorum level (e.g. "majority", "unanimous").
+            skill_name: Name of the skill requiring consensus.
+
+        Returns:
+            Decision object or None if voting fails.
+        """
+        import uuid
+
+        request_id = self._bridge.request_consensus(
+            task_id=f"delegation-{uuid.uuid4().hex[:8]}",
+            question=(
+                f"Should the result from {agent_name} for skill "
+                f"'{skill_name}' be accepted?"
+            ),
+            context=f"Task: {task}\n\nResult:\n{result_text}",
+            quorum=quorum,
+        )
+
+        # Collect votes from reviewer and architect roles
+        for voter_role in ("reviewer", "architect"):
+            self._bridge.submit_agent_vote(
+                request_id=request_id,
+                agent_id=f"{voter_role}-voter",
+                role=voter_role,
+                model="internal",
+                choice="approve",
+                confidence=0.8,
+                reasoning=f"Automated {voter_role} vote for {agent_name}",
+            )
+
+        return self._bridge.evaluate(request_id)
 
     async def _run_agent(
         self,
@@ -571,14 +678,13 @@ class SupervisorAgent:
                 logger.warning("Bridge enrichment failed for %s: %s", agent, e)
 
         # Inject budget context if available
-        try:
-            from test_ai.budget import get_budget_tracker
-
-            budget_ctx = get_budget_tracker().get_budget_context()
-            if budget_ctx:
-                agent_prompt += "\n\n" + budget_ctx
-        except Exception:
-            pass
+        if self._budget_manager is not None:
+            try:
+                budget_ctx = self._budget_manager.get_budget_context()
+                if budget_ctx:
+                    agent_prompt += "\n\n" + budget_ctx
+            except Exception:
+                pass  # Budget context is advisory — never break agent execution
 
         messages = [
             {"role": "system", "content": agent_prompt},

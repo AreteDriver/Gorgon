@@ -336,3 +336,196 @@ class TestSupervisorBridgeIntegration:
         )
         assert "builder" in result
         assert result["builder"] == "done"
+
+
+class TestConsensusVoting:
+    """Test consensus voting integration in SupervisorAgent."""
+
+    def test_consensus_skipped_when_bridge_is_none(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="done")
+
+        sup = SupervisorAgent(provider=provider)
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "majority",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert results["builder"] == "done"
+
+    def test_consensus_skipped_when_quorum_any(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="done")
+        bridge = MagicMock()
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "any",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert results["builder"] == "done"
+        bridge.request_consensus.assert_not_called()
+
+    def test_approved_result_passes_through(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="built successfully")
+        bridge = MagicMock()
+
+        mock_decision = MagicMock()
+        mock_decision.outcome.value = "approved"
+        mock_decision.reasoning_summary = "All good"
+        bridge.evaluate.return_value = mock_decision
+        bridge.request_consensus.return_value = "req-1"
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "majority",
+                        "_skill_name": "code-builder",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert results["builder"] == "built successfully"
+        bridge.request_consensus.assert_called_once()
+        assert bridge.submit_agent_vote.call_count == 2
+
+    def test_rejected_result_replaced(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="bad code output")
+        bridge = MagicMock()
+
+        mock_decision = MagicMock()
+        mock_decision.outcome.value = "rejected"
+        mock_decision.reasoning_summary = "Output violates safety constraints"
+        bridge.evaluate.return_value = mock_decision
+        bridge.request_consensus.return_value = "req-2"
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "majority",
+                        "_skill_name": "code-builder",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert "CONSENSUS REJECTED" in results["builder"]
+        assert "safety constraints" in results["builder"]
+
+    def test_deadlock_adds_warning(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="agent output here")
+        bridge = MagicMock()
+
+        mock_decision = MagicMock()
+        mock_decision.outcome.value = "deadlock"
+        mock_decision.reasoning_summary = "Split vote"
+        bridge.evaluate.return_value = mock_decision
+        bridge.request_consensus.return_value = "req-3"
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "unanimous",
+                        "_skill_name": "code-builder",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert "agent output here" in results["builder"]
+        assert "CONSENSUS DEADLOCK" in results["builder"]
+        assert "degraded confidence" in results["builder"]
+
+    def test_voting_exception_does_not_break_pipeline(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(return_value="completed")
+        bridge = MagicMock()
+        bridge.request_consensus.side_effect = RuntimeError("DB locked")
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        results = asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "majority",
+                        "_skill_name": "code-builder",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        assert results["builder"] == "completed"
+
+    def test_consensus_skipped_for_error_results(self):
+        from test_ai.agents.supervisor import SupervisorAgent
+
+        provider = MagicMock()
+        provider.complete = AsyncMock(side_effect=RuntimeError("provider down"))
+        bridge = MagicMock()
+
+        sup = SupervisorAgent(provider=provider, coordination_bridge=bridge)
+        asyncio.run(
+            sup._execute_delegations(
+                [
+                    {
+                        "agent": "builder",
+                        "task": "Build it",
+                        "_skill_consensus": "majority",
+                    }
+                ],
+                [],
+                lambda _: None,
+            )
+        )
+        bridge.request_consensus.assert_not_called()
