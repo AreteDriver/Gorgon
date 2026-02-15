@@ -1,0 +1,217 @@
+name: planner
+description: "Evaluates the Planner agent: task breakdown, dependency identification, risk assessment, milestone planning."
+agent_role: planner
+threshold: 0.6
+tags:
+  - planning
+  - core
+
+metrics:
+  - type: contains
+    case_sensitive: false
+    all_required: false
+  - type: length
+    min_length: 100
+    max_length: 5000
+
+cases:
+  - name: task_breakdown_api
+    input: "Break down the task: Add user authentication to a FastAPI application"
+    expected:
+      - "endpoint"
+      - "token"
+      - "middleware"
+      - "database"
+    metadata:
+      difficulty: medium
+      tags: [planning, api]
+
+  - name: task_breakdown_frontend
+    input: "Break down the task: Build a React dashboard with charts and filters"
+    expected:
+      - "component"
+      - "state"
+      - "chart"
+      - "filter"
+    metadata:
+      difficulty: medium
+      tags: [planning, frontend]
+
+  - name: dependency_identification
+    input: "Identify dependencies for: Migrate a PostgreSQL database from v12 to v16 with zero downtime"
+    expected:
+      - "backup"
+      - "replica"
+      - "test"
+    metadata:
+      difficulty: hard
+      tags: [planning, database]
+
+  - name: risk_assessment_deploy
+    input: "Assess risks for: Deploying a new microservice to production during peak traffic hours"
+    expected:
+      - "rollback"
+      - "monitor"
+      - "traffic"
+    metadata:
+      difficulty: hard
+      tags: [planning, deployment]
+
+  - name: milestone_planning
+    input: "Create milestones for: Building a CI/CD pipeline from scratch for a Python monorepo"
+    expected:
+      - "test"
+      - "build"
+      - "deploy"
+    metadata:
+      difficulty: medium
+      tags: [planning, cicd]
+
+  - name: task_breakdown_refactor
+    input: "Break down: Refactor a 2000-line God object into smaller, focused classes"
+    expected:
+      - "class"
+      - "method"
+      - "interface"
+    metadata:
+      difficulty: hard
+      tags: [planning, refactoring]
+
+  - name: estimation_crud
+    input: "Estimate effort for: Adding CRUD endpoints for a new 'projects' resource with validation"
+    expected:
+      - "model"
+      - "endpoint"
+      - "validation"
+    metadata:
+      difficulty: easy
+      tags: [planning, estimation]
+
+  - name: dependency_graph
+    input: "Map the dependency graph for: Adding WebSocket support to an existing REST API"
+    expected:
+      - "connection"
+      - "event"
+      - "client"
+    metadata:
+      difficulty: medium
+      tags: [planning, architecture]
+
+  - name: risk_assessment_migration
+    input: "Assess risks for: Migrating from Django to FastAPI while maintaining backward compatibility"
+    expected:
+      - "compatibility"
+      - "route"
+      - "test"
+    metadata:
+      difficulty: hard
+      tags: [planning, migration]
+
+  - name: milestone_mobile
+    input: "Create milestones for: Building a cross-platform mobile app with Flutter and Firebase"
+    expected:
+      - "auth"
+      - "data"
+      - "deploy"
+    metadata:
+      difficulty: medium
+      tags: [planning, mobile]
+
+  - name: task_breakdown_testing
+    input: "Break down: Setting up comprehensive testing infrastructure (unit, integration, e2e)"
+    expected:
+      - "unit"
+      - "integration"
+      - "fixture"
+    metadata:
+      difficulty: medium
+      tags: [planning, testing]
+
+  - name: priority_ordering
+    input: "Prioritize these tasks for a new SaaS product: user auth, billing, admin panel, email notifications, API docs"
+    expected:
+      - "auth"
+      - "billing"
+    metadata:
+      difficulty: medium
+      tags: [planning, prioritization]
+
+  - name: task_breakdown_security
+    input: "Break down: Implementing role-based access control (RBAC) for a multi-tenant application"
+    expected:
+      - "role"
+      - "permission"
+      - "tenant"
+    metadata:
+      difficulty: hard
+      tags: [planning, security]
+
+  - name: dependency_caching
+    input: "Identify dependencies for: Adding Redis caching layer to reduce API latency"
+    expected:
+      - "cache"
+      - "invalidation"
+      - "connection"
+    metadata:
+      difficulty: medium
+      tags: [planning, performance]
+
+  - name: risk_assessment_api_change
+    input: "Assess risks for: Introducing breaking changes to a public API with 500+ consumers"
+    expected:
+      - "version"
+      - "deprecat"
+      - "migration"
+    metadata:
+      difficulty: hard
+      tags: [planning, api]
+
+  - name: milestone_data_pipeline
+    input: "Create milestones for: Building a real-time data pipeline with Kafka and Spark"
+    expected:
+      - "ingest"
+      - "process"
+      - "output"
+    metadata:
+      difficulty: hard
+      tags: [planning, data]
+
+  - name: task_breakdown_monitoring
+    input: "Break down: Adding observability to a microservices architecture (logging, metrics, tracing)"
+    expected:
+      - "log"
+      - "metric"
+      - "trace"
+    metadata:
+      difficulty: medium
+      tags: [planning, observability]
+
+  - name: dependency_search
+    input: "Identify dependencies for: Adding full-text search with Elasticsearch to an e-commerce platform"
+    expected:
+      - "index"
+      - "query"
+      - "sync"
+    metadata:
+      difficulty: medium
+      tags: [planning, search]
+
+  - name: risk_assessment_scale
+    input: "Assess risks for: Scaling a single-server application to handle 10x current traffic"
+    expected:
+      - "load"
+      - "database"
+      - "cache"
+    metadata:
+      difficulty: hard
+      tags: [planning, scaling]
+
+  - name: task_breakdown_cicd
+    input: "Break down: Setting up GitHub Actions CI/CD with test, lint, build, and deploy stages"
+    expected:
+      - "test"
+      - "build"
+      - "deploy"
+    metadata:
+      difficulty: easy
+      tags: [planning, cicd]

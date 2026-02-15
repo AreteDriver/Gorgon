@@ -25,6 +25,8 @@ from .reporters import (
     JSONReporter,
     HTMLReporter,
 )
+from .loader import SuiteLoader
+from .store import EvalStore, get_eval_store, reset_eval_store
 
 __all__ = [
     # Base classes
@@ -46,4 +48,10 @@ __all__ = [
     "ConsoleReporter",
     "JSONReporter",
     "HTMLReporter",
+    # Loader
+    "SuiteLoader",
+    # Store
+    "EvalStore",
+    "get_eval_store",
+    "reset_eval_store",
 ]

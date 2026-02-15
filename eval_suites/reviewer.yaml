@@ -1,0 +1,197 @@
+name: reviewer
+description: "Evaluates the Reviewer agent: bug detection, security review, performance review, style review."
+agent_role: reviewer
+threshold: 0.6
+tags:
+  - review
+  - core
+
+metrics:
+  - type: contains
+    case_sensitive: false
+    all_required: false
+  - type: similarity
+  - type: length
+    min_length: 100
+    max_length: 5000
+
+cases:
+  - name: bug_detection_null
+    input: "Review this code for bugs:\ndef get_name(user):\n    return user['name'].upper()"
+    expected:
+      - "None"
+      - "KeyError"
+    metadata:
+      difficulty: easy
+      tags: [bug, null_check]
+
+  - name: bug_detection_loop
+    input: "Review this code for bugs:\ndef remove_evens(lst):\n    for item in lst:\n        if item % 2 == 0:\n            lst.remove(item)\n    return lst"
+    expected:
+      - "modify"
+      - "iteration"
+    metadata:
+      difficulty: medium
+      tags: [bug, mutation]
+
+  - name: security_sql_injection
+    input: "Review this code for security issues:\ndef get_user(name):\n    query = f\"SELECT * FROM users WHERE name = '{name}'\"\n    return db.execute(query)"
+    expected:
+      - "injection"
+      - "parameterized"
+    metadata:
+      difficulty: easy
+      tags: [security, injection]
+
+  - name: security_xss
+    input: "Review for security:\ndef render_comment(comment):\n    return f'<div class=\"comment\">{comment.text}</div>'"
+    expected:
+      - "XSS"
+      - "escap"
+    metadata:
+      difficulty: medium
+      tags: [security, xss]
+
+  - name: security_hardcoded_secret
+    input: "Review for security:\nAPI_KEY = 'sk-abc123xyz'\ndef call_api():\n    headers = {'Authorization': f'Bearer {API_KEY}'}"
+    expected:
+      - "hardcoded"
+      - "environment"
+    metadata:
+      difficulty: easy
+      tags: [security, credentials]
+
+  - name: performance_n_plus_one
+    input: "Review for performance:\ndef get_orders_with_items(user_id):\n    orders = db.query('SELECT * FROM orders WHERE user_id = ?', user_id)\n    for order in orders:\n        order['items'] = db.query('SELECT * FROM items WHERE order_id = ?', order['id'])\n    return orders"
+    expected:
+      - "N+1"
+      - "join"
+    metadata:
+      difficulty: medium
+      tags: [performance, database]
+
+  - name: performance_unnecessary_copy
+    input: "Review for performance:\ndef process_large_list(data):\n    copy = list(data)\n    sorted_copy = sorted(copy)\n    filtered = [x for x in sorted_copy if x > 0]\n    return list(filtered)"
+    expected:
+      - "copy"
+      - "unnecessary"
+    metadata:
+      difficulty: easy
+      tags: [performance, memory]
+
+  - name: style_naming
+    input: "Review code style:\ndef CalcTax(amt, r):\n    t = amt * r\n    f = amt + t\n    return f"
+    expected:
+      - "naming"
+      - "descriptive"
+    metadata:
+      difficulty: easy
+      tags: [style, naming]
+
+  - name: style_complexity
+    input: "Review this for complexity:\ndef check(u, a, b, c, d, e):\n    if u and a:\n        if b or c:\n            if d:\n                if not e:\n                    return True\n    return False"
+    expected:
+      - "complex"
+      - "simplif"
+    metadata:
+      difficulty: medium
+      tags: [style, complexity]
+
+  - name: bug_detection_boundary
+    input: "Review for bugs:\ndef binary_search(arr, target):\n    lo, hi = 0, len(arr)\n    while lo < hi:\n        mid = (lo + hi) // 2\n        if arr[mid] == target: return mid\n        elif arr[mid] < target: lo = mid\n        else: hi = mid\n    return -1"
+    expected:
+      - "infinite"
+      - "loop"
+    metadata:
+      difficulty: hard
+      tags: [bug, algorithm]
+
+  - name: security_path_traversal
+    input: "Review for security:\ndef serve_file(filename):\n    path = f'/uploads/{filename}'\n    with open(path, 'rb') as f:\n        return f.read()"
+    expected:
+      - "traversal"
+      - "sanitiz"
+    metadata:
+      difficulty: medium
+      tags: [security, path_traversal]
+
+  - name: performance_quadratic
+    input: "Review for performance:\ndef find_duplicates(lst):\n    dupes = []\n    for i in range(len(lst)):\n        for j in range(i+1, len(lst)):\n            if lst[i] == lst[j] and lst[i] not in dupes:\n                dupes.append(lst[i])\n    return dupes"
+    expected:
+      - "O(n"
+      - "set"
+    metadata:
+      difficulty: medium
+      tags: [performance, complexity]
+
+  - name: bug_detection_type
+    input: "Review for bugs:\ndef merge_configs(base, override):\n    result = base\n    result.update(override)\n    return result"
+    expected:
+      - "mutat"
+      - "copy"
+    metadata:
+      difficulty: medium
+      tags: [bug, mutation]
+
+  - name: security_deserialization
+    input: "Review for security:\nimport pickle\ndef load_session(data):\n    return pickle.loads(data)"
+    expected:
+      - "pickle"
+      - "deserializ"
+    metadata:
+      difficulty: medium
+      tags: [security, deserialization]
+
+  - name: performance_string_concat
+    input: "Review for performance:\ndef build_report(items):\n    report = ''\n    for item in items:\n        report += f'{item.name}: {item.value}\\n'\n    return report"
+    expected:
+      - "concatenat"
+      - "join"
+    metadata:
+      difficulty: easy
+      tags: [performance, strings]
+
+  - name: style_magic_numbers
+    input: "Review code style:\ndef calculate_shipping(weight):\n    if weight < 5:\n        return weight * 2.99\n    elif weight < 20:\n        return weight * 1.99 + 5.0\n    else:\n        return weight * 0.99 + 15.0"
+    expected:
+      - "magic"
+      - "constant"
+    metadata:
+      difficulty: easy
+      tags: [style, magic_numbers]
+
+  - name: bug_detection_concurrency
+    input: "Review for bugs:\nclass Counter:\n    def __init__(self):\n        self.count = 0\n    def increment(self):\n        self.count += 1\n    def get(self):\n        return self.count\n# Used across multiple threads"
+    expected:
+      - "thread"
+      - "lock"
+    metadata:
+      difficulty: medium
+      tags: [bug, concurrency]
+
+  - name: security_command_injection
+    input: "Review for security:\nimport os\ndef compress_file(filename):\n    os.system(f'tar -czf {filename}.tar.gz {filename}')"
+    expected:
+      - "injection"
+      - "subprocess"
+    metadata:
+      difficulty: medium
+      tags: [security, injection]
+
+  - name: performance_eager_loading
+    input: "Review for performance:\ndef get_all_data():\n    users = list(db.query('SELECT * FROM users'))\n    posts = list(db.query('SELECT * FROM posts'))\n    comments = list(db.query('SELECT * FROM comments'))\n    return {'users': users, 'posts': posts, 'comments': comments}"
+    expected:
+      - "lazy"
+      - "memory"
+    metadata:
+      difficulty: medium
+      tags: [performance, memory]
+
+  - name: style_error_handling
+    input: "Review code style:\ndef process(data):\n    try:\n        result = transform(data)\n        save(result)\n        notify(result)\n    except:\n        pass"
+    expected:
+      - "bare except"
+      - "silent"
+    metadata:
+      difficulty: easy
+      tags: [style, error_handling]

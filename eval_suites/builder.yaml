@@ -1,0 +1,212 @@
+name: builder
+description: "Evaluates the Builder agent: function implementation, bug fixing, refactoring, error handling."
+agent_role: builder
+threshold: 0.6
+tags:
+  - coding
+  - core
+
+metrics:
+  - type: contains
+    case_sensitive: false
+    all_required: false
+  - type: regex
+  - type: length
+    min_length: 50
+    max_length: 5000
+
+cases:
+  - name: implement_fibonacci
+    input: "Write a Python function that returns the nth Fibonacci number using dynamic programming"
+    expected:
+      - "def"
+      - "return"
+      - "fib"
+    metadata:
+      difficulty: easy
+      tags: [coding, algorithm]
+
+  - name: implement_binary_search
+    input: "Implement binary search in Python that returns the index of the target or -1 if not found"
+    expected:
+      - "def"
+      - "mid"
+      - "return"
+    metadata:
+      difficulty: easy
+      tags: [coding, algorithm]
+
+  - name: fix_off_by_one
+    input: "Fix this code that has an off-by-one error:\ndef get_items(lst, start, end):\n    return lst[start:end-1]"
+    expected:
+      - "def"
+      - "return"
+    metadata:
+      difficulty: easy
+      tags: [bugfix]
+
+  - name: implement_retry_decorator
+    input: "Write a Python retry decorator that retries a function up to 3 times with exponential backoff"
+    expected:
+      - "def"
+      - "retry"
+      - "sleep"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]
+
+  - name: implement_lru_cache
+    input: "Implement a simple LRU cache class in Python with get() and put() methods"
+    expected:
+      - "class"
+      - "def get"
+      - "def put"
+    metadata:
+      difficulty: medium
+      tags: [coding, data_structure]
+
+  - name: refactor_god_function
+    input: "Refactor this into smaller functions:\ndef process(data):\n    # validate\n    if not data: raise ValueError\n    # transform\n    result = [x*2 for x in data]\n    # filter\n    result = [x for x in result if x > 10]\n    # format\n    return ','.join(str(x) for x in result)"
+    expected:
+      - "def"
+      - "validate"
+    metadata:
+      difficulty: medium
+      tags: [refactoring]
+
+  - name: implement_rate_limiter
+    input: "Write a token bucket rate limiter class in Python with allow() method"
+    expected:
+      - "class"
+      - "def"
+      - "token"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]
+
+  - name: fix_race_condition
+    input: "Fix the race condition in this code:\nimport threading\ncounter = 0\ndef increment():\n    global counter\n    counter += 1"
+    expected:
+      - "lock"
+      - "def"
+    metadata:
+      difficulty: medium
+      tags: [bugfix, concurrency]
+
+  - name: implement_context_manager
+    input: "Write a Python context manager for database connections that handles commits and rollbacks"
+    expected:
+      - "def"
+      - "commit"
+      - "rollback"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]
+
+  - name: implement_observer_pattern
+    input: "Implement the Observer pattern in Python with subscribe, unsubscribe, and notify methods"
+    expected:
+      - "class"
+      - "subscribe"
+      - "notify"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]
+
+  - name: error_handling_api
+    input: "Add proper error handling to this API endpoint:\ndef get_user(user_id):\n    user = db.query(User, user_id)\n    return user.to_dict()"
+    expected:
+      - "try"
+      - "except"
+      - "return"
+    metadata:
+      difficulty: easy
+      tags: [error_handling]
+
+  - name: implement_singleton
+    input: "Implement a thread-safe Singleton pattern in Python"
+    expected:
+      - "class"
+      - "instance"
+      - "lock"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]
+
+  - name: implement_pagination
+    input: "Write a pagination helper that takes a list, page number, and page size, returning the correct slice with metadata"
+    expected:
+      - "def"
+      - "page"
+      - "return"
+    metadata:
+      difficulty: easy
+      tags: [coding, utility]
+
+  - name: fix_memory_leak
+    input: "Identify and fix the memory leak:\nclass EventBus:\n    _listeners = []\n    def add_listener(self, fn):\n        self._listeners.append(fn)"
+    expected:
+      - "class"
+      - "def"
+    metadata:
+      difficulty: medium
+      tags: [bugfix, memory]
+
+  - name: implement_circuit_breaker
+    input: "Implement a circuit breaker pattern in Python with open, closed, and half-open states"
+    expected:
+      - "class"
+      - "state"
+      - "def"
+    metadata:
+      difficulty: hard
+      tags: [coding, resilience]
+
+  - name: implement_builder_pattern
+    input: "Create a Builder pattern for constructing HTTP request objects in Python"
+    expected:
+      - "class"
+      - "def"
+      - "return"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]
+
+  - name: refactor_nested_conditionals
+    input: "Refactor this deeply nested code:\ndef check(user):\n    if user:\n        if user.active:\n            if user.verified:\n                if user.role == 'admin':\n                    return True\n    return False"
+    expected:
+      - "def"
+      - "return"
+    metadata:
+      difficulty: easy
+      tags: [refactoring]
+
+  - name: implement_validator
+    input: "Write a data validation class that validates email, phone, and URL fields using regex"
+    expected:
+      - "class"
+      - "def"
+      - "pattern"
+    metadata:
+      difficulty: medium
+      tags: [coding, validation]
+
+  - name: implement_async_queue
+    input: "Implement an async task queue in Python using asyncio with enqueue and process methods"
+    expected:
+      - "async"
+      - "await"
+      - "queue"
+    metadata:
+      difficulty: hard
+      tags: [coding, async]
+
+  - name: implement_middleware
+    input: "Write a middleware chain pattern in Python where each middleware can modify request/response"
+    expected:
+      - "class"
+      - "def"
+      - "next"
+    metadata:
+      difficulty: medium
+      tags: [coding, patterns]

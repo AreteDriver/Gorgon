@@ -108,6 +108,7 @@ def render_sidebar() -> str:
         "Workflows": "⚙️",
         "Prompts": "📝",
         "Execute": "▶️",
+        "Evals": "🧪",
         "Logs": "📋",
     }
 
@@ -490,6 +491,19 @@ def _render_mcp_page() -> None:
         _render_mcp_fallback()
 
 
+def _render_evals_page() -> None:
+    """Render evaluation dashboard page with lazy import."""
+    try:
+        from test_ai.dashboard.eval_page import render_eval_page
+
+        render_eval_page()
+    except Exception:
+        st.title("🧪 Evaluations")
+        st.warning(
+            "Evaluation dashboard component not available. Please check your installation."
+        )
+
+
 _PAGE_RENDERERS = {
     "Dashboard": render_dashboard_page,
     "Costs": render_cost_dashboard
@@ -506,6 +520,7 @@ _PAGE_RENDERERS = {
     "Workflows": render_workflows_page,
     "Prompts": render_prompts_page,
     "Execute": render_execute_page,
+    "Evals": _render_evals_page,
     "Logs": render_logs_page,
 }
 

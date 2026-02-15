@@ -1,0 +1,214 @@
+name: tester
+description: "Evaluates the Tester agent: unit test generation, edge case identification, fixture design."
+agent_role: tester
+threshold: 0.6
+tags:
+  - testing
+  - core
+
+metrics:
+  - type: contains
+    case_sensitive: false
+    all_required: false
+  - type: length
+    min_length: 100
+    max_length: 5000
+
+cases:
+  - name: unit_test_calculator
+    input: "Write pytest tests for this function:\ndef add(a: int, b: int) -> int:\n    return a + b"
+    expected:
+      - "def test"
+      - "assert"
+      - "add"
+    metadata:
+      difficulty: easy
+      tags: [unit_test]
+
+  - name: unit_test_string_util
+    input: "Write pytest tests for:\ndef slugify(text: str) -> str:\n    return text.lower().strip().replace(' ', '-')"
+    expected:
+      - "def test"
+      - "assert"
+      - "slugify"
+    metadata:
+      difficulty: easy
+      tags: [unit_test]
+
+  - name: edge_cases_division
+    input: "Identify and test edge cases for:\ndef safe_divide(a: float, b: float) -> float:\n    return a / b"
+    expected:
+      - "zero"
+      - "assert"
+      - "def test"
+    metadata:
+      difficulty: medium
+      tags: [edge_cases]
+
+  - name: edge_cases_list
+    input: "Identify edge cases for a function that finds the maximum value in a list"
+    expected:
+      - "empty"
+      - "single"
+    metadata:
+      difficulty: easy
+      tags: [edge_cases]
+
+  - name: fixture_database
+    input: "Design pytest fixtures for testing a SQLite-backed user repository"
+    expected:
+      - "fixture"
+      - "def"
+      - "yield"
+    metadata:
+      difficulty: medium
+      tags: [fixtures]
+
+  - name: fixture_api_client
+    input: "Design pytest fixtures for testing a FastAPI application with authentication"
+    expected:
+      - "fixture"
+      - "client"
+      - "def"
+    metadata:
+      difficulty: medium
+      tags: [fixtures]
+
+  - name: unit_test_auth
+    input: "Write tests for:\ndef verify_password(plain: str, hashed: str) -> bool:\n    import hashlib\n    return hashlib.sha256(plain.encode()).hexdigest() == hashed"
+    expected:
+      - "def test"
+      - "assert"
+      - "verify"
+    metadata:
+      difficulty: medium
+      tags: [unit_test, security]
+
+  - name: parametrize_tests
+    input: "Write parametrized pytest tests for:\ndef is_valid_email(email: str) -> bool:\n    import re\n    return bool(re.match(r'^[\\w.-]+@[\\w.-]+\\.[a-zA-Z]{2,}$', email))"
+    expected:
+      - "parametrize"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: medium
+      tags: [unit_test, parametrize]
+
+  - name: mock_external_api
+    input: "Write tests that mock an external HTTP API call for:\ndef fetch_user(user_id: int) -> dict:\n    import requests\n    resp = requests.get(f'https://api.example.com/users/{user_id}')\n    return resp.json()"
+    expected:
+      - "mock"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: medium
+      tags: [mocking]
+
+  - name: test_exception_handling
+    input: "Write tests that verify exception handling for:\ndef parse_config(path: str) -> dict:\n    import json\n    with open(path) as f:\n        return json.load(f)"
+    expected:
+      - "raises"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: medium
+      tags: [unit_test, exceptions]
+
+  - name: edge_cases_sorting
+    input: "Identify and test edge cases for a custom sorting function that sorts strings by length"
+    expected:
+      - "empty"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: medium
+      tags: [edge_cases]
+
+  - name: integration_test_db
+    input: "Write an integration test for a user registration flow: create user, verify in DB, login"
+    expected:
+      - "def test"
+      - "assert"
+      - "user"
+    metadata:
+      difficulty: hard
+      tags: [integration]
+
+  - name: fixture_temp_files
+    input: "Design pytest fixtures for tests that need temporary files and directories"
+    expected:
+      - "fixture"
+      - "tmp"
+      - "def"
+    metadata:
+      difficulty: easy
+      tags: [fixtures]
+
+  - name: test_async_function
+    input: "Write pytest tests for an async function:\nasync def fetch_data(url: str) -> dict:\n    async with aiohttp.ClientSession() as session:\n        async with session.get(url) as resp:\n            return await resp.json()"
+    expected:
+      - "async"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: hard
+      tags: [unit_test, async]
+
+  - name: test_class_lifecycle
+    input: "Write tests for a class with setup/teardown lifecycle:\nclass Connection:\n    def connect(self): ...\n    def execute(self, query): ...\n    def close(self): ..."
+    expected:
+      - "def test"
+      - "assert"
+      - "connect"
+    metadata:
+      difficulty: medium
+      tags: [unit_test]
+
+  - name: coverage_strategy
+    input: "Design a test coverage strategy for a REST API with 5 CRUD endpoints, auth middleware, and rate limiting"
+    expected:
+      - "test"
+      - "endpoint"
+      - "auth"
+    metadata:
+      difficulty: hard
+      tags: [strategy]
+
+  - name: edge_cases_date
+    input: "Identify edge cases for a function that calculates the number of business days between two dates"
+    expected:
+      - "weekend"
+      - "holiday"
+    metadata:
+      difficulty: medium
+      tags: [edge_cases]
+
+  - name: test_concurrency
+    input: "Write tests to verify thread safety of a shared counter class with increment/decrement methods"
+    expected:
+      - "thread"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: hard
+      tags: [concurrency]
+
+  - name: snapshot_testing
+    input: "Describe how to implement snapshot testing for API response schemas that change over time"
+    expected:
+      - "snapshot"
+      - "schema"
+      - "test"
+    metadata:
+      difficulty: medium
+      tags: [strategy]
+
+  - name: test_error_recovery
+    input: "Write tests for a retry mechanism that retries failed operations with exponential backoff"
+    expected:
+      - "retry"
+      - "def test"
+      - "assert"
+    metadata:
+      difficulty: hard
+      tags: [unit_test, resilience]
