@@ -31,6 +31,7 @@ from test_ai.self_improve.orchestrator import (
     WorkflowStage,
 )
 from test_ai.self_improve.safety import SafetyConfig
+from test_ai.self_improve.sandbox import SandboxResult, SandboxStatus
 
 
 # ---------------------------------------------------------------------------
@@ -1063,11 +1064,23 @@ class TestPRManager:
 class TestSelfImproveOrchestrator:
     """Tests for SelfImproveOrchestrator."""
 
+    @staticmethod
+    def _make_mock_provider() -> MagicMock:
+        """Create a mock AI provider that returns clean improved code."""
+        provider = MagicMock()
+        provider.complete = AsyncMock(
+            return_value='"""Module docstring."""\n\n\ndef func():\n    """Do stuff."""\n    pass\n'
+        )
+        return provider
+
     def _make_orchestrator(
-        self, tmp_path: Path, config: SafetyConfig
+        self, tmp_path: Path, config: SafetyConfig, with_provider: bool = False
     ) -> SelfImproveOrchestrator:
         """Create an orchestrator with temp paths and mocked components."""
-        orch = SelfImproveOrchestrator(codebase_path=tmp_path, config=config)
+        provider = self._make_mock_provider() if with_provider else None
+        orch = SelfImproveOrchestrator(
+            codebase_path=tmp_path, config=config, provider=provider
+        )
         return orch
 
     def test_init(self, tmp_path: Path, safety_config: SafetyConfig):
@@ -1163,7 +1176,7 @@ class TestSelfImproveOrchestrator:
         safety_config.human_approval_apply = True
         safety_config.human_approval_merge = True
 
-        orch = self._make_orchestrator(tmp_path, safety_config)
+        orch = self._make_orchestrator(tmp_path, safety_config, with_provider=True)
 
         # Mock git operations in PR manager
         with patch.object(orch.pr_manager, "_run_git"):
@@ -1185,12 +1198,20 @@ class TestSelfImproveOrchestrator:
         src.mkdir(parents=True)
         (src / "file.py").write_text("import os\n\ndef func():\n    pass\n")
 
-        orch = self._make_orchestrator(tmp_path, safety_config)
+        orch = self._make_orchestrator(tmp_path, safety_config, with_provider=True)
 
+        sandbox_ok = SandboxResult(
+            status=SandboxStatus.SUCCESS, tests_passed=True, lint_passed=True
+        )
         with patch.object(orch.pr_manager, "_run_git"):
             with patch("test_ai.self_improve.pr_manager.subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="no gh")
-                result = asyncio.run(orch.run())
+                with patch(
+                    "test_ai.self_improve.orchestrator.Sandbox.validate_changes",
+                    new_callable=AsyncMock,
+                    return_value=sandbox_ok,
+                ):
+                    result = asyncio.run(orch.run())
 
         assert result.stage_reached == WorkflowStage.COMPLETE
         assert result.success is True
@@ -1343,7 +1364,7 @@ class TestSelfImproveOrchestrator:
             max_new_files=20,
             branch_prefix="test-improve/",
         )
-        orch = self._make_orchestrator(tmp_path, config)
+        orch = self._make_orchestrator(tmp_path, config, with_provider=True)
         result = asyncio.run(orch.run(auto_approve=False))
 
         if result.stage_reached == WorkflowStage.AWAITING_APPLY_APPROVAL:
@@ -1365,7 +1386,7 @@ class TestSelfImproveOrchestrator:
             max_new_files=20,
             branch_prefix="test-improve/",
         )
-        orch = self._make_orchestrator(tmp_path, config)
+        orch = self._make_orchestrator(tmp_path, config, with_provider=True)
 
         with patch.object(orch.pr_manager, "_run_git"):
             with patch("test_ai.self_improve.pr_manager.subprocess.run") as mock_run:
@@ -1382,11 +1403,19 @@ class TestSelfImproveOrchestrator:
         src.mkdir(parents=True)
         (src / "f.py").write_text("import os\n\ndef func():\n    pass\n")
 
-        orch = self._make_orchestrator(tmp_path, safety_config)
+        orch = self._make_orchestrator(tmp_path, safety_config, with_provider=True)
 
+        sandbox_ok = SandboxResult(
+            status=SandboxStatus.SUCCESS, tests_passed=True, lint_passed=True
+        )
         with patch.object(orch.pr_manager, "_run_git"):
             with patch("test_ai.self_improve.pr_manager.subprocess.run") as mock_run:
                 mock_run.return_value = MagicMock(returncode=1, stderr="")
-                result = asyncio.run(orch.run(focus_category="documentation"))
+                with patch(
+                    "test_ai.self_improve.orchestrator.Sandbox.validate_changes",
+                    new_callable=AsyncMock,
+                    return_value=sandbox_ok,
+                ):
+                    result = asyncio.run(orch.run(focus_category="documentation"))
 
         assert result.success is True

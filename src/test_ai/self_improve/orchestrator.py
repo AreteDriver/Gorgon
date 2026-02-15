@@ -14,7 +14,7 @@ from .approval import ApprovalGate, ApprovalStage
 from .pr_manager import PRManager, PullRequest
 from .rollback import RollbackManager, Snapshot
 from .safety import SafetyChecker, SafetyConfig, SafetyViolation
-from .sandbox import SandboxResult, SandboxStatus
+from .sandbox import Sandbox, SandboxResult
 
 if TYPE_CHECKING:
     from test_ai.agents.provider_wrapper import AgentProvider
@@ -205,18 +205,41 @@ class SelfImproveOrchestrator:
             self._current_stage = WorkflowStage.IMPLEMENTING
             logger.info("Implementing changes in sandbox...")
 
-            # For now, we don't actually generate code
-            # In a real implementation, this would use the AI provider
-            # changes = {}  # Would be populated by AI
-            logger.info("(Implementation would happen here)")
+            if self.provider is None:
+                self._current_stage = WorkflowStage.FAILED
+                return ImprovementResult(
+                    success=False,
+                    stage_reached=WorkflowStage.IMPLEMENTING,
+                    plan=plan,
+                    error="No AI provider configured for code generation",
+                )
+
+            changes = await self._generate_changes(plan)
+            if not changes:
+                self._current_stage = WorkflowStage.FAILED
+                return ImprovementResult(
+                    success=False,
+                    stage_reached=WorkflowStage.IMPLEMENTING,
+                    plan=plan,
+                    error="AI provider returned no changes",
+                )
+
+            logger.info("Generated changes for %d files", len(changes))
 
             # Stage 5: Test in sandbox
             self._current_stage = WorkflowStage.TESTING
-            sandbox_result = SandboxResult(
-                status=SandboxStatus.SUCCESS,
-                tests_passed=True,
-                lint_passed=True,
-            )
+            with Sandbox(self.codebase_path) as sandbox:
+                applied = await sandbox.apply_changes(changes)
+                if not applied:
+                    self._current_stage = WorkflowStage.FAILED
+                    return ImprovementResult(
+                        success=False,
+                        stage_reached=WorkflowStage.TESTING,
+                        plan=plan,
+                        error="Failed to apply changes to sandbox",
+                    )
+
+                sandbox_result = await sandbox.validate_changes()
 
             if not sandbox_result.tests_passed:
                 if self.config.auto_rollback_on_test_failure:
@@ -266,7 +289,11 @@ class SelfImproveOrchestrator:
             # Stage 8: Apply changes
             self._current_stage = WorkflowStage.APPLYING
             logger.info("Applying changes to working tree...")
-            # Would actually apply changes here
+            for file_path, content in changes.items():
+                full_path = self.codebase_path / file_path
+                full_path.parent.mkdir(parents=True, exist_ok=True)
+                full_path.write_text(content)
+                logger.info("Applied: %s", file_path)
 
             # Stage 9: Create PR
             self._current_stage = WorkflowStage.CREATING_PR
@@ -356,6 +383,85 @@ class SelfImproveOrchestrator:
             estimated_files=list(all_files),
             estimated_lines=total_lines,
         )
+
+    async def _generate_changes(self, plan: ImprovementPlan) -> dict[str, str]:
+        """Use the AI provider to generate code changes for the plan.
+
+        Reads each affected file, sends it to the provider with the plan
+        context, and collects the modified file contents.
+
+        Args:
+            plan: The improvement plan with suggestions and affected files.
+
+        Returns:
+            Dict mapping file paths (relative to codebase root) to new content.
+            Empty dict if generation fails.
+        """
+        changes: dict[str, str] = {}
+
+        # Build the plan context once
+        plan_context = (
+            f"# Improvement Plan: {plan.title}\n\n"
+            f"{plan.description}\n\n"
+            "## Implementation Steps\n"
+            + "\n".join(f"- {step}" for step in plan.implementation_steps)
+        )
+
+        for file_path in plan.estimated_files:
+            full_path = self.codebase_path / file_path
+            if not full_path.is_file():
+                logger.warning("Skipping non-existent file: %s", file_path)
+                continue
+
+            try:
+                original_content = full_path.read_text()
+            except Exception as exc:
+                logger.warning("Cannot read %s: %s", file_path, exc)
+                continue
+
+            prompt = (
+                f"{plan_context}\n\n"
+                f"## File to Modify: {file_path}\n\n"
+                f"```python\n{original_content}\n```\n\n"
+                "Apply the improvements described above to this file. "
+                "Return ONLY the complete modified file content, no explanation. "
+                "Do not wrap in markdown code fences. "
+                "Preserve all existing functionality — only add or refactor "
+                "what the plan describes."
+            )
+
+            try:
+                messages = [
+                    {
+                        "role": "system",
+                        "content": (
+                            "You are a senior software engineer performing "
+                            "precise code improvements. Return only the "
+                            "complete modified file content."
+                        ),
+                    },
+                    {"role": "user", "content": prompt},
+                ]
+                response = await self.provider.complete(messages)
+
+                # Strip markdown fences if the model wraps anyway
+                content = response.strip()
+                if content.startswith("```"):
+                    first_nl = content.index("\n")
+                    content = content[first_nl + 1 :]
+                if content.endswith("```"):
+                    content = content[:-3].rstrip()
+
+                if content:
+                    changes[file_path] = content
+                    logger.info("Generated changes for %s", file_path)
+                else:
+                    logger.warning("Empty response for %s", file_path)
+
+            except Exception as exc:
+                logger.error("Code generation failed for %s: %s", file_path, exc)
+
+        return changes
 
     def rollback(self, snapshot_id: str) -> bool:
         """Rollback to a previous snapshot.
