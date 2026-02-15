@@ -305,6 +305,20 @@ class BudgetManager:
         self._total_used = 0
         self._last_status = BudgetStatus.OK
 
+    def get_budget_context(self) -> str:
+        """Return a formatted budget constraint string for prompt injection.
+
+        Returns empty string if budget is effectively unlimited (total_budget == 0).
+        """
+        if self.config.total_budget <= 0:
+            return ""
+        return (
+            "[Budget Constraint]\n"
+            f"Remaining session budget: {self.remaining:,} / "
+            f"{self.config.total_budget:,} tokens.\n"
+            "Be concise and efficient with token usage."
+        )
+
     def set_budget(self, total_budget: int) -> None:
         """Update total budget.
 
