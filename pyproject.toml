@@ -74,7 +74,7 @@ source = ["src/test_ai"]
 omit = ["*/tests/*", "*/__main__.py"]
 
 [tool.coverage.report]
-fail_under = 75
+fail_under = 80
 show_missing = true
 exclude_lines = [
     "pragma: no cover",
