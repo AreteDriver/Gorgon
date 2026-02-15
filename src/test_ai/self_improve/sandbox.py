@@ -151,8 +151,14 @@ class Sandbox:
             logger.error(f"Failed to apply changes: {e}")
             return False
 
-    async def run_tests(self) -> SandboxResult:
+    async def run_tests(
+        self, changed_files: list[str] | None = None
+    ) -> SandboxResult:
         """Run tests in sandbox.
+
+        Args:
+            changed_files: Source files that were modified. If provided,
+                only corresponding test files are run instead of the full suite.
 
         Returns:
             Result of test execution.
@@ -166,11 +172,17 @@ class Sandbox:
         self._status = SandboxStatus.RUNNING
         start_time = datetime.now()
 
+        # Build targeted test command
+        cmd = ["python", "-m", "pytest", "-v", "--tb=short"]
+        if changed_files:
+            test_targets = self._find_test_files(changed_files)
+            if test_targets:
+                cmd.extend(test_targets)
+                logger.info("Running targeted tests: %s", test_targets)
+
         try:
             # Run pytest
-            result = await self._run_command(
-                ["python", "-m", "pytest", "-v", "--tb=short"],
-            )
+            result = await self._run_command(cmd)
 
             duration = (datetime.now() - start_time).total_seconds()
 
@@ -244,18 +256,58 @@ class Sandbox:
                 error=str(e),
             )
 
-    async def validate_changes(self) -> SandboxResult:
+    def _find_test_files(self, changed_files: list[str]) -> list[str]:
+        """Map source files to their corresponding test files.
+
+        Args:
+            changed_files: List of changed source file paths.
+
+        Returns:
+            List of test file paths that exist in the sandbox.
+        """
+        if not self._sandbox_path:
+            return []
+
+        test_files = []
+        tests_dir = self._sandbox_path / "tests"
+        if not tests_dir.is_dir():
+            return []
+
+        for src_path in changed_files:
+            module_name = Path(src_path).stem
+            # Also try parent_module (e.g. browser_automation from browser/automation.py)
+            parent_name = Path(src_path).parent.name
+            search_names = [module_name]
+            if parent_name and parent_name not in ("src", "test_ai"):
+                search_names.append(f"{parent_name}_{module_name}")
+
+            for name in search_names:
+                for match in tests_dir.glob(f"test_*{name}*.py"):
+                    rel = str(match.relative_to(self._sandbox_path))
+                    if rel not in test_files:
+                        test_files.append(rel)
+        return test_files
+
+    async def validate_changes(
+        self, changed_files: list[str] | None = None
+    ) -> SandboxResult:
         """Validate all changes by running tests and lint.
+
+        Args:
+            changed_files: Source files that were modified, for targeted testing.
 
         Returns:
             Combined result.
         """
         lint_result = await self.run_lint()
-        test_result = await self.run_tests()
+        test_result = await self.run_tests(changed_files)
 
         # Combine results
         all_passed = lint_result.lint_passed and test_result.tests_passed
         status = SandboxStatus.SUCCESS if all_passed else SandboxStatus.FAILED
+
+        # Collect errors from both steps
+        errors = [e for e in (lint_result.error, test_result.error) if e]
 
         return SandboxResult(
             status=status,
@@ -264,6 +316,7 @@ class Sandbox:
             lint_passed=lint_result.lint_passed,
             lint_output=lint_result.lint_output,
             duration_seconds=test_result.duration_seconds,
+            error="; ".join(errors) if errors else None,
         )
 
     async def _run_command(
@@ -281,11 +334,19 @@ class Sandbox:
         if not self._sandbox_path:
             raise RuntimeError("Sandbox not created")
 
+        import os
+
+        # Set PYTHONPATH so sandbox's src/ overrides the editable install
+        env = os.environ.copy()
+        sandbox_src = str(self._sandbox_path / "src")
+        env["PYTHONPATH"] = sandbox_src + os.pathsep + env.get("PYTHONPATH", "")
+
         process = await asyncio.create_subprocess_exec(
             *cmd,
             cwd=str(self._sandbox_path),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
+            env=env,
         )
 
         try:

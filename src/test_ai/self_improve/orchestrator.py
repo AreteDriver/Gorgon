@@ -239,7 +239,9 @@ class SelfImproveOrchestrator:
                         error="Failed to apply changes to sandbox",
                     )
 
-                sandbox_result = await sandbox.validate_changes()
+                sandbox_result = await sandbox.validate_changes(
+                    changed_files=list(changes.keys())
+                )
 
             if not sandbox_result.tests_passed:
                 if self.config.auto_rollback_on_test_failure:
@@ -442,7 +444,7 @@ class SelfImproveOrchestrator:
                     },
                     {"role": "user", "content": prompt},
                 ]
-                response = await self.provider.complete(messages)
+                response = await self.provider.complete(messages, max_tokens=16384)
 
                 # Strip markdown fences if the model wraps anyway
                 content = response.strip()
