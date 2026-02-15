@@ -1,29 +1,28 @@
 # GORGON
 
-## Multi-Agent AI Orchestration Framework
+**Multi-Agent AI Orchestration for Enterprise Workflows**
 
-**Enterprise Workflow Automation with Budget Controls, Checkpoint/Resume, and Declarative Pipelines**
+*A Technical Whitepaper*
 
-*Technical Whitepaper v1.0 — February 2026*
+---
 
-**Author:** ARETE
-**Repository:** [github.com/AreteDriver/Gorgon](https://github.com/AreteDriver/Gorgon)
+**James C. Young**
+AI Enablement & Workflow Analyst
+[github.com/AreteDriver/Gorgon](https://github.com/AreteDriver/Gorgon)
+
+February 2026
 
 ---
 
 ## Abstract
 
-Enterprise adoption of large language models has moved from experimentation to production deployment, yet organizations consistently struggle with the same operational challenges: unpredictable costs, inability to recover from mid-workflow failures, lack of reproducibility, and no clear path from a successful prompt to a reliable automated process. These are not AI research problems. They are operations problems.
-
-Gorgon is an open-source multi-agent AI orchestration framework designed by an enterprise operations practitioner to address these gaps directly. It provides declarative YAML-based workflow definitions, per-agent token budget management with graceful degradation, SQLite-backed checkpoint and resume for long-running pipelines, structured feedback loops between specialized agents, and provider-agnostic LLM integration. The architecture draws explicitly from lean manufacturing principles, treating AI workflows as production lines with defined value streams, quality gates, and resource controls.
-
-This whitepaper presents the problem space, architectural decisions, core subsystems, and differentiation from existing frameworks including LangChain, CrewAI, AutoGen, and LangGraph.
+Current multi-agent AI frameworks address capability but leave operational requirements unmet. Cost is unpredictable, failure recovery is manual, workflow definitions require software engineering expertise, and provider lock-in constrains adoption. This paper presents Gorgon, a multi-agent AI orchestration framework designed for enterprise reliability. Gorgon implements declarative YAML workflows, per-agent token budget management, SQLite-backed checkpoint/resume, typed input/output contracts with structured feedback loops, and provider-agnostic LLM integration. The framework's architecture is informed by lean manufacturing principles — specifically the Toyota Production System concepts of standardized work, built-in quality (jidoka), and just-in-time resource allocation. Gorgon includes a FastAPI backend, React monitoring dashboard, and Docker/Kubernetes deployment templates. 185 commits, 5 releases, MIT licensed.
 
 ---
 
-## 1. Problem Statement
+## 1. The Problem: From Artisan AI to Production AI
 
-The gap between AI experimentation and AI production is primarily an operations gap, not a capabilities gap. Modern LLMs are powerful enough to handle complex multi-step tasks. The challenge is making those tasks reliable, reproducible, cost-controlled, and recoverable at enterprise scale.
+Modern LLMs are powerful enough to handle complex multi-step tasks. The challenge is making those tasks reliable, reproducible, cost-controlled, and recoverable at enterprise scale.
 
 ### 1.1 The Artisan AI Problem
 
@@ -33,12 +32,12 @@ This mirrors a well-understood failure mode in manufacturing. Before standardize
 
 ### 1.2 Operational Gaps in Current Tooling
 
-Existing multi-agent frameworks address the capabilities layer but leave operational requirements unmet. The following gaps persist across the current landscape:
+Existing multi-agent frameworks address the capabilities layer but leave operational requirements unmet:
 
 - **Cost unpredictability:** Token consumption is monitored after the fact, not controlled during execution. A runaway agent loop can burn hundreds of dollars before anyone notices.
 - **No fault recovery:** When a multi-step workflow fails at step six of eight, most frameworks require restarting from step one. This wastes tokens, time, and context.
 - **Imperative complexity:** Workflow definitions require Python or TypeScript code, creating a barrier for operations teams who understand the process but lack software engineering skills.
-- **Provider lock-in:** Many frameworks are tightly coupled to a specific LLM provider, making it costly or impossible to switch providers as the market evolves.
+- **Provider lock-in:** Many frameworks are tightly coupled to a specific LLM provider, making it costly or impossible to switch as the market evolves.
 
 ---
 
@@ -56,81 +55,62 @@ Jidoka is the principle of building quality inspection into the production proce
 
 ### 2.3 Just-In-Time Budget Allocation
 
-Token budgets in Gorgon follow just-in-time principles. Rather than allocating a fixed pool and hoping it suffices, the budget management system allocates tokens per-agent with warning thresholds at configurable percentages. When an agent approaches its budget limit, it receives a warning and can gracefully degrade by switching to a smaller model, reducing output verbosity, or requesting human review. This prevents the two most common failure modes: over-spending on early stages that leaves nothing for later stages, and runaway loops that exhaust the entire budget.
+Token budgets in Gorgon follow just-in-time principles. Rather than allocating a large budget upfront and hoping it's sufficient, each agent receives a specific allocation with warning thresholds (80%) and hard limits (100%). When an agent approaches its budget, the system can trigger graceful degradation — switching to a cheaper model, reducing output detail, or requesting human intervention — rather than failing abruptly or burning through an uncapped budget.
 
 ---
 
 ## 3. System Architecture
 
-Gorgon is structured as a layered system with clear boundaries between the orchestration core, agent execution, state persistence, and external integrations.
+### 3.1 Workflow Engine
 
-### 3.1 Architecture Overview
+The workflow engine reads YAML pipeline definitions and executes them as directed graphs of agent tasks. Each node in the graph is an agent invocation with defined inputs, outputs, budget, and timeout. The engine handles scheduling, dependency resolution, parallel execution where the graph allows it, and error routing.
 
-The system consists of five primary layers:
+### 3.2 Agent Contracts
 
-```
-Client Layer        Streamlit | FastAPI | CLI | TUI
-                         │
-Application Layer   Auth, CORS, Rate Limiting, Audit Logging
-                         │
-Orchestration       WorkflowEngine ─── GraphExecutor ─── ParallelExecutor
-                    │                │                │
-                    Contracts        Checkpoints      Resilience
-                    (schema valid.)  (SQLite/PG)      (circuit breaker,
-                                                       bulkhead, retry)
-                         │
-Integration Layer   Claude | OpenAI | GitHub | Notion | Gmail | Slack
-                         │
-Observability       MetricsCollector | CostTracker | PrometheusExporter
-```
+Each agent role (planner, builder, tester, reviewer, analyst, documenter) operates under a typed contract specifying:
 
-### 3.2 Workflow Engine
+| Contract Element | Purpose |
+|---|---|
+| **Input schema** | What the agent receives — typed and validated before execution |
+| **Output schema** | What the agent produces — validated after execution |
+| **Budget** | Token limit with warning threshold and hard ceiling |
+| **Timeout** | Maximum execution time before forced termination |
+| **Quality criteria** | Conditions the output must meet to pass the quality gate |
 
-The workflow engine parses YAML pipeline definitions into a directed acyclic graph (DAG) of execution steps. Each step specifies an agent role, input sources (which may be the output of previous steps or external data), budget allocation, timeout, and retry policy. The engine supports both sequential and parallel execution, with dependency resolution handled at parse time.
+### 3.3 Token Budget Management
 
-### 3.3 Agent Roles and Contracts
+Budget management is a first-class architectural feature, not a monitoring afterthought. Each agent has a per-invocation budget. Each workflow has an aggregate budget. Spending is tracked in real-time against both limits. When an agent reaches 80% of its budget, the system triggers a configurable response: log a warning, switch to a cheaper model, reduce scope, or escalate to human review.
 
-Each agent in Gorgon is a specialized execution unit with a defined role, system prompt, input schema, and output schema. The framework ships with ten built-in agent types, and custom agents can be defined by extending the base agent class.
+This is the feature that distinguishes Gorgon most clearly from existing frameworks. Enterprise teams need cost predictability before they will trust AI in production workflows. Budget controls deliver that predictability.
 
-Agent roles map to functions found in high-performing operations teams. The planner decomposes complex tasks into sequenced steps. The builder executes implementation work. The tester validates outputs against defined criteria. The reviewer provides quality assessment and approval. The analyst extracts patterns and metrics from execution data. The documenter generates structured records of workflow outcomes.
+### 3.4 Checkpoint/Resume
 
-Critically, agents communicate through structured data, not free-form text. Output schemas are enforced, which means downstream agents receive predictable input. This eliminates the fragile parsing layer that plagues many multi-agent systems where agents pass natural language between each other and hope the next agent interprets it correctly.
+Gorgon persists workflow state to SQLite after each completed agent step. If a workflow fails at step six of eight, the system resumes from step six — not step one. The checkpoint contains the full execution context: completed outputs, in-progress state, budget consumption, and error details.
 
-### 3.4 Budget Management System
+This is standard practice in manufacturing (you don't scrap the whole assembly line because one station had an issue) but surprisingly absent from AI tooling. For long-running workflows where token costs are significant, checkpoint/resume is the difference between manageable failure and expensive restart.
 
-The budget controller is Gorgon's most differentiating subsystem. Token budgets are allocated at two levels: per-workflow (the total ceiling) and per-agent (the individual allocation). The controller tracks consumption in real time and implements a three-stage response when limits are approached.
+### 3.5 Structured Feedback Loops
 
-At the **warning threshold** (default 80%), the agent receives a signal to reduce output verbosity. At the **soft limit** (95%), the agent is instructed to complete its current operation and return results without pursuing further refinement. At the **hard limit** (100%), execution halts and the workflow either checkpoints for human review or transitions to a fallback agent configured with a smaller, cheaper model.
+When a tester agent rejects work, it produces a structured rejection object containing the specific failures, the expected criteria, and actionable corrections. This rejection routes back to the builder agent as typed input, not appended conversation history. The builder receives machine-parseable feedback it can act on directly.
 
-This approach solves the two most expensive failure modes in multi-agent systems: runaway loops where agents iterate endlessly on self-improvement, and front-loaded spending where early agents consume the majority of available tokens leaving insufficient budget for critical downstream stages.
-
-### 3.5 Checkpoint and Resume
-
-Long-running workflows are inherently fragile. Network interruptions, API rate limits, model provider outages, and unexpected edge cases can terminate execution at any point. Without checkpoint capability, the only recovery option is restarting from the beginning, which wastes tokens and time.
-
-Gorgon implements checkpoint and resume using SQLite-backed state persistence. After each agent completes its work, the full execution state is serialized and stored, including the agent's output, token consumption, timing data, and the workflow's position in the DAG. If execution fails at step six of eight, recovery loads the checkpoint at step five and resumes from step six. No tokens from completed steps are re-spent.
-
-This mirrors standard practice in manufacturing where a line stoppage at one station does not require scrapping all completed work from upstream stations. The concept is so basic in physical operations that its absence from AI tooling is remarkable.
-
-### 3.6 Feedback Loops
-
-Real teams do not work in straight lines. A code reviewer rejects a pull request back to the developer. A quality inspector sends a defective part back to assembly. Gorgon models these dynamics through structured feedback loops where any agent can reject work back to a previous stage with specific, typed feedback.
-
-When a tester agent identifies a defect, it generates a structured rejection containing the failure category, severity, the specific failing criteria, and a suggested remediation. The builder agent receives this structured feedback and can address the specific issue without re-reading the entire context. This is fundamentally different from the common pattern of appending natural language critique to a conversation history and hoping the model self-corrects.
+This is fundamentally different from the common pattern of appending natural language critique to a conversation history and hoping the model self-corrects.
 
 ---
 
 ## 4. Competitive Landscape
 
-The multi-agent AI framework space has grown rapidly, with several open-source and commercial offerings addressing portions of the orchestration challenge. Gorgon occupies a specific position: operational reliability for enterprise deployment, as distinguished from research exploration or rapid prototyping.
+The multi-agent AI framework space has grown rapidly. Gorgon occupies a specific position: operational reliability for enterprise deployment, as distinguished from research exploration or rapid prototyping.
 
-| Dimension | Gorgon | LangChain | CrewAI | AutoGen | LangGraph |
-|-----------|--------|-----------|--------|---------|-----------|
-| Workflow definition | Declarative YAML | Imperative Python | Imperative Python | Imperative Python | Graph DSL |
-| Budget controls | Per-agent, real-time | None built-in | None built-in | None built-in | None built-in |
-| Checkpoint/resume | SQLite-backed | None built-in | None built-in | None built-in | Checkpointing available |
-| Feedback loops | Structured, typed | Ad hoc | Role-based | Conversational | State transitions |
-| Provider agnostic | Yes | Yes | Partial | Partial | Yes |
+| Capability | Gorgon | LangChain | CrewAI | AutoGen | LangGraph |
+|---|---|---|---|---|---|
+| **Budget Controls** | Native, per-agent | Plugin/custom | Not built-in | Not built-in | Not built-in |
+| **Checkpoint/Resume** | SQLite-backed | External tools | Not built-in | Not built-in | State snapshots |
+| **Declarative Workflows** | YAML native | Code only | YAML partial | Code only | Code only |
+| **Feedback Loops** | Structured, typed | Manual impl | Role-based chat | Conversation | Graph cycles |
+| **Provider Agnostic** | Yes | Yes | Partial | Yes | Yes |
+| **Enterprise Deploy** | Docker/K8s | LangServe | Limited | Limited | LangServe |
+| **Learning Curve** | Low (YAML) | Steep | Medium | Medium | Steep |
+| **Community** | New (solo dev) | 94K+ stars | 30K+ stars | Medium | Large |
 
 The key differentiator is not any single feature but the operational mindset embedded in the architecture. Gorgon was designed by someone who managed production operations for seventeen years, not by machine learning researchers. This results in design decisions that prioritize recoverability, cost predictability, and auditability over flexibility and experimentation speed.
 
@@ -162,27 +142,30 @@ Production data is ingested through scheduled workflows. An analyst agent identi
 
 ---
 
-## 7. Future Work and Roadmap
+## 7. Future Work
 
-Gorgon's development roadmap includes three primary areas of expansion:
+**Convergent Integration (Phase 3):** Integration with the Convergent coordination library to enable stigmergy-based agent coordination for parallel workflows. This replaces centralized supervisor bottlenecks with emergent coherence through shared intent graphs. See the [Convergent whitepaper](https://github.com/AreteDriver/convergent) for architectural details.
 
-**Convergent Integration:** A companion project called Convergent provides a novel coordination mechanism based on stigmergy and flocking behaviors for parallel agent execution. Integration will allow multiple Gorgon agents to work concurrently on shared codebases without explicit message passing, using an ambient intent graph for implicit coordination. See the companion whitepaper for details.
+**Animus Integration:** Deployment as the orchestration layer for the Animus personal exocortex architecture, enabling sovereign AI with multi-agent capability. See the [Animus whitepaper](https://github.com/AreteDriver/Animus) for the full stack vision.
 
-**Hierarchical Supervisor Architecture:** Extending the agent layer to support full machine control through a supervisor agent that assigns and monitors tasks across system agents, browser agents, email agents, and application agents, enabling autonomous operation within configurable guardrails.
+**Observability Dashboard:** Enhanced real-time visualization of agent coordination, token consumption trends, and workflow performance metrics.
 
-**Multi-Organization Deployment:** Configuration templates and documentation for deploying Gorgon across teams of varying sizes, with role-based access controls and shared workflow libraries.
+**Visual Workflow Editor:** Browser-based YAML pipeline builder that further lowers the barrier for non-developer workflow authors.
+
+**Benchmark Suite:** Standardized evaluation comparing Gorgon workflows against equivalent LangGraph, CrewAI, and AutoGen implementations across cost, reliability, and completion quality metrics.
 
 ---
 
 ## 8. Conclusion
 
-The transition from AI experimentation to AI production is fundamentally an operations challenge. The models are capable. The gap is in the systems that surround them: cost controls, fault recovery, reproducibility, and quality assurance. These are solved problems in physical manufacturing. They simply have not been adequately translated to AI workflow orchestration.
+The multi-agent AI space has focused on making agents smarter. Gorgon focuses on making them reliable. Budget controls, checkpoint/resume, declarative workflows, and structured feedback loops are not novel concepts — they are established production engineering practices translated to a new domain. The framework's value proposition is not technical novelty but operational maturity: the confidence that an AI workflow will complete within budget, recover from failures, and produce auditable results.
 
-Gorgon addresses this gap by applying lean manufacturing principles to multi-agent AI systems. Declarative workflows make processes explicit and reproducible. Budget controls make costs predictable. Checkpoint/resume makes failures recoverable. Structured feedback loops make quality iterative. Provider abstraction makes the framework durable across a rapidly evolving LLM landscape.
+Gorgon does not compete with LangChain's ecosystem or CrewAI's role-playing flexibility. It addresses the gap between impressive demos and production deployment — the same gap that lean manufacturing closed between artisan workshops and reliable production lines.
 
-The framework is open-source under the MIT license, actively developed, and available for evaluation and contribution.
+> "CrewAI gives you role-playing agents. LangGraph gives you a graph abstraction. Gorgon gives you a production line."
 
 ---
 
 **Repository:** [github.com/AreteDriver/Gorgon](https://github.com/AreteDriver/Gorgon)
 **License:** MIT
+**Status:** 185 commits, 5 releases
