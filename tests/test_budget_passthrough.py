@@ -13,7 +13,7 @@ import shutil
 import sys
 import tempfile
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -222,9 +222,7 @@ class TestExecutorPromptInjection:
         class FakeExecutor:
             dry_run = True
             memory_manager = None
-            budget_manager = BudgetManager(
-                config=BudgetConfig(total_budget=80000)
-            )
+            budget_manager = BudgetManager(config=BudgetConfig(total_budget=80000))
 
         from test_ai.workflow.executor_ai import AIHandlersMixin
         from test_ai.workflow.loader import StepConfig
@@ -385,7 +383,12 @@ class TestBotBudgetCommand:
     """Tests for /budget bot command."""
 
     def _make_message(self):
-        user = BotUser(id="u1", platform=MessagePlatform.TELEGRAM, username="testuser", is_admin=False)
+        user = BotUser(
+            id="u1",
+            platform=MessagePlatform.TELEGRAM,
+            username="testuser",
+            is_admin=False,
+        )
         return BotMessage(
             id="msg-1",
             platform=MessagePlatform.TELEGRAM,
@@ -425,9 +428,7 @@ class TestBotBudgetCommand:
     def test_budget_command_error_fallback(self):
         handler = self._make_handler()
         msg = self._make_message()
-        with patch(
-            "test_ai.db.get_task_store", side_effect=RuntimeError("DB error")
-        ):
+        with patch("test_ai.db.get_task_store", side_effect=RuntimeError("DB error")):
             result = asyncio.run(handler.handle_command(msg, "budget", []))
         assert "unavailable" in result.lower()
 
@@ -438,8 +439,6 @@ class TestBotBudgetCommand:
         result = asyncio.run(handler.handle_command(msg, "unknown_cmd_xyz", []))
         assert result is None
         # budget should return something (not None)
-        with patch(
-            "test_ai.db.get_task_store", side_effect=RuntimeError("DB error")
-        ):
+        with patch("test_ai.db.get_task_store", side_effect=RuntimeError("DB error")):
             result = asyncio.run(handler.handle_command(msg, "budget", []))
         assert result is not None

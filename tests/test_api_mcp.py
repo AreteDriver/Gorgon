@@ -82,13 +82,7 @@ def client(backend, mcp_manager, monkeypatch):
     # Patch the mcp_manager global variable
     with patch("test_ai.api.get_database", return_value=backend):
         with patch("test_ai.api.run_migrations", return_value=[]):
-            # Import after patching
             import test_ai.api_state as api_state
-
-            # Manually set the mcp_manager
-            original_mcp_manager = api_state.mcp_manager
-            api_state.mcp_manager = mcp_manager
-
             from test_ai.api import app
             from test_ai.api_state import limiter
             from test_ai.security.brute_force import get_brute_force_protection
@@ -102,7 +96,18 @@ def client(backend, mcp_manager, monkeypatch):
             protection._total_blocked = 0
             protection._total_allowed = 0
 
-            yield TestClient(app)
+            test_client = TestClient(app)
+
+            # Reset shutting_down flag — previous test files' TestClient
+            # lifespan shutdown sets this to True on the shared api_state
+            api_state._app_state["shutting_down"] = False
+
+            # Set mcp_manager AFTER TestClient creation so lifespan
+            # doesn't overwrite it with a manager using the wrong backend
+            original_mcp_manager = api_state.mcp_manager
+            api_state.mcp_manager = mcp_manager
+
+            yield test_client
 
             # Restore original
             api_state.mcp_manager = original_mcp_manager
