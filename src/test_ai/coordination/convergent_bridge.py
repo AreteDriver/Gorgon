@@ -250,9 +250,7 @@ class StabilityGate:
     ) -> None:
         self._resolver = resolver
         self._min_stability = (
-            min_stability
-            if min_stability is not None
-            else self.DEFAULT_MIN_STABILITY
+            min_stability if min_stability is not None else self.DEFAULT_MIN_STABILITY
         )
         self._max_passes = (
             max_passes if max_passes is not None else self.DEFAULT_MAX_PASSES
@@ -314,9 +312,7 @@ class StabilityGate:
 
         # Exhausted passes — return current state
         min_s = min(stabilities.values()) if stabilities else 0.0
-        mean_s = (
-            sum(stabilities.values()) / len(stabilities) if stabilities else 0.0
-        )
+        mean_s = sum(stabilities.values()) / len(stabilities) if stabilities else 0.0
         return StabilityReport(
             converged=False,
             mean_stability=mean_s,

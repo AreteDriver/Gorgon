@@ -151,9 +151,7 @@ class Sandbox:
             logger.error(f"Failed to apply changes: {e}")
             return False
 
-    async def run_tests(
-        self, changed_files: list[str] | None = None
-    ) -> SandboxResult:
+    async def run_tests(self, changed_files: list[str] | None = None) -> SandboxResult:
         """Run tests in sandbox.
 
         Args:
