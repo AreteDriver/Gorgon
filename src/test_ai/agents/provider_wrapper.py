@@ -127,7 +127,7 @@ def create_agent_provider(provider_type: str = "anthropic") -> AgentProvider:
     """Create an agent provider.
 
     Args:
-        provider_type: Type of provider ('anthropic' or 'openai').
+        provider_type: Type of provider ('anthropic', 'openai', or 'ollama').
 
     Returns:
         Configured AgentProvider.
@@ -146,6 +146,17 @@ def create_agent_provider(provider_type: str = "anthropic") -> AgentProvider:
 
         settings = get_settings()
         provider = OpenAIProvider(api_key=settings.openai_api_key)
+        return AgentProvider(provider)
+
+    elif provider_type == "ollama":
+        from test_ai.providers.ollama_provider import OllamaProvider
+        from test_ai.config import get_settings
+
+        settings = get_settings()
+        provider = OllamaProvider(
+            host=settings.ollama_base_url,
+            model=settings.ollama_default_model,
+        )
         return AgentProvider(provider)
 
     else:

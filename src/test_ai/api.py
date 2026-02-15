@@ -149,7 +149,7 @@ async def lifespan(app: FastAPI):
     def create_supervisor(mode=None, session=None, backend=None):
         """Factory function to create Supervisor agent."""
         try:
-            provider = create_agent_provider("anthropic")
+            provider = create_agent_provider(settings.default_provider)
             try:
                 from test_ai.agents.convergence import create_checker
 

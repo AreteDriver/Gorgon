@@ -136,6 +136,21 @@ class Settings(BaseSettings):
         "api", description="Claude invocation mode: 'api' or 'cli'"
     )
 
+    # Ollama Settings (local LLM)
+    ollama_enabled: bool = Field(False, description="Enable Ollama local LLM provider")
+    ollama_base_url: str = Field(
+        "http://localhost:11434", description="Ollama server URL"
+    )
+    ollama_default_model: Optional[str] = Field(
+        None, description="Default Ollama model (auto-detected if not set)"
+    )
+
+    # Provider Selection
+    default_provider: str = Field(
+        "anthropic",
+        description="Default AI provider: 'anthropic', 'openai', or 'ollama'",
+    )
+
     # Application Settings
     app_name: str = Field("Gorgon", description="Application name")
     debug: bool = Field(False, description="Debug mode")

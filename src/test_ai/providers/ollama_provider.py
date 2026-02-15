@@ -30,19 +30,23 @@ DEFAULT_TIER_MODELS: dict[str, list[str]] = {
     "reasoning": [
         "qwen2.5:72b",
         "deepseek-r1:70b",
+        "deepseek-coder-v2",
         "llama3.1:70b",
         "qwen2.5:32b",
         "deepseek-r1:32b",
     ],
     "standard": [
         "qwen2.5:14b",
+        "deepseek-coder-v2",
         "qwen2.5",
+        "codellama",
         "llama3.2",
         "mistral",
         "deepseek-r1:8b",
         "gemma2",
     ],
     "fast": [
+        "codellama",
         "qwen2.5:3b",
         "llama3.2:1b",
         "phi3",
