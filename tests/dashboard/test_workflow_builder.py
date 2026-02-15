@@ -36,6 +36,7 @@ class TestNodeTypeConfig:
             "map_reduce",
             "branch",
             "loop",
+            "mcp_tool",
         }
         assert set(NODE_TYPE_CONFIG.keys()) == expected_types
 
