@@ -106,6 +106,7 @@ class StepConfig:
         "map_reduce",
         "branch",
         "loop",
+        "mcp_tool",
     ]
     params: dict = field(default_factory=dict)
     condition: ConditionConfig | None = None
@@ -247,6 +248,7 @@ WORKFLOW_SCHEMA = {
                             "map_reduce",
                             "branch",
                             "loop",
+                            "mcp_tool",
                         ],
                     },
                     "params": {"type": "object"},
@@ -442,6 +444,7 @@ VALID_STEP_TYPES = frozenset(
         "map_reduce",
         "branch",
         "loop",
+        "mcp_tool",
     }
 )
 VALID_OPERATORS = frozenset(

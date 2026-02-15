@@ -72,6 +72,13 @@ NODE_TYPE_CONFIG = {
         "description": "Iterate over items or until condition met",
         "params": ["items", "step_template", "max_iterations"],
     },
+    "mcp_tool": {
+        "label": "MCP Tool",
+        "icon": "\U0001f527",
+        "color": "#6366f1",
+        "description": "Call a tool on a registered MCP server",
+        "params": ["server", "tool", "arguments"],
+    },
 }
 
 # Agent roles available for claude_code/openai steps

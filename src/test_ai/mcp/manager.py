@@ -285,6 +285,27 @@ class MCPConnectorManager:
                 success=False, error=error_msg, tools=[], resources=[]
             )
 
+    def get_server_by_name(self, name: str) -> MCPServer | None:
+        """Get an MCP server by name (case-insensitive).
+
+        Args:
+            name: Server name to look up
+
+        Returns:
+            MCPServer or None if not found
+        """
+        row = self.backend.fetchone(
+            """
+            SELECT id, name, url, type, status, description, auth_type,
+                   credential_id, tools, resources, last_connected, error,
+                   created_at, updated_at
+            FROM mcp_servers
+            WHERE LOWER(name) = LOWER(?)
+            """,
+            (name,),
+        )
+        return self._row_to_server(row) if row else None
+
     def get_tools(self, server_id: str) -> list[MCPTool]:
         """Get tools for an MCP server.
 

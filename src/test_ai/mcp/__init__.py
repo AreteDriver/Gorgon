@@ -1,8 +1,10 @@
 """MCP (Model Context Protocol) connector management.
 
-Provides registration, storage, and connection testing for MCP servers.
+Provides registration, storage, connection testing, and tool execution
+for MCP servers.
 """
 
+from .client import HAS_MCP_SDK, MCPClientError, call_mcp_tool
 from .manager import MCPConnectorManager
 from .models import (
     MCPServer,
@@ -15,6 +17,9 @@ from .models import (
 )
 
 __all__ = [
+    "HAS_MCP_SDK",
+    "MCPClientError",
+    "call_mcp_tool",
     "MCPConnectorManager",
     "MCPServer",
     "MCPServerCreateInput",

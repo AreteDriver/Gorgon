@@ -14,6 +14,7 @@ from .executor_results import ExecutionResult, StepHandler, StepResult, StepStat
 from .loader import WorkflowConfig, StepConfig
 from .executor_integrations import IntegrationHandlersMixin
 from .executor_ai import AIHandlersMixin
+from .executor_mcp import MCPHandlersMixin
 from .executor_patterns import DistributionPatternsMixin
 from .executor_step import StepExecutionMixin
 from .executor_error import ErrorHandlerMixin
@@ -29,6 +30,7 @@ class WorkflowExecutor(
     ParallelGroupMixin,
     IntegrationHandlersMixin,
     AIHandlersMixin,
+    MCPHandlersMixin,
     DistributionPatternsMixin,
 ):
     """Executes workflows with contract validation and state persistence.
@@ -83,6 +85,8 @@ class WorkflowExecutor(
             "fan_out": self._execute_fan_out,
             "fan_in": self._execute_fan_in,
             "map_reduce": self._execute_map_reduce,
+            # MCP handler
+            "mcp_tool": self._execute_mcp_tool,
             # Integration handlers
             "github": self._execute_github,
             "notion": self._execute_notion,
