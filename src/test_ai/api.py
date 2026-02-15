@@ -98,12 +98,14 @@ async def lifespan(app: FastAPI):
     from test_ai.scheduler import ScheduleManager
     from test_ai.settings import SettingsManager
     from test_ai.webhooks import WebhookManager
+    from test_ai.webhooks.webhook_delivery import WebhookDeliveryManager
     from test_ai.websocket import Broadcaster, ConnectionManager
     from test_ai.workflow import WorkflowVersionManager
 
     state.execution_manager = ExecutionManager(backend=backend)
     state.schedule_manager = ScheduleManager(backend=backend)
     state.webhook_manager = WebhookManager(backend=backend)
+    state.delivery_manager = WebhookDeliveryManager(backend=backend)
     state.job_manager = JobManager(
         backend=backend, execution_manager=state.execution_manager
     )
@@ -400,6 +402,7 @@ from test_ai.api_routes import (  # noqa: E402
     budgets,
     dashboard,
     executions,
+    graph,
     health,
     history,
     jobs,
@@ -425,6 +428,7 @@ v1_router.include_router(settings.router)
 v1_router.include_router(budgets.router)
 v1_router.include_router(dashboard.router)
 v1_router.include_router(history.router)
+v1_router.include_router(graph.router)
 
 app.include_router(v1_router)
 app.include_router(health.router)
