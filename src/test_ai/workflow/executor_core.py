@@ -19,6 +19,7 @@ from .executor_patterns import DistributionPatternsMixin
 from .executor_step import StepExecutionMixin
 from .executor_error import ErrorHandlerMixin
 from .executor_parallel_exec import ParallelGroupMixin
+from test_ai.coordination.parallel_executor import CoordinatedParallelMixin
 from test_ai.state.agent_context import WorkflowMemoryManager, MemoryConfig
 
 logger = logging.getLogger(__name__)
@@ -27,6 +28,7 @@ logger = logging.getLogger(__name__)
 class WorkflowExecutor(
     StepExecutionMixin,
     ErrorHandlerMixin,
+    CoordinatedParallelMixin,
     ParallelGroupMixin,
     IntegrationHandlersMixin,
     AIHandlersMixin,
@@ -444,10 +446,17 @@ class WorkflowExecutor(
 
         start_index = self._find_resume_index(workflow, resume_from)
 
-        # Execute steps - use auto-parallel if enabled
+        # Execute steps — choose strategy based on settings
         error = None
         try:
-            if workflow.settings.auto_parallel:
+            if (
+                workflow.settings.auto_parallel
+                and workflow.settings.coordination_enabled
+            ):
+                self._execute_with_coordination(
+                    workflow, start_index, workflow_id, result
+                )
+            elif workflow.settings.auto_parallel:
                 self._execute_with_auto_parallel(
                     workflow, start_index, workflow_id, result
                 )
@@ -548,10 +557,17 @@ class WorkflowExecutor(
 
         start_index = self._find_resume_index(workflow, resume_from)
 
-        # Execute steps - use auto-parallel if enabled
+        # Execute steps — choose strategy based on settings
         error = None
         try:
-            if workflow.settings.auto_parallel:
+            if (
+                workflow.settings.auto_parallel
+                and workflow.settings.coordination_enabled
+            ):
+                await self._execute_with_coordination_async(
+                    workflow, start_index, workflow_id, result
+                )
+            elif workflow.settings.auto_parallel:
                 await self._execute_with_auto_parallel_async(
                     workflow, start_index, workflow_id, result
                 )

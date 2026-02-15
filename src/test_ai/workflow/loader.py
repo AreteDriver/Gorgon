@@ -81,12 +81,18 @@ class WorkflowSettings:
 
     auto_parallel: bool = False
     auto_parallel_max_workers: int = 4
+    coordination_enabled: bool = False
+    coordination_min_stability: float = 0.3
+    coordination_max_passes: int = 3
 
     @classmethod
     def from_dict(cls, data: dict) -> "WorkflowSettings":
         return cls(
             auto_parallel=data.get("auto_parallel", False),
             auto_parallel_max_workers=data.get("auto_parallel_max_workers", 4),
+            coordination_enabled=data.get("coordination_enabled", False),
+            coordination_min_stability=data.get("coordination_min_stability", 0.3),
+            coordination_max_passes=data.get("coordination_max_passes", 3),
         )
 
 
