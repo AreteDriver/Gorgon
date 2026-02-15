@@ -40,7 +40,7 @@ Gorgon coordinates multiple specialized "heads" (agents) — Planner, Builder, T
 ┌──────────────────────────────▼──────────────────────────────────────────┐
 │                       Integration Layer                                  │
 │   OpenAI Client  │  Claude Client  │  GitHub Client  │  Notion Client  │
-│   Gmail Client   │  Slack Client   │  Custom Plugins                   │
+│   Gmail Client   │  Slack Client   │  MCP Servers    │  Custom Plugins │
 └──────────────────────────────┬──────────────────────────────────────────┘
                                │
 ┌──────────────────────────────▼──────────────────────────────────────────┐
@@ -561,6 +561,114 @@ The `settings.is_production_safe` property validates all of the above. Violation
 
 ---
 
+## MCP Integration
+
+Gorgon is an MCP (Model Context Protocol) orchestrator — workflows can invoke tools on registered MCP servers.
+
+### Architecture
+
+```
+WorkflowExecutor
+  │
+  ├── MCPHandlersMixin._execute_mcp_tool(step, context)
+  │     ├── Resolve server by ID or name (MCPConnectorManager)
+  │     ├── Build auth headers (bearer / api_key from credential store)
+  │     ├── Substitute ${var} references in arguments (recursive)
+  │     └── call_mcp_tool(type, url, tool, args, headers)
+  │           ├── stdio transport → mcp.client.stdio.stdio_client
+  │           └── SSE transport  → mcp.client.sse.sse_client
+  │
+  ├── Tool Discovery
+  │     ├── discover_tools() — real SDK list_tools()/list_resources()
+  │     └── Simulated fallback when SDK not installed
+  │
+  └── API Surface
+        ├── POST /v1/mcp/servers           — Register server
+        ├── GET  /v1/mcp/servers           — List servers
+        ├── POST /v1/mcp/servers/{id}/test — Test connection
+        └── POST /v1/mcp/servers/{id}/discover — Live tool discovery
+```
+
+### Workflow YAML
+
+```yaml
+steps:
+  - id: read_files
+    type: mcp_tool
+    params:
+      server: "filesystem"
+      tool: "read_file"
+      arguments:
+        path: "${project_path}/README.md"
+    outputs:
+      - file_content
+```
+
+The `mcp` dependency is optional: `pip install 'gorgon[mcp]'`. The `HAS_MCP_SDK` flag enables graceful degradation — simulated discovery when the SDK is not installed.
+
+---
+
+## Supervisor Agent & Convergent Integration
+
+### Supervisor Pipeline
+
+The `SupervisorAgent` analyzes requests and delegates to specialized sub-agents:
+
+```
+User Request → SupervisorAgent._analyze_request()
+  │
+  ├── Route to agent(s): Planner, Builder, Tester, Reviewer, etc.
+  ├── Enrich prompts with budget context (BudgetManager.get_budget_context())
+  ├── Enrich prompts with coordination signals (GorgonBridge)
+  ├── Execute agents in parallel (asyncio.gather)
+  ├── Record outcomes to task history (TaskStore)
+  └── Return aggregated results
+```
+
+### Convergent Coordination
+
+Optional integration with the [Convergent](https://github.com/AreteDriver/convergent) library for multi-agent coordination:
+
+- **GorgonBridge** — Adapter wrapping Convergent's intent graph, stigmergy, flocking, and triumvirate voting
+- **Stigmergy enrichment** — Trail markers from previous agent runs injected into prompts
+- **Flocking signals** — Alignment/cohesion/separation scores for agent behavior
+- **Consensus voting** — `_run_consensus_vote()` for high-stakes decisions
+- Graceful degradation via `HAS_CONVERGENT` flag
+
+### Budget & History
+
+- **BudgetManager** — Daily token limits, budget gate (`MIN_DELEGATION_TOKENS`), prompt injection
+- **PersistentBudgetManager** — SQLite-backed session usage, survives restarts
+- **TaskStore** — SQLite task history with `task_history`, `agent_scores`, `budget_log` tables
+
+---
+
+## Streaming Execution
+
+### Real-Time Event Emission
+
+```
+WorkflowExecutor.execute()
+  │
+  ├── _emit_log("workflow_started", ...)
+  ├── for step:
+  │     ├── _emit_progress(step_id, "running", ...)
+  │     ├── execute step
+  │     └── _emit_progress(step_id, "completed", ...)
+  └── _emit_log("workflow_completed", ...)
+        │
+        ▼
+  ExecutionManager.add_log()
+        │
+        ▼
+  SSE Endpoint: GET /executions/{id}/stream
+  CLI: gorgon do --live (Rich Live table)
+```
+
+The `execution_manager` kwarg is optional — emission is try/except wrapped and never breaks the pipeline.
+
+---
+
 ## Plugin System
 
 ### Lifecycle Hooks
@@ -696,25 +804,62 @@ GorgonError (base)
 
 ## Key File Reference
 
+### API Layer (decomposed from monolithic api.py)
+
 | File | Purpose |
 |------|---------|
-| `src/test_ai/api.py` | FastAPI application, all REST endpoints, middleware stack |
-| `src/test_ai/orchestrator/workflow_engine.py` | Core sequential workflow execution |
-| `src/test_ai/workflow/graph_executor.py` | DAG-based parallel workflow execution |
+| `src/test_ai/api.py` | FastAPI app, lifespan, middleware stack |
+| `src/test_ai/api_state.py` | Shared mutable globals (workflow_engine, mcp_manager, etc.) |
+| `src/test_ai/api_routes/auth.py` | Authentication endpoints |
+| `src/test_ai/api_routes/jobs.py` | Job management endpoints |
+| `src/test_ai/api_routes/mcp.py` | MCP server management endpoints |
+| `src/test_ai/api_routes/executions.py` | Execution tracking + SSE streaming |
+| `src/test_ai/api_routes/budgets.py` | Budget management endpoints |
+| `src/test_ai/api_routes/webhooks.py` | Webhook CRUD + trigger endpoints |
+
+### CLI Layer (decomposed from monolithic cli.py)
+
+| File | Purpose |
+|------|---------|
+| `src/test_ai/cli/main.py` | Typer app, sub-app registration |
+| `src/test_ai/cli/commands/workflow.py` | run, list, validate, status |
+| `src/test_ai/cli/commands/dev.py` | do, plan, build, test, review, ask |
+| `src/test_ai/cli/commands/budget.py` | budget status/history/daily |
+| `src/test_ai/cli/commands/history.py` | history list/stats/budget |
+
+### Workflow Execution (decomposed from monolithic executor.py)
+
+| File | Purpose |
+|------|---------|
+| `src/test_ai/workflow/executor_core.py` | WorkflowExecutor class (mixin composition) |
+| `src/test_ai/workflow/executor_ai.py` | AIHandlersMixin (claude_code, openai steps) |
+| `src/test_ai/workflow/executor_mcp.py` | MCPHandlersMixin (mcp_tool steps) |
+| `src/test_ai/workflow/executor_integrations.py` | IntegrationHandlersMixin (github, notion, gmail, etc.) |
+| `src/test_ai/workflow/executor_patterns.py` | DistributionPatternsMixin (parallel, fan_out, etc.) |
+| `src/test_ai/workflow/graph_executor.py` | ReactFlowExecutor (DAG-based execution) |
+| `src/test_ai/workflow/graph_models.py` | GraphNode, GraphEdge, WorkflowGraph |
 | `src/test_ai/workflow/parallel.py` | Fan-out/fan-in/map-reduce patterns |
 | `src/test_ai/workflow/rate_limited_executor.py` | Rate-limited parallel execution |
+
+### Core Modules
+
+| File | Purpose |
+|------|---------|
+| `src/test_ai/orchestrator/workflow_engine.py` | Core sequential workflow execution |
 | `src/test_ai/contracts/base.py` | Agent contract definitions and enforcement |
-| `src/test_ai/contracts/definitions.py` | Predefined contracts per agent role |
 | `src/test_ai/state/checkpoint.py` | Checkpoint manager for workflow state |
 | `src/test_ai/state/persistence.py` | Database persistence layer |
+| `src/test_ai/mcp/client.py` | MCP protocol client (call_mcp_tool, discover_tools) |
+| `src/test_ai/mcp/manager.py` | MCP server CRUD and connection testing |
+| `src/test_ai/agents/supervisor.py` | SupervisorAgent (task delegation) |
+| `src/test_ai/agents/convergence.py` | GorgonBridge adapter for Convergent |
 | `src/test_ai/metrics/collector.py` | Thread-safe metrics collection |
 | `src/test_ai/metrics/cost_tracker.py` | API cost tracking and budget management |
-| `src/test_ai/metrics/exporters.py` | Prometheus and CSV metrics export |
 | `src/test_ai/resilience/bulkhead.py` | Bulkhead pattern for resource isolation |
 | `src/test_ai/plugins/base.py` | Plugin system base classes and registry |
 | `src/test_ai/scheduler/schedule_manager.py` | APScheduler-backed workflow scheduling |
 | `src/test_ai/auth/token_auth.py` | Token authentication |
-| `src/test_ai/auth/tenants.py` | Multi-tenant isolation |
+| `src/test_ai/db.py` | TaskStore (task history, agent scores, budget log) |
 
 ---
 

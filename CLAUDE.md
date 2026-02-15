@@ -25,26 +25,37 @@
 
 ```
 gorgon/
-├── src/test_ai/           # Main package
-│   ├── api.py             # FastAPI endpoints
-│   ├── cli.py             # Typer CLI
-│   ├── errors.py          # Custom exceptions
-│   ├── auth/              # Authentication (token auth)
-│   ├── contracts/         # Contract validation
-│   ├── dashboard/         # Streamlit dashboard
-│   ├── jobs/              # Job management
-│   ├── metrics/           # Metrics collection & export
-│   ├── analytics/         # Analytics pipeline
-│   ├── plugins/           # Plugin system
-│   ├── prompts/           # Prompt templates
-│   └── scheduler/         # Job scheduling
-├── tests/                 # pytest tests
-├── workflows/             # Workflow definitions
-├── config/                # Configuration files
-├── deploy/                # Deployment configs
-├── docs/                  # Documentation
-├── examples/              # Usage examples
-└── assets/                # Static assets
+├── src/test_ai/               # Main package
+│   ├── api.py                 # FastAPI app, lifespan, middleware
+│   ├── api_state.py           # Shared mutable globals
+│   ├── api_routes/            # Route modules (auth, jobs, mcp, executions, etc.)
+│   ├── api_models.py          # Pydantic request/response models
+│   ├── api_errors.py          # HTTP error helpers
+│   ├── cli/                   # Typer CLI (main.py + commands/)
+│   ├── agents/                # Supervisor, provider_wrapper, convergence
+│   ├── auth/                  # Token auth, tenants, brute force protection
+│   ├── chat/                  # Chat interface (sessions, streaming, router)
+│   ├── contracts/             # Contract validation
+│   ├── dashboard/             # Streamlit dashboard (13 pages)
+│   ├── jobs/                  # Job management
+│   ├── mcp/                   # MCP server management + tool execution
+│   ├── metrics/               # Metrics collection, cost tracking, export
+│   ├── analytics/             # Analytics pipeline
+│   ├── plugins/               # Plugin system
+│   ├── prompts/               # Prompt templates
+│   ├── resilience/            # Circuit breaker, bulkhead, rate limiting
+│   ├── scheduler/             # APScheduler-backed scheduling
+│   ├── self_improve/          # Autonomous improvement (analyzer, sandbox, PR)
+│   ├── state/                 # Checkpoint, persistence, migrations, database
+│   ├── webhooks/              # Webhook triggers + delivery (retry, DLQ)
+│   └── workflow/              # Executor (mixin decomposition), graph, loader
+├── tests/                     # pytest tests (5850+)
+├── workflows/                 # Workflow definitions (YAML)
+│   └── examples/              # MCP workflow examples
+├── config/                    # Configuration files
+├── deploy/                    # Deployment configs
+├── docs/                      # Documentation
+└── assets/                    # Static assets
 ```
 
 ---
@@ -172,10 +183,14 @@ Plan → Build → Test → Review → Deploy
 
 | File | Purpose |
 |------|---------|
-| `src/test_ai/api.py` | FastAPI application entry |
-| `src/test_ai/cli.py` | CLI commands (Typer) |
-| `src/test_ai/analytics/` | Analytics pipeline |
-| `src/test_ai/contracts/` | Contract definitions |
+| `src/test_ai/api.py` | FastAPI app, lifespan, middleware |
+| `src/test_ai/api_state.py` | Shared mutable globals |
+| `src/test_ai/api_routes/` | Route modules (auth, jobs, mcp, executions) |
+| `src/test_ai/cli/main.py` | Typer CLI entry + sub-app registration |
+| `src/test_ai/cli/commands/` | CLI command modules |
+| `src/test_ai/workflow/executor_core.py` | WorkflowExecutor (mixin composition) |
+| `src/test_ai/mcp/` | MCP server management + tool execution |
+| `src/test_ai/agents/supervisor.py` | SupervisorAgent (task delegation) |
 | `pyproject.toml` | Dependencies and project config |
 | `workflows/` | YAML workflow definitions |
 
