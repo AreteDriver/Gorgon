@@ -1,6 +1,6 @@
 """AI Workflow Orchestrator - A unified automation layer for AI-powered workflows."""
 
-__version__ = "1.1.0"
+__version__ = "1.2.0"
 
 from .config import Settings, get_settings
 from .orchestrator import WorkflowEngineAdapter, Workflow, WorkflowStep, WorkflowResult

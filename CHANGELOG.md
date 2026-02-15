@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2026-02-15
+
+### Added
+- **MCP Tool Execution** — New `mcp_tool` workflow step type. Workflows can invoke tools on registered MCP servers via the `mcp` Python SDK (stdio/SSE transport). `mcp/client.py` protocol client, `MCPHandlersMixin` executor mixin, recursive `${var}` argument substitution, bearer/api_key auth injection, dry-run support
+- **MCP Tool Discovery** — `discover_tools()` client function for real MCP protocol tool/resource discovery via `list_tools()`/`list_resources()`. Falls back to simulated discovery when SDK not installed. `POST /mcp/servers/{id}/discover` API endpoint for live discovery without updating server state
+- **Streaming Execution Logs** — Real-time event emission from `WorkflowExecutor` via optional `execution_manager` kwarg. SSE endpoint `GET /executions/{id}/stream` with queue-based callback, initial snapshot, keepalive. CLI `--live` flag on `gorgon do` with Rich Live table
+- **MCP Workflow Examples** — 3 example workflows: `mcp_filesystem.yaml`, `mcp_github_pr.yaml`, `mcp_multi_server.yaml`
+- Optional `mcp` dependency (`pip install 'gorgon[mcp]'`)
+
+### Changed
+- `MCPConnectorManager.test_connection()` now uses real MCP SDK discovery when available, with simulated fallback
+- `get_server_by_name()` added to MCPConnectorManager (case-insensitive name lookup)
+- Flattened `orchestrators/analytics/` → `analytics/` package
+- Bumped ruff 0.14→0.15.1, convergent 0.5→1.0
+- Coverage pushed from 77% → 80% (+302 tests across API routes, self-improve, agents/clients)
+- 5,850+ tests
+
 ## [1.1.0] - 2026-02-14
 
 ### Added
@@ -107,7 +124,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive web dashboard
 - Health check endpoints
 
-[Unreleased]: https://github.com/AreteDriver/Gorgon/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/AreteDriver/Gorgon/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/AreteDriver/Gorgon/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/AreteDriver/Gorgon/compare/v0.2.0...v1.1.0
 [0.2.0]: https://github.com/AreteDriver/Gorgon/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AreteDriver/Gorgon/releases/tag/v0.1.0
