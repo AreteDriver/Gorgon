@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from enum import Enum
-from typing import Callable
+from typing import TYPE_CHECKING, Callable
+
+if TYPE_CHECKING:
+    from test_ai.state.backends import DatabaseBackend
+
+logger = logging.getLogger(__name__)
 
 
 class BudgetStatus(Enum):
@@ -51,19 +57,57 @@ class BudgetManager:
         self,
         config: BudgetConfig = None,
         on_threshold_callback: Callable[[BudgetStatus, dict], None] = None,
+        backend: DatabaseBackend | None = None,
+        session_id: str | None = None,
     ):
         """Initialize budget manager.
 
         Args:
             config: Budget configuration
             on_threshold_callback: Called when budget thresholds are crossed
+            backend: Optional DatabaseBackend for persistence
+            session_id: Session identifier (required if backend is provided)
         """
         self.config = config or BudgetConfig()
         self._on_threshold = on_threshold_callback
+        self._backend = backend
+        self._session_id = session_id
         self._usage_history: list[UsageRecord] = []
         self._agent_usage: dict[str, int] = {}
         self._total_used: int = 0
         self._last_status: BudgetStatus = BudgetStatus.OK
+
+        if self._backend and self._session_id:
+            self._restore_from_db()
+
+    def _restore_from_db(self) -> None:
+        """Restore usage state from the database."""
+        try:
+            rows = self._backend.fetchall(
+                "SELECT agent_id, SUM(tokens) as total "
+                "FROM budget_session_usage WHERE session_id = ? "
+                "GROUP BY agent_id",
+                (self._session_id,),
+            )
+            for row in rows:
+                agent_id = row["agent_id"]
+                tokens = int(row["total"])
+                self._agent_usage[agent_id] = tokens
+                self._total_used += tokens
+        except Exception:
+            logger.warning("Failed to restore budget from DB", exc_info=True)
+
+    def _persist_usage(self, agent_id: str, tokens: int, operation: str) -> None:
+        """Persist a usage record to the database."""
+        try:
+            self._backend.execute(
+                "INSERT INTO budget_session_usage "
+                "(session_id, agent_id, tokens, operation) "
+                "VALUES (?, ?, ?, ?)",
+                (self._session_id, agent_id, tokens, operation),
+            )
+        except Exception:
+            logger.warning("Failed to persist budget usage", exc_info=True)
 
     @property
     def total_budget(self) -> int:
@@ -183,6 +227,10 @@ class BudgetManager:
         self._usage_history.append(record)
         self._total_used += tokens
         self._agent_usage[agent_id] = self._agent_usage.get(agent_id, 0) + tokens
+
+        # Persist to database if backend is available
+        if self._backend and self._session_id:
+            self._persist_usage(agent_id, tokens, operation)
 
         # Check for status change
         new_status = self.status
@@ -305,6 +353,15 @@ class BudgetManager:
         self._agent_usage = {}
         self._total_used = 0
         self._last_status = BudgetStatus.OK
+
+        if self._backend and self._session_id:
+            try:
+                self._backend.execute(
+                    "DELETE FROM budget_session_usage WHERE session_id = ?",
+                    (self._session_id,),
+                )
+            except Exception:
+                logger.warning("Failed to clear budget from DB", exc_info=True)
 
     def get_budget_context(self) -> str:
         """Return a formatted budget constraint string for prompt injection.

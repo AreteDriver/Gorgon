@@ -7,6 +7,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.1.0] - 2026-02-14
+
+### Added
+- **SQLite Task History** (TODO 2) — Migration 010 with `task_history`, `agent_scores`, `budget_log` tables. `TaskStore` class with record/query/stats. JobManager history hook. Bot `/history` and CLI `gorgon history` commands
+- **Session Budget Passthrough** (TODO 3) — `BudgetManager` with `get_budget_context()` prompt injection. Daily token limits via `budget_log`. Budget gate in supervisor (`MIN_DELEGATION_TOKENS`). CLI `budget daily` and bot `/budget` commands
+- **Consensus Voting** — `_run_consensus_vote()` in supervisor, GorgonBridge request/vote/evaluate integration
+- **Ollama Fallback Chain** (TODO 4) — Configurable provider order with output validation
+- **Git Conflict Detection** (TODO 5) — `ConflictResult` dataclass + `check_conflicts()` dry-run merge in PRManager
+- **PersistentBudgetManager** — `BudgetManager` optionally backed by SQLite (`budget_session_usage` table). Survives session restarts. Migration 011
+- **Coverage enforcement** — 75% `fail_under` threshold in pyproject.toml and CI
+- **Integration tests** — Budget persistence round-trips, daily limit enforcement, supervisor prompt injection, budget gate, bot command e2e
+
+### Changed
+- God objects decomposed: 5/6 complete (cli/main, api, executor, renderers, state/memory)
+- Convergent v0.5.0 integration (GorgonBridge, stigmergy/flocking/phi enrichment)
+- v2 skill schema wiring (routing, consensus, verification)
+- Version consistency: pyproject.toml and `__init__.__version__` now both `1.1.0`
+- 5,450+ tests
+
+### Fixed
+- MCP test pollution (shared `shutting_down` state reset in fixture)
+- Version mismatch between pyproject.toml (was 1.0.0) and `__init__.py` (was 0.1.0)
+
 ## [0.2.0] - 2026-02-01
 
 ### Added
@@ -84,6 +107,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Interactive web dashboard
 - Health check endpoints
 
-[Unreleased]: https://github.com/AreteDriver/Gorgon/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/AreteDriver/Gorgon/compare/v1.1.0...HEAD
+[1.1.0]: https://github.com/AreteDriver/Gorgon/compare/v0.2.0...v1.1.0
 [0.2.0]: https://github.com/AreteDriver/Gorgon/compare/v0.1.0...v0.2.0
 [0.1.0]: https://github.com/AreteDriver/Gorgon/releases/tag/v0.1.0

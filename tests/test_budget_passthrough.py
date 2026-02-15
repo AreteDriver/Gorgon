@@ -30,18 +30,17 @@ from test_ai.messaging.base import BotMessage, BotUser, MessagePlatform
 
 @pytest.fixture
 def backend():
-    """Create a temp SQLite backend with migration 010 applied."""
+    """Create a temp SQLite backend with migrations 010+011 applied."""
     from test_ai.state.backends import SQLiteBackend
 
     tmpdir = tempfile.mkdtemp()
     try:
         db_path = os.path.join(tmpdir, "test.db")
         b = SQLiteBackend(db_path=db_path)
-        migration_path = os.path.join(
-            os.path.dirname(__file__), "..", "migrations", "010_task_history.sql"
-        )
-        sql = open(migration_path).read()
-        b.executescript(sql)
+        migrations_dir = os.path.join(os.path.dirname(__file__), "..", "migrations")
+        for migration in ("010_task_history.sql", "011_budget_session_usage.sql"):
+            sql = open(os.path.join(migrations_dir, migration)).read()
+            b.executescript(sql)
         yield b
         b.close()
     finally:
@@ -442,3 +441,189 @@ class TestBotBudgetCommand:
         with patch("test_ai.db.get_task_store", side_effect=RuntimeError("DB error")):
             result = asyncio.run(handler.handle_command(msg, "budget", []))
         assert result is not None
+
+
+# =============================================================================
+# TestPersistentBudget
+# =============================================================================
+
+
+class TestPersistentBudget:
+    """Tests for BudgetManager SQLite persistence via backend/session_id."""
+
+    def test_restore_on_init(self, backend):
+        """Usage recorded in DB is restored when a new BudgetManager is created."""
+        bm1 = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-1",
+        )
+        bm1.record_usage("builder", 5000, "step-1")
+        bm1.record_usage("tester", 3000, "step-2")
+
+        # Create a new manager with the same session — should restore
+        bm2 = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-1",
+        )
+        assert bm2.used == 8000
+        assert bm2.get_agent_usage("builder") == 5000
+        assert bm2.get_agent_usage("tester") == 3000
+
+    def test_persist_on_record_usage(self, backend):
+        """record_usage inserts a row into budget_session_usage."""
+        bm = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-2",
+        )
+        bm.record_usage("builder", 7000, "compilation")
+
+        rows = backend.fetchall(
+            "SELECT * FROM budget_session_usage WHERE session_id = ?",
+            ("sess-2",),
+        )
+        assert len(rows) == 1
+        assert rows[0]["agent_id"] == "builder"
+        assert rows[0]["tokens"] == 7000
+        assert rows[0]["operation"] == "compilation"
+
+    def test_reset_clears_db(self, backend):
+        """reset() deletes session rows from budget_session_usage."""
+        bm = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-3",
+        )
+        bm.record_usage("builder", 5000)
+        bm.record_usage("tester", 3000)
+        assert bm.used == 8000
+
+        bm.reset()
+        assert bm.used == 0
+
+        rows = backend.fetchall(
+            "SELECT * FROM budget_session_usage WHERE session_id = ?",
+            ("sess-3",),
+        )
+        assert len(rows) == 0
+
+    def test_survives_reinit(self, backend):
+        """Data persists across multiple BudgetManager instances."""
+        bm1 = BudgetManager(
+            config=BudgetConfig(total_budget=200000),
+            backend=backend,
+            session_id="sess-4",
+        )
+        bm1.record_usage("builder", 10000)
+
+        bm2 = BudgetManager(
+            config=BudgetConfig(total_budget=200000),
+            backend=backend,
+            session_id="sess-4",
+        )
+        bm2.record_usage("builder", 5000)
+
+        bm3 = BudgetManager(
+            config=BudgetConfig(total_budget=200000),
+            backend=backend,
+            session_id="sess-4",
+        )
+        assert bm3.used == 15000
+        assert bm3.get_agent_usage("builder") == 15000
+
+    def test_no_backend_fallback(self):
+        """Without backend, BudgetManager works in-memory only."""
+        bm = BudgetManager(config=BudgetConfig(total_budget=100000))
+        bm.record_usage("builder", 5000)
+        assert bm.used == 5000
+
+        # No crash, no persistence
+        bm.reset()
+        assert bm.used == 0
+
+    def test_sessions_isolated(self, backend):
+        """Different session_ids don't interfere with each other."""
+        bm_a = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-A",
+        )
+        bm_b = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-B",
+        )
+
+        bm_a.record_usage("builder", 5000)
+        bm_b.record_usage("builder", 9000)
+
+        # Re-create and verify isolation
+        bm_a2 = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-A",
+        )
+        bm_b2 = BudgetManager(
+            config=BudgetConfig(total_budget=100000),
+            backend=backend,
+            session_id="sess-B",
+        )
+        assert bm_a2.used == 5000
+        assert bm_b2.used == 9000
+
+    def test_restore_graceful_on_missing_table(self):
+        """If the table doesn't exist, init doesn't crash."""
+        from test_ai.state.backends import SQLiteBackend
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            db_path = os.path.join(tmpdir, "empty.db")
+            b = SQLiteBackend(db_path=db_path)
+            # No migration applied — table doesn't exist
+            bm = BudgetManager(
+                config=BudgetConfig(total_budget=100000),
+                backend=b,
+                session_id="sess-x",
+            )
+            assert bm.used == 0
+            b.close()
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_persist_graceful_on_missing_table(self):
+        """record_usage doesn't crash if table is missing."""
+        from test_ai.state.backends import SQLiteBackend
+
+        tmpdir = tempfile.mkdtemp()
+        try:
+            db_path = os.path.join(tmpdir, "empty.db")
+            b = SQLiteBackend(db_path=db_path)
+            bm = BudgetManager(
+                config=BudgetConfig(total_budget=100000),
+                backend=b,
+                session_id="sess-x",
+            )
+            # Should not crash — graceful degradation
+            bm.record_usage("builder", 5000)
+            assert bm.used == 5000  # In-memory still works
+            b.close()
+        finally:
+            shutil.rmtree(tmpdir, ignore_errors=True)
+
+    def test_reset_budget_tracker_function(self):
+        """reset_budget_tracker() clears the singleton."""
+        from test_ai.budget import get_budget_tracker, reset_budget_tracker
+
+        tracker = get_budget_tracker()
+        tracker.record_usage("agent", 1000)
+        assert tracker.used == 1000
+
+        reset_budget_tracker()
+        tracker2 = get_budget_tracker()
+        assert tracker2.used == 0
+        assert tracker2 is not tracker
+
+        # Clean up
+        reset_budget_tracker()
