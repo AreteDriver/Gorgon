@@ -97,6 +97,48 @@ def budget_history(
     console.print(table)
 
 
+@budget_app.command("daily")
+def budget_daily(
+    days: int = typer.Option(7, "--days", "-d", help="Number of days to show"),
+    agent: str = typer.Option(None, "--agent", "-a", help="Filter by agent role"),
+    json_output: bool = typer.Option(False, "--json", "-j", help="Output as JSON"),
+):
+    """Show daily token spend from task history."""
+    try:
+        from test_ai.db import get_task_store
+
+        rows = get_task_store().get_daily_budget(days=days, agent_role=agent)
+    except Exception as e:
+        console.print(f"[red]Error getting daily budget:[/red] {e}")
+        raise typer.Exit(1)
+
+    if json_output:
+        print(json.dumps(rows, indent=2, default=str))
+        return
+
+    if not rows:
+        console.print("[yellow]No daily budget data[/yellow]")
+        return
+
+    table = Table(title="Daily Token Spend")
+    table.add_column("Date", style="dim")
+    table.add_column("Agent", style="cyan")
+    table.add_column("Tasks", justify="right")
+    table.add_column("Tokens", justify="right")
+    table.add_column("Cost", justify="right", style="green")
+
+    for row in rows:
+        table.add_row(
+            row.get("date", "-"),
+            row.get("agent_role", "-"),
+            str(row.get("task_count", 0)),
+            f"{row.get('total_tokens', 0):,}",
+            f"${row.get('total_cost_usd', 0):.4f}",
+        )
+
+    console.print(table)
+
+
 @budget_app.command("reset")
 def budget_reset(
     force: bool = typer.Option(False, "--force", "-f", help="Skip confirmation"),

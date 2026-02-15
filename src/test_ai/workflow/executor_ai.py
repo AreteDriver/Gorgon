@@ -48,6 +48,13 @@ class AIHandlersMixin:
         if use_memory and self.memory_manager:
             prompt = self.memory_manager.inject_context(role, prompt)
 
+        # Inject budget context if available
+        budget_mgr = getattr(self, "budget_manager", None)
+        if budget_mgr:
+            budget_ctx = budget_mgr.get_budget_context()
+            if budget_ctx:
+                prompt = prompt + "\n\n" + budget_ctx
+
         # Dry run mode - return mock response
         if self.dry_run:
             output = {

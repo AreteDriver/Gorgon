@@ -38,6 +38,7 @@ class BudgetConfig:
     per_agent_limit: int | None = None
     per_step_limit: int | None = None
     reserve_tokens: int = 5000  # Reserved for retries/overhead
+    daily_token_limit: int = 0  # 0 = disabled
 
 
 class BudgetManager:

@@ -242,6 +242,7 @@ class MessageHandler:
             "new": self._cmd_new_session,
             "status": self._cmd_status,
             "history": self._cmd_history,
+            "budget": self._cmd_budget,
         }
 
         handler = handlers.get(command.lower())
@@ -273,7 +274,8 @@ class MessageHandler:
             "/help - Show this help message\n"
             "/new - Start a new conversation session\n"
             "/status - Show current session status\n"
-            "/history - Show recent messages\n\n"
+            "/history - Show recent messages\n"
+            "/budget - Show daily token spend\n\n"
             "You can also just send me a message directly!"
         )
 
@@ -346,3 +348,38 @@ class MessageHandler:
             lines.append(f"[{role}] {content}")
 
         return "\n".join(lines)
+
+    async def _cmd_budget(self, message: BotMessage, args: list[str]) -> str:
+        """Handle /budget command — show daily token spend."""
+        days = 7
+        if args and args[0].isdigit():
+            days = min(int(args[0]), 30)
+
+        try:
+            from test_ai.db import get_task_store
+
+            rows = get_task_store().get_daily_budget(days=days)
+            if not rows:
+                return "No budget data recorded yet."
+
+            from datetime import datetime
+
+            today = datetime.now().strftime("%Y-%m-%d")
+            today_tokens = sum(
+                r.get("total_tokens", 0) for r in rows if r.get("date") == today
+            )
+            today_cost = sum(
+                r.get("total_cost_usd", 0) for r in rows if r.get("date") == today
+            )
+
+            lines = [f"Today: {today_tokens:,} tokens | ${today_cost:.4f}\n"]
+            lines.append("Date | Tokens | Cost | Tasks")
+            for row in rows:
+                date = row.get("date", "-")
+                tokens = row.get("total_tokens", 0)
+                cost = row.get("total_cost_usd", 0)
+                tasks = row.get("task_count", 0)
+                lines.append(f"{date} | {tokens:,} | ${cost:.4f} | {tasks}")
+            return "\n".join(lines)
+        except Exception:
+            return "Budget data unavailable."

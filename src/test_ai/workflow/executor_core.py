@@ -159,6 +159,22 @@ class WorkflowExecutor(
             result.status = "failed"
             result.error = "Token budget exceeded"
             return True
+
+        # Daily limit enforcement
+        daily_limit = self.budget_manager.config.daily_token_limit
+        if daily_limit > 0:
+            try:
+                from test_ai.db import get_task_store
+
+                rows = get_task_store().get_daily_budget(days=1)
+                today_total = sum(r.get("total_tokens", 0) for r in rows)
+                if today_total >= daily_limit:
+                    result.status = "failed"
+                    result.error = "Daily token budget exceeded"
+                    return True
+            except Exception:
+                logger.debug("Daily budget check failed", exc_info=True)
+
         return False
 
     def _record_step_completion(
