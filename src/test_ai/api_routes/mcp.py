@@ -104,6 +104,30 @@ def get_mcp_server_tools(server_id: str, authorization: Optional[str] = Header(N
     return [t.model_dump() for t in server.tools]
 
 
+@router.post("/mcp/servers/{server_id}/discover", responses=CRUD_RESPONSES)
+def discover_mcp_tools(server_id: str, authorization: Optional[str] = Header(None)):
+    """Discover tools on an MCP server without updating stored state.
+
+    Performs a live connection to discover available tools and resources,
+    but does NOT update the server record. Useful for autocomplete and
+    previewing server capabilities before committing changes.
+    """
+    verify_auth(authorization)
+    server = state.mcp_manager.get_server(server_id)
+    if not server:
+        raise not_found("MCP Server", server_id)
+
+    try:
+        headers = state.mcp_manager._build_auth_headers(server)
+        tools, resources = state.mcp_manager._discover_server(server, headers)
+        return {
+            "tools": [t.model_dump() for t in tools],
+            "resources": [r.model_dump() for r in resources],
+        }
+    except Exception as e:
+        raise bad_request(f"Discovery failed: {e}")
+
+
 # ---------------------------------------------------------------------------
 # Credentials
 # ---------------------------------------------------------------------------

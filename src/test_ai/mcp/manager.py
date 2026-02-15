@@ -229,13 +229,13 @@ class MCPConnectorManager:
             )
 
         try:
-            # For now, simulate connection test
-            # In production, this would actually connect to the MCP server
-            # and perform discovery using the MCP protocol
+            # Build auth headers if needed
+            headers = self._build_auth_headers(server)
 
-            # Simulate discovering tools based on server type
-            discovered_tools = self._simulate_tool_discovery(server)
-            discovered_resources = []
+            # Attempt real MCP discovery, fall back to simulation
+            discovered_tools, discovered_resources = self._discover_server(
+                server, headers
+            )
 
             # Update server status and tools
             with self.backend.transaction():
@@ -518,6 +518,53 @@ class MCPConnectorManager:
             return decoded[16:].decode("utf-8")
         except Exception:
             return ""
+
+    def _build_auth_headers(self, server: MCPServer) -> dict[str, str] | None:
+        """Build HTTP auth headers from server credentials."""
+        if server.authType == "none" or not server.credentialId:
+            return None
+        value = self.get_credential_value(server.credentialId)
+        if not value:
+            return None
+        if server.authType == "bearer":
+            return {"Authorization": f"Bearer {value}"}
+        if server.authType == "api_key":
+            return {"X-API-Key": value}
+        return None
+
+    def _discover_server(
+        self, server: MCPServer, headers: dict[str, str] | None
+    ) -> tuple[list[MCPTool], list[MCPResource]]:
+        """Discover tools/resources via real SDK or simulation fallback.
+
+        Returns:
+            Tuple of (tools, resources)
+        """
+        from .client import HAS_MCP_SDK, MCPClientError, discover_tools
+
+        if not HAS_MCP_SDK:
+            logger.info(
+                "MCP SDK not installed — using simulated discovery for %s",
+                server.name,
+            )
+            return self._simulate_tool_discovery(server), []
+
+        try:
+            result = discover_tools(
+                server_type=server.type,
+                server_url=server.url,
+                headers=headers,
+            )
+            tools = [MCPTool(**t) for t in result.get("tools", [])]
+            resources = [MCPResource(**r) for r in result.get("resources", [])]
+            return tools, resources
+        except MCPClientError as exc:
+            logger.warning(
+                "Real MCP discovery failed for %s, falling back to simulation: %s",
+                server.name,
+                exc,
+            )
+            return self._simulate_tool_discovery(server), []
 
     def _simulate_tool_discovery(self, server: MCPServer) -> list[MCPTool]:
         """Simulate MCP tool discovery for demo purposes.

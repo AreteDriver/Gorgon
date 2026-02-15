@@ -156,3 +156,106 @@ def call_mcp_tool(
         raise
     except Exception as exc:
         raise MCPClientError(f"MCP tool call failed: {exc}") from exc
+
+
+# ---------------------------------------------------------------------------
+# Tool / resource discovery
+# ---------------------------------------------------------------------------
+
+
+async def _discover_stdio(
+    command: str,
+    args: list[str],
+    env: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Discover tools and resources on a stdio MCP server."""
+    params = StdioServerParameters(command=command, args=args, env=env)
+    async with stdio_client(params) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            tools_result = await session.list_tools()
+            resources_result = await session.list_resources()
+            return _normalize_discovery(tools_result, resources_result)
+
+
+async def _discover_sse(
+    url: str,
+    headers: dict[str, str] | None,
+) -> dict[str, Any]:
+    """Discover tools and resources on an SSE MCP server."""
+    sse_kwargs: dict[str, Any] = {"url": url}
+    if headers:
+        sse_kwargs["headers"] = headers
+    async with sse_client(**sse_kwargs) as (read_stream, write_stream):
+        async with ClientSession(read_stream, write_stream) as session:
+            await session.initialize()
+            tools_result = await session.list_tools()
+            resources_result = await session.list_resources()
+            return _normalize_discovery(tools_result, resources_result)
+
+
+def _normalize_discovery(tools_result: Any, resources_result: Any) -> dict[str, Any]:
+    """Normalize MCP list_tools / list_resources results to plain dicts."""
+    tools = []
+    for tool in getattr(tools_result, "tools", []) or []:
+        tools.append(
+            {
+                "name": tool.name,
+                "description": getattr(tool, "description", "") or "",
+                "inputSchema": getattr(tool, "inputSchema", {}) or {},
+            }
+        )
+
+    resources = []
+    for res in getattr(resources_result, "resources", []) or []:
+        resources.append(
+            {
+                "uri": str(getattr(res, "uri", "")),
+                "name": getattr(res, "name", "") or "",
+                "mimeType": getattr(res, "mimeType", None),
+                "description": getattr(res, "description", None),
+            }
+        )
+
+    return {"tools": tools, "resources": resources}
+
+
+def discover_tools(
+    server_type: str,
+    server_url: str,
+    headers: dict[str, str] | None = None,
+    env: dict[str, str] | None = None,
+) -> dict[str, Any]:
+    """Discover tools and resources on an MCP server (sync wrapper).
+
+    Args:
+        server_type: ``"stdio"`` or ``"sse"``
+        server_url: For stdio: ``"command arg1 arg2"``; for SSE: the HTTP URL
+        headers: Optional HTTP headers (SSE only)
+        env: Optional environment variables (stdio only)
+
+    Returns:
+        ``{"tools": [...], "resources": [...]}``
+
+    Raises:
+        MCPClientError: On SDK missing, unsupported type, or connection failure
+    """
+    if not HAS_MCP_SDK:
+        raise MCPClientError(
+            "MCP SDK not installed. Install with: pip install 'gorgon[mcp]'"
+        )
+
+    try:
+        if server_type == "stdio":
+            parts = shlex.split(server_url)
+            command = parts[0]
+            args = parts[1:] if len(parts) > 1 else []
+            return asyncio.run(_discover_stdio(command, args, env))
+        elif server_type == "sse":
+            return asyncio.run(_discover_sse(server_url, headers))
+        else:
+            raise MCPClientError(f"Unsupported MCP server type: {server_type}")
+    except MCPClientError:
+        raise
+    except Exception as exc:
+        raise MCPClientError(f"MCP discovery failed: {exc}") from exc

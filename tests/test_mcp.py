@@ -2,6 +2,7 @@
 
 import base64
 import json
+from unittest.mock import patch
 
 import pytest
 from test_ai.mcp import (
@@ -724,3 +725,159 @@ class TestEdgeCases:
         assert result.year == 2024
         assert result.month == 1
         assert result.day == 15
+
+
+class TestBuildAuthHeaders:
+    """Tests for _build_auth_headers."""
+
+    def _create_server_with_auth(self, manager, auth_type, credential_id=None):
+        """Helper to create a server with auth config."""
+        server = manager.create_server(
+            MCPServerCreateInput(
+                name="Auth Test",
+                url="https://example.com/mcp",
+                type="sse",
+                authType=auth_type,
+                credentialId=credential_id,
+            )
+        )
+        return manager.get_server(server.id)
+
+    def test_no_auth_returns_none(self, manager):
+        """No auth type returns None."""
+        server = self._create_server_with_auth(manager, "none")
+        assert manager._build_auth_headers(server) is None
+
+    def test_bearer_auth(self, manager):
+        """Bearer auth returns Authorization header."""
+        cred = manager.create_credential(
+            CredentialCreateInput(
+                name="Token", type="bearer", service="test", value="my-secret"
+            )
+        )
+        server = self._create_server_with_auth(manager, "bearer", cred.id)
+        headers = manager._build_auth_headers(server)
+        assert headers == {"Authorization": "Bearer my-secret"}
+
+    def test_api_key_auth(self, manager):
+        """API key auth returns X-API-Key header."""
+        cred = manager.create_credential(
+            CredentialCreateInput(
+                name="Key", type="api_key", service="test", value="key-123"
+            )
+        )
+        server = self._create_server_with_auth(manager, "api_key", cred.id)
+        headers = manager._build_auth_headers(server)
+        assert headers == {"X-API-Key": "key-123"}
+
+    def test_missing_credential_id(self, manager):
+        """Auth type set but no credential ID returns None."""
+        server = self._create_server_with_auth(manager, "bearer", None)
+        assert manager._build_auth_headers(server) is None
+
+    def test_unsupported_auth_type(self, manager):
+        """Unsupported auth type returns None."""
+        cred = manager.create_credential(
+            CredentialCreateInput(
+                name="OAuth", type="bearer", service="test", value="tok"
+            )
+        )
+        server = self._create_server_with_auth(manager, "oauth", cred.id)
+        headers = manager._build_auth_headers(server)
+        assert headers is None
+
+
+class TestDiscoverServer:
+    """Tests for _discover_server with real/fallback paths."""
+
+    def _create_test_server(self, manager):
+        """Helper to create a test server."""
+        server = manager.create_server(
+            MCPServerCreateInput(
+                name="Test Server",
+                url="https://example.com/mcp",
+                type="sse",
+                authType="none",
+            )
+        )
+        return manager.get_server(server.id)
+
+    def test_fallback_to_simulation_when_sdk_missing(self, manager):
+        """Should use simulated discovery when SDK is not installed."""
+        server = self._create_test_server(manager)
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", False):
+            tools, resources = manager._discover_server(server, None)
+        # Unknown server type → empty simulated tools
+        assert tools == []
+        assert resources == []
+
+    def test_real_discovery_success(self, manager):
+        """Should use real discovery when SDK is available."""
+        server = self._create_test_server(manager)
+        mock_result = {
+            "tools": [{"name": "read", "description": "Read file", "inputSchema": {}}],
+            "resources": [
+                {
+                    "uri": "file:///tmp",
+                    "name": "tmp",
+                    "mimeType": None,
+                    "description": None,
+                }
+            ],
+        }
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with patch("test_ai.mcp.client.discover_tools", return_value=mock_result):
+                tools, resources = manager._discover_server(server, None)
+
+        assert len(tools) == 1
+        assert tools[0].name == "read"
+        assert len(resources) == 1
+        assert resources[0].name == "tmp"
+
+    def test_real_discovery_failure_falls_back(self, manager):
+        """Should fall back to simulation when real discovery fails."""
+        server = manager.create_server(
+            MCPServerCreateInput(
+                name="GitHub Fallback",
+                url="https://github.example.com",
+                type="sse",
+                authType="none",
+            )
+        )
+        server = manager.get_server(server.id)
+
+        from test_ai.mcp.client import MCPClientError
+
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with patch(
+                "test_ai.mcp.client.discover_tools",
+                side_effect=MCPClientError("Connection refused"),
+            ):
+                tools, resources = manager._discover_server(server, None)
+
+        # Falls back to simulation — "github" in name → simulated tools
+        assert len(tools) == 3
+        assert resources == []
+
+    def test_test_connection_uses_discover_server(self, manager):
+        """test_connection() should use _discover_server internally."""
+        server = manager.create_server(
+            MCPServerCreateInput(
+                name="Filesystem SDK",
+                url="stdio://mcp-filesystem",
+                type="stdio",
+                authType="none",
+            )
+        )
+
+        mock_result = {
+            "tools": [{"name": "read_file", "description": "Read", "inputSchema": {}}],
+            "resources": [],
+        }
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with patch("test_ai.mcp.client.discover_tools", return_value=mock_result):
+                result = manager.test_connection(server.id)
+
+        assert result.success is True
+        assert len(result.tools) == 1
+        assert result.tools[0].name == "read_file"

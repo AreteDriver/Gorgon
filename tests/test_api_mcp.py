@@ -291,6 +291,37 @@ class TestMCPEndpoints:
         # Should have tools after connection test
         assert len(tools) > 0
 
+    def test_discover_tools(self, client, auth_headers):
+        """Test live tool discovery endpoint."""
+        # Create server
+        server_data = {
+            "name": "Filesystem",
+            "url": "stdio://mcp-filesystem",
+            "type": "stdio",
+            "authType": "none",
+        }
+        create_response = client.post(
+            "/v1/mcp/servers", json=server_data, headers=auth_headers
+        )
+        server_id = create_response.json()["id"]
+
+        # Discover tools (uses simulated fallback since SDK not installed)
+        response = client.post(
+            f"/v1/mcp/servers/{server_id}/discover", headers=auth_headers
+        )
+        assert response.status_code == 200
+        data = response.json()
+        assert "tools" in data
+        assert "resources" in data
+        assert isinstance(data["tools"], list)
+
+    def test_discover_tools_not_found(self, client, auth_headers):
+        """Test discover endpoint with nonexistent server."""
+        response = client.post(
+            "/v1/mcp/servers/nonexistent/discover", headers=auth_headers
+        )
+        assert response.status_code == 404
+
 
 class TestCredentialsEndpoints:
     """Tests for credential endpoints."""

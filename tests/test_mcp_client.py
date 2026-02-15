@@ -222,3 +222,139 @@ class TestExtractContent:
         mock_result = MagicMock()
         mock_result.content = [RawBlock()]
         assert _extract_content(mock_result) == "raw-block"
+
+
+# ---------------------------------------------------------------------------
+# _normalize_discovery
+# ---------------------------------------------------------------------------
+
+
+class TestNormalizeDiscovery:
+    """Test normalization of MCP list_tools / list_resources results."""
+
+    def test_empty_results(self):
+        from test_ai.mcp.client import _normalize_discovery
+
+        tools_result = MagicMock()
+        tools_result.tools = []
+        resources_result = MagicMock()
+        resources_result.resources = []
+        result = _normalize_discovery(tools_result, resources_result)
+        assert result == {"tools": [], "resources": []}
+
+    def test_with_tools(self):
+        from test_ai.mcp.client import _normalize_discovery
+
+        tool = MagicMock()
+        tool.name = "read_file"
+        tool.description = "Read a file"
+        tool.inputSchema = {"type": "object"}
+        tools_result = MagicMock()
+        tools_result.tools = [tool]
+        resources_result = MagicMock()
+        resources_result.resources = []
+
+        result = _normalize_discovery(tools_result, resources_result)
+        assert len(result["tools"]) == 1
+        assert result["tools"][0]["name"] == "read_file"
+        assert result["tools"][0]["description"] == "Read a file"
+        assert result["tools"][0]["inputSchema"] == {"type": "object"}
+
+    def test_with_resources(self):
+        from test_ai.mcp.client import _normalize_discovery
+
+        res = MagicMock()
+        res.uri = "file:///tmp"
+        res.name = "tmp"
+        res.mimeType = "text/plain"
+        res.description = "Temp dir"
+        tools_result = MagicMock()
+        tools_result.tools = []
+        resources_result = MagicMock()
+        resources_result.resources = [res]
+
+        result = _normalize_discovery(tools_result, resources_result)
+        assert len(result["resources"]) == 1
+        assert result["resources"][0]["uri"] == "file:///tmp"
+        assert result["resources"][0]["mimeType"] == "text/plain"
+
+    def test_missing_attributes_default(self):
+        from test_ai.mcp.client import _normalize_discovery
+
+        tool = MagicMock(spec=[])
+        tool.name = "minimal"
+        tools_result = MagicMock()
+        tools_result.tools = [tool]
+        resources_result = MagicMock()
+        resources_result.resources = []
+
+        result = _normalize_discovery(tools_result, resources_result)
+        assert result["tools"][0]["name"] == "minimal"
+        assert result["tools"][0]["description"] == ""
+        assert result["tools"][0]["inputSchema"] == {}
+
+
+# ---------------------------------------------------------------------------
+# discover_tools
+# ---------------------------------------------------------------------------
+
+
+class TestDiscoverTools:
+    """Test the sync discover_tools wrapper."""
+
+    def test_raises_when_sdk_missing(self):
+        from test_ai.mcp.client import MCPClientError, discover_tools
+
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", False):
+            with pytest.raises(MCPClientError, match="MCP SDK not installed"):
+                discover_tools(server_type="sse", server_url="https://example.com")
+
+    def test_unsupported_type(self):
+        from test_ai.mcp.client import MCPClientError, discover_tools
+
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with pytest.raises(MCPClientError, match="Unsupported MCP server type"):
+                discover_tools(server_type="websocket", server_url="ws://localhost")
+
+    def test_stdio_dispatch(self):
+        from test_ai.mcp.client import discover_tools
+
+        mock_result = {"tools": [], "resources": []}
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with patch(
+                "test_ai.mcp.client.asyncio.run", return_value=mock_result
+            ) as mock_run:
+                result = discover_tools(
+                    server_type="stdio", server_url="npx mcp-server"
+                )
+                assert result == mock_result
+                mock_run.assert_called_once()
+
+    def test_sse_dispatch(self):
+        from test_ai.mcp.client import discover_tools
+
+        mock_result = {"tools": [{"name": "t1"}], "resources": []}
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with patch(
+                "test_ai.mcp.client.asyncio.run", return_value=mock_result
+            ) as mock_run:
+                result = discover_tools(
+                    server_type="sse",
+                    server_url="https://example.com/sse",
+                    headers={"Authorization": "Bearer tok"},
+                )
+                assert result == mock_result
+                mock_run.assert_called_once()
+
+    def test_wraps_unexpected_errors(self):
+        from test_ai.mcp.client import MCPClientError, discover_tools
+
+        with patch("test_ai.mcp.client.HAS_MCP_SDK", True):
+            with patch(
+                "test_ai.mcp.client.asyncio.run",
+                side_effect=ConnectionError("refused"),
+            ):
+                with pytest.raises(MCPClientError, match="MCP discovery failed"):
+                    discover_tools(
+                        server_type="sse", server_url="https://dead.server/mcp"
+                    )
