@@ -231,6 +231,31 @@ class BrowserAutomation:
 
         logger.info("Browser stopped")
 
+    def _validate_url_scheme(self, parsed_url: Any) -> bool:
+        """Validate URL scheme is safe.
+
+        Args:
+            parsed_url: Parsed URL object.
+
+        Returns:
+            True if scheme is safe.
+        """
+        return parsed_url.scheme in ("http", "https")
+
+    def _check_blocked_patterns(self, url: str) -> str | None:
+        """Check if URL matches any blocked patterns.
+
+        Args:
+            url: URL to check.
+
+        Returns:
+            Matching pattern if found, None otherwise.
+        """
+        for pattern in self.config.blocked_urls:
+            if pattern in url:
+                return pattern
+        return None
+
     def _validate_url(self, url: str) -> bool:
         """Validate URL is safe to navigate to.
 
@@ -243,16 +268,18 @@ class BrowserAutomation:
         try:
             parsed = urlparse(url)
 
-            # Must have scheme
-            if parsed.scheme not in ("http", "https"):
+            # Must have safe scheme
+            if not self._validate_url_scheme(parsed):
                 logger.warning(f"Blocked non-HTTP URL: {url}")
                 return False
 
             # Check blocked patterns
-            for pattern in self.config.blocked_urls:
-                if pattern in url:
-                    logger.warning(f"Blocked URL matching pattern '{pattern}': {url}")
-                    return False
+            blocked_pattern = self._check_blocked_patterns(url)
+            if blocked_pattern:
+                logger.warning(
+                    f"Blocked URL matching pattern '{blocked_pattern}': {url}"
+                )
+                return False
 
             return True
 
