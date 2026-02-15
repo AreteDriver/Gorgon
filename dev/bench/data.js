@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771195343538,
+  "lastUpdate": 1771195711295,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -334,6 +334,61 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.010355115597712123",
             "extra": "mean: 94.77786725000215 msec\nrounds: 12"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "id": "54d91668c80b1416bc36f69d675d7ae55c652a67",
+          "message": "Add Convergent intent-graph coordination for parallel workflows",
+          "timestamp": "2026-02-15T11:01:02Z",
+          "url": "https://github.com/AreteDriver/Gorgon/pull/52/commits/54d91668c80b1416bc36f69d675d7ae55c652a67"
+        },
+        "date": 1771195710732,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22173.14366620409,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000026208230782097898",
+            "extra": "mean: 45.099604054980354 usec\nrounds: 9519"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 340.2791146436607,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00027382685222584286",
+            "extra": "mean: 2.938763964538926 msec\nrounds: 282"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4494.340233928918,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007128542582599284",
+            "extra": "mean: 222.50206881329225 usec\nrounds: 3851"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.341102062284534,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007142085048631644",
+            "extra": "mean: 29.11962458823534 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 10.915356988847368,
+            "unit": "iter/sec",
+            "range": "stddev: 0.002715286260451157",
+            "extra": "mean: 91.61404441666339 msec\nrounds: 12"
           }
         ]
       }
