@@ -379,6 +379,11 @@ class WorkflowCoordinator:
         """Whether Convergent coordination is active."""
         return self._enabled
 
+    @property
+    def min_stability(self) -> float:
+        """Minimum stability threshold for convergence gating."""
+        return self._min_stability
+
     def create_publisher(
         self,
         step_id: str,
@@ -521,6 +526,9 @@ def _build_intent(
 
     Only called when ``HAS_CONVERGENT`` is True.
     """
+    # Signatures are synthetic placeholders for Convergent's overlap detection.
+    # They don't represent real function signatures — just provide enough
+    # structural differentiation for the resolver to distinguish interfaces.
     provide_specs = [
         InterfaceSpec(
             name=name,

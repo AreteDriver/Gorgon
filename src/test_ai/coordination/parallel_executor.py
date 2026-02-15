@@ -91,6 +91,76 @@ class CoordinatedParallelMixin:
         )
         return coordinator if coordinator.enabled else None
 
+    @staticmethod
+    def _publish_intents(
+        steps: list[StepConfig],
+        coordinator: WorkflowCoordinator,
+    ) -> None:
+        """Publish intents for each step in a parallel group.
+
+        Args:
+            steps: Steps to publish intents for.
+            coordinator: Active WorkflowCoordinator.
+        """
+        for step in steps:
+            agent_role = step.params.get("role", step.type)
+            description = step.params.get(
+                "prompt",
+                step.params.get("command", f"Execute {step.id}"),
+            )
+            provides = step.outputs or []
+            requires = list(step.depends_on) if step.depends_on else []
+
+            coordinator.publish_step_intent(
+                step_id=step.id,
+                agent_role=agent_role,
+                description=description[:200],
+                provides=provides,
+                requires=requires,
+            )
+
+        logger.info(
+            "Published %d intents for parallel group [%s]",
+            len(steps),
+            ", ".join(s.id for s in steps),
+        )
+
+    @staticmethod
+    def _log_coordination_result(
+        report: StabilityReport,
+        coordinator: WorkflowCoordinator,
+        elapsed_ms: int,
+        result: Any,
+        label: str = "parallel group",
+    ) -> None:
+        """Log the outcome of a coordinated parallel group execution.
+
+        Args:
+            report: StabilityReport from the gate check.
+            coordinator: Active WorkflowCoordinator.
+            elapsed_ms: Wall-clock time for the coordinated execution.
+            result: ExecutionResult to check for failure status.
+            label: Descriptive label for log messages.
+        """
+        if not report.converged and result.status != "failed":
+            logger.warning(
+                "Coordinated %s did not converge (min_stability=%.3f, "
+                "threshold=%.3f). Proceeding with degraded confidence.",
+                label,
+                report.min_stability,
+                coordinator.min_stability,
+            )
+
+        logger.info(
+            "Coordinated %s complete: converged=%s "
+            "mean_stability=%.3f passes=%d (%dms)",
+            label,
+            report.converged,
+            report.mean_stability,
+            report.passes,
+            elapsed_ms,
+        )
+
     def _coordinated_execute_parallel_group(
         self,
         steps: list[StepConfig],
@@ -119,57 +189,12 @@ class CoordinatedParallelMixin:
         """
         start_time = time.monotonic()
 
-        # Phase 1: Publish intents
-        for step in steps:
-            agent_role = step.params.get("role", step.type)
-            description = step.params.get(
-                "prompt",
-                step.params.get("command", f"Execute {step.id}"),
-            )
-            provides = step.outputs or []
-            requires = list(step.depends_on) if step.depends_on else []
-
-            coordinator.publish_step_intent(
-                step_id=step.id,
-                agent_role=agent_role,
-                description=description[:200],
-                provides=provides,
-                requires=requires,
-            )
-
-        logger.info(
-            "Published %d intents for parallel group [%s]",
-            len(steps),
-            ", ".join(s.id for s in steps),
-        )
-
-        # Phase 2: Execute via standard parallel group
-        # This calls ParallelGroupMixin._execute_parallel_group
+        self._publish_intents(steps, coordinator)
         super()._execute_parallel_group(steps, workflow_id, result, max_workers)
-
-        # Phase 3: Stability gate
         report = coordinator.check_stability()
 
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
-
-        if not report.converged and result.status != "failed":
-            logger.warning(
-                "Parallel group did not converge (min_stability=%.3f, "
-                "threshold=%.3f). Proceeding with degraded confidence.",
-                report.min_stability,
-                coordinator._min_stability,
-            )
-
-        logger.info(
-            "Coordinated parallel group complete: converged=%s "
-            "mean_stability=%.3f passes=%d (%dms)",
-            report.converged,
-            report.mean_stability,
-            report.passes,
-            elapsed_ms,
-        )
-
-        # Reset coordinator for next group
+        self._log_coordination_result(report, coordinator, elapsed_ms, result)
         coordinator.reset()
 
         return report
@@ -199,52 +224,18 @@ class CoordinatedParallelMixin:
         """
         start_time = time.monotonic()
 
-        # Phase 1: Publish intents
-        for step in steps:
-            agent_role = step.params.get("role", step.type)
-            description = step.params.get(
-                "prompt",
-                step.params.get("command", f"Execute {step.id}"),
-            )
-            provides = step.outputs or []
-            requires = list(step.depends_on) if step.depends_on else []
-
-            coordinator.publish_step_intent(
-                step_id=step.id,
-                agent_role=agent_role,
-                description=description[:200],
-                provides=provides,
-                requires=requires,
-            )
-
-        # Phase 2: Execute via standard async parallel group
+        self._publish_intents(steps, coordinator)
         await super()._execute_parallel_group_async(
             steps, workflow_id, result, max_workers
         )
-
-        # Phase 3: Stability gate
         report = coordinator.check_stability()
 
         elapsed_ms = int((time.monotonic() - start_time) * 1000)
-
-        if not report.converged and result.status != "failed":
-            logger.warning(
-                "Async parallel group did not converge (min_stability=%.3f, "
-                "threshold=%.3f). Proceeding with degraded confidence.",
-                report.min_stability,
-                coordinator._min_stability,
-            )
-
-        logger.info(
-            "Coordinated async parallel group complete: converged=%s "
-            "mean_stability=%.3f passes=%d (%dms)",
-            report.converged,
-            report.mean_stability,
-            report.passes,
-            elapsed_ms,
+        self._log_coordination_result(
+            report, coordinator, elapsed_ms, result, label="async parallel group"
         )
-
         coordinator.reset()
+
         return report
 
     def _execute_with_coordination(
