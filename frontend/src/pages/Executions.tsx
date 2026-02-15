@@ -18,6 +18,7 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { useExecutions, usePauseExecution, useResumeExecution, useCancelExecution } from '@/hooks/useApi';
 import { useWebSocket } from '@/hooks/useWebSocket';
+import { useSSE } from '@/hooks/useSSE';
 import { useLiveExecutionStore } from '@/stores';
 import {
   formatRelativeTime,
@@ -79,6 +80,28 @@ export function ExecutionsPage() {
       }
     };
   }, [executions, isConnected, subscribe, unsubscribe, setExecution]);
+
+  // SSE fallback: when WebSocket disconnects, use SSE for first running execution
+  const firstRunningId = !isConnected
+    ? executions.find((e) => e.status === 'running')?.id ?? null
+    : null;
+  const sse = useSSE(firstRunningId);
+
+  // Apply SSE updates to the execution in the store
+  useEffect(() => {
+    if (!firstRunningId || !sse.isConnected) return;
+    const existing = executions.find((e) => e.id === firstRunningId);
+    if (!existing) return;
+
+    setExecution({
+      ...existing,
+      status: (sse.executionStatus as typeof existing.status) ?? existing.status,
+      progress: sse.progress,
+      logs: sse.logs,
+      metrics: sse.metrics ?? existing.metrics,
+    });
+  }, [firstRunningId, sse.isConnected, sse.executionStatus, sse.progress, sse.logs, sse.metrics, executions, setExecution]);
+
   const filteredExecutions = executions.filter(
     (e) => statusFilter === 'all' || e.status === statusFilter
   );
@@ -157,7 +180,7 @@ export function ExecutionsPage() {
       case 'reconnecting':
         return 'Reconnecting...';
       default:
-        return 'Live updates disconnected';
+        return sse.isConnected ? 'SSE fallback active' : 'Live updates disconnected';
     }
   };
 
