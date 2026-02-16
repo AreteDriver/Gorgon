@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771195711295,
+  "lastUpdate": 1771218863048,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -389,6 +389,61 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.002715286260451157",
             "extra": "mean: 91.61404441666339 msec\nrounds: 12"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "id": "f571118d942ea6971580e9c1dd01b818aea5f6f3",
+          "message": "Add comprehensive security features: 2FA, sessions, API keys, threat detection",
+          "timestamp": "2026-02-15T11:01:02Z",
+          "url": "https://github.com/AreteDriver/Gorgon/pull/54/commits/f571118d942ea6971580e9c1dd01b818aea5f6f3"
+        },
+        "date": 1771218862209,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22231.414070480947,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000024940861960304757",
+            "extra": "mean: 44.98139420325081 usec\nrounds: 8039"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 340.4395636179898,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00005638627214750265",
+            "extra": "mean: 2.9373789267398687 msec\nrounds: 273"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4654.891804026282,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000024585324015412167",
+            "extra": "mean: 214.82776444665004 usec\nrounds: 4084"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 35.01724326096232,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00017119449830711337",
+            "extra": "mean: 28.557359371427538 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 8.694424873937917,
+            "unit": "iter/sec",
+            "range": "stddev: 0.013502679870224799",
+            "extra": "mean: 115.01623333333555 msec\nrounds: 9"
           }
         ]
       }
