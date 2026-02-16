@@ -32,6 +32,8 @@ from test_ai.security import (
     BruteForceMiddleware,
     RequestLimitConfig,
     RequestSizeLimitMiddleware,
+    SecurityHeadersConfig,
+    SecurityHeadersMiddleware,
     get_brute_force_protection,
 )
 from test_ai.state import get_database, run_migrations
@@ -365,6 +367,16 @@ request_limit_config = RequestLimitConfig(
 )
 app.add_middleware(RequestSizeLimitMiddleware, config=request_limit_config)
 
+# Security headers middleware (CSP, HSTS, X-Content-Type-Options, etc.)
+_security_headers_config = SecurityHeadersConfig(
+    hsts_enabled=_settings.production,  # Only in production behind TLS
+    content_type_nosniff=True,
+    frame_options="DENY",
+    referrer_policy="strict-origin-when-cross-origin",
+    cache_sensitive_endpoints=True,
+)
+app.add_middleware(SecurityHeadersMiddleware, config=_security_headers_config)
+
 # Register rate limiter
 app.state.limiter = state.limiter
 
@@ -409,6 +421,7 @@ from test_ai.api_routes import (  # noqa: E402
     mcp,
     prompts,
     schedules,
+    security,
     settings,
     webhooks,
     websocket,
@@ -417,6 +430,7 @@ from test_ai.api_routes import (  # noqa: E402
 
 v1_router = APIRouter(prefix="/v1", tags=["v1"])
 v1_router.include_router(auth.router)
+v1_router.include_router(security.router)
 v1_router.include_router(workflows.router)
 v1_router.include_router(executions.router)
 v1_router.include_router(schedules.router)
