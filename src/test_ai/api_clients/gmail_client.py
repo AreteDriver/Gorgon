@@ -1,10 +1,14 @@
 """Gmail API client wrapper."""
 
+import logging
 from typing import Optional, List, Dict
+
 from test_ai.config import get_settings
 from test_ai.utils.retry import with_retry
 from test_ai.errors import MaxRetriesError
 from test_ai.api_clients.resilience import resilient_call
+
+logger = logging.getLogger(__name__)
 
 
 class GmailClient:
@@ -56,7 +60,8 @@ class GmailClient:
 
             self.service = build("gmail", "v1", credentials=creds)
             return True
-        except Exception:
+        except Exception as e:
+            logger.warning("Gmail authentication failed: %s", e)
             return False
 
     def list_messages(
@@ -119,5 +124,6 @@ class GmailClient:
             else:
                 data = message["payload"]["body"].get("data", "")
                 return base64.urlsafe_b64decode(data).decode("utf-8")
-        except Exception:
+        except (KeyError, UnicodeDecodeError) as e:
+            logger.debug("Failed to extract email body: %s", e)
             return ""

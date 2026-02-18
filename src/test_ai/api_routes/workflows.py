@@ -407,8 +407,8 @@ def start_workflow_execution(
                     str(workflow_path), str(state.YAML_WORKFLOWS_DIR)
                 )
                 workflow_name = yaml_workflow.name
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug("Failed to load YAML workflow %s: %s", workflow_id, e)
         else:
             raise not_found("Workflow", workflow_id)
 

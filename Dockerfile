@@ -26,11 +26,13 @@ RUN useradd --create-home --shell /bin/bash gorgon
 USER gorgon
 
 # Expose API port
-EXPOSE 8000
+ENV PORT=8000
+ENV HOST=0.0.0.0
+EXPOSE ${PORT}
 
 # Health check
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-    CMD curl -f http://localhost:8000/health || exit 1
+    CMD curl -f http://localhost:${PORT}/health || exit 1
 
 # Run the API
-CMD ["uvicorn", "test_ai.api:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD uvicorn test_ai.api:app --host ${HOST} --port ${PORT}

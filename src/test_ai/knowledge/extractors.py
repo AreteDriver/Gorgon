@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from abc import ABC, abstractmethod
 from typing import Any
 
 from .base import Entity, EntityType, Triple
+
+logger = logging.getLogger(__name__)
 
 
 class EntityExtractor(ABC):
@@ -184,7 +187,8 @@ Only output the JSON array, nothing else."""
 
             return entities
 
-        except Exception:
+        except Exception as e:
+            logger.warning("Entity extraction failed: %s", e)
             return []
 
     def extract_relations(
@@ -257,7 +261,8 @@ Only output the JSON array, nothing else."""
 
             return triples
 
-        except Exception:
+        except Exception as e:
+            logger.warning("Relation extraction failed: %s", e)
             return []
 
     def extract_knowledge(self, text: str) -> tuple[list[Entity], list[Triple]]:

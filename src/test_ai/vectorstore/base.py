@@ -308,13 +308,14 @@ class VectorStore(ABC):
             None, lambda: self.search(query, k=k, filter=filter)
         )
 
+    @abstractmethod
     def clear(self) -> int:
         """Clear all documents from the store.
 
         Returns:
             Number of documents deleted
         """
-        raise NotImplementedError("clear() not implemented for this store")
+        pass
 
     def persist(self) -> None:
         """Persist the store to disk (if applicable)."""
@@ -329,5 +330,5 @@ class VectorStore(ABC):
         try:
             self.count()
             return True
-        except Exception:
+        except VectorStoreError:
             return False

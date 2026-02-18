@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from typing import Optional
 
 from fastapi import APIRouter, Header, Request
@@ -18,6 +19,8 @@ from test_ai.api_errors import (
 )
 from test_ai.api_routes.auth import verify_auth
 from test_ai.webhooks import Webhook
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -243,7 +246,8 @@ async def trigger_webhook(
 
     try:
         payload = await request.json() if body else {}
-    except Exception:
+    except (ValueError, UnicodeDecodeError) as e:
+        logger.debug("Failed to parse webhook payload: %s", e)
         payload = {}
 
     client_ip = request.client.host if request.client else None

@@ -533,7 +533,8 @@ class ResourceWatcher(BaseWatcher):
             cpus = os.cpu_count() or 1
             return min(100, (load / cpus) * 100)
 
-        except Exception:
+        except OSError as e:
+            logger.debug("Failed to read CPU usage: %s", e)
             return 0.0
 
     def _get_memory_usage(self) -> float:
@@ -555,7 +556,8 @@ class ResourceWatcher(BaseWatcher):
 
             return 0.0
 
-        except Exception:
+        except OSError as e:
+            logger.debug("Failed to read memory usage: %s", e)
             return 0.0
 
     def _get_disk_usage(self, path: str = "/") -> float:
@@ -567,7 +569,8 @@ class ResourceWatcher(BaseWatcher):
             if total > 0:
                 return 100 * (1 - free / total)
             return 0.0
-        except Exception:
+        except OSError as e:
+            logger.debug("Failed to read disk usage: %s", e)
             return 0.0
 
     def _check_resources(self) -> None:
