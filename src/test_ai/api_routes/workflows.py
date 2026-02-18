@@ -156,7 +156,7 @@ def get_yaml_workflow_definition(
             ],
         }
     except Exception as e:
-        logger.error("Failed to load YAML workflow %s: %s", workflow_id, type(e).__name__)
+        logger.error("Failed to load YAML workflow: %s", type(e).__name__)
         raise internal_error("Failed to load workflow")
 
 
