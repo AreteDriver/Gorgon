@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771450735347,
+  "lastUpdate": 1771451541676,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1360,6 +1360,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.020599818674599698",
             "extra": "mean: 135.19049985714153 msec\nrounds: 7"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "78707bd7ac9b4384e3484fd106bdd9e1e8782742",
+          "message": "fix: pin convergentai to rev with Phase 4 features\n\nThe v1.0.0 tag predates Phase 4 (EventLog, HealthChecker, cycle\ndetection). Pin to rev 92162df which includes these features,\nfixing 15 test_coordination_phase4 failures in CI.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T13:42:29-08:00",
+          "tree_id": "621de0a9a673b46ca2b0b2f1b77c49d88ebd082c",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/78707bd7ac9b4384e3484fd106bdd9e1e8782742"
+        },
+        "date": 1771451541219,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22673.347003741397,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000002464041501952174",
+            "extra": "mean: 44.10464850359266 usec\nrounds: 12865"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 336.34275586062193,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00003490623620267438",
+            "extra": "mean: 2.9731575381822495 msec\nrounds: 275"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4416.661172926378,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005803844563834581",
+            "extra": "mean: 226.41537596994863 usec\nrounds: 4253"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.795232596222334,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00014971191618130152",
+            "extra": "mean: 28.739569342857862 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 10.985410017882337,
+            "unit": "iter/sec",
+            "range": "stddev: 0.006000687582124515",
+            "extra": "mean: 91.02982941666937 msec\nrounds: 12"
           }
         ]
       }
