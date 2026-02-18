@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771419213667,
+  "lastUpdate": 1771445321331,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -680,6 +680,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00464766246380948",
             "extra": "mean: 100.04232472727442 msec\nrounds: 11"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "073245985553cac80b66f57bb1541a254fd3068a",
+          "message": "fix: remove workflow_id from log message to resolve CodeQL log-injection alert #276\n\nThe workflow_id path parameter is user-controlled input. Even though it's\nsanitized via regex, CodeQL still traces it as tainted. Omitting it from\nthe log avoids the false positive while the exception type still provides\nsufficient debugging context.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T11:58:45-08:00",
+          "tree_id": "1c4e7922bc07493edf3006560cbc78f4219854e0",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/073245985553cac80b66f57bb1541a254fd3068a"
+        },
+        "date": 1771445320860,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 21773.406953901896,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000026167112527842276",
+            "extra": "mean: 45.92758506361336 usec\nrounds: 12185"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 341.60008582978105,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000036038179597941644",
+            "extra": "mean: 2.9273997328510593 msec\nrounds: 277"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4542.827538273226,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005883564905013523",
+            "extra": "mean: 220.12722067369302 usec\nrounds: 4305"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 35.64367982784182,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00024039228809147017",
+            "extra": "mean: 28.05546466666679 msec\nrounds: 36"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 10.953240464026651,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007397682840991536",
+            "extra": "mean: 91.29718308333186 msec\nrounds: 12"
           }
         ]
       }
