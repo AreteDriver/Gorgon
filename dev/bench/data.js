@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771447491268,
+  "lastUpdate": 1771449894196,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -798,6 +798,61 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.005410703977445332",
             "extra": "mean: 113.46781488888445 msec\nrounds: 9"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "id": "d559d262bdff9bf9fed01d912ec742a1e2d6902c",
+          "message": "ci: bump actions/setup-python from 5 to 6",
+          "timestamp": "2026-02-18T21:14:15Z",
+          "url": "https://github.com/AreteDriver/Gorgon/pull/57/commits/d559d262bdff9bf9fed01d912ec742a1e2d6902c"
+        },
+        "date": 1771449893186,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22980.959111268672,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000034362827269332595",
+            "extra": "mean: 43.514284811100495 usec\nrounds: 12654"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 351.1194581744562,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00011216778490129684",
+            "extra": "mean: 2.848033558718762 msec\nrounds: 281"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4525.271537611806,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000010782574367521293",
+            "extra": "mean: 220.98121442845968 usec\nrounds: 4505"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.42133344542788,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0007621240822353194",
+            "extra": "mean: 29.05175075757642 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 11.940093099477785,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004262921453513876",
+            "extra": "mean: 83.75144076922953 msec\nrounds: 13"
           }
         ]
       }
