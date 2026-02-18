@@ -31,7 +31,7 @@ rich = "^14.0.0"
 pyyaml = "^6.0.0"
 jsonschema = "^4.23.0"
 slowapi = "^0.1.9"
-bcrypt = "^4.0.0"
+bcrypt = "^5.0.0"
 cryptography = "^46.0.5"
 textual = "^2.1.0"
 convergentai = {git = "https://github.com/AreteDriver/convergent.git", tag = "v1.0.0"}
