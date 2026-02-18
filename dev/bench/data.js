@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771218863048,
+  "lastUpdate": 1771415334853,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -444,6 +444,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.013502679870224799",
             "extra": "mean: 115.01623333333555 msec\nrounds: 9"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "8bcccc4d6d64b741e999f053db18075d00492030",
+          "message": "fix: resolve 27 CodeQL code scanning alerts\n\n- Add __all__ to workflow/executor.py to declare re-exports as public API (10 unused-import)\n- Close file handles properly in test fixtures using context managers (5 file-not-closed)\n- Add logging to empty except handlers in store, handler, db, workflows (4 empty-except)\n- Extract URL literals to variables to avoid substring sanitization FPs (3 url-sanitization)\n- Remove unused _persistent_budget_manager and _MIN_SECRET_KEY_ENTROPY_BITS (3 unused-global)\n- Prefix unused loop variables with underscore (2 unused-loop-variable)\n\n7250 tests, 0 failures.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T03:39:09-08:00",
+          "tree_id": "ff16ab95829ae5d84fd2c58b5c403330100dcc56",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/8bcccc4d6d64b741e999f053db18075d00492030"
+        },
+        "date": 1771415334040,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22010.71710828187,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000044370894919600936",
+            "extra": "mean: 45.432413450252135 usec\nrounds: 8446"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 337.5404132917137,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00003863731752259768",
+            "extra": "mean: 2.962608211111499 msec\nrounds: 270"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4542.241934017037,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000006863414574895705",
+            "extra": "mean: 220.15560036795017 usec\nrounds: 4349"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 35.23555894325377,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020562536421866778",
+            "extra": "mean: 28.38042108571293 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 9.429358237661365,
+            "unit": "iter/sec",
+            "range": "stddev: 0.006182295151193558",
+            "extra": "mean: 106.05175610000117 msec\nrounds: 10"
           }
         ]
       }
