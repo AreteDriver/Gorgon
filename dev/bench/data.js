@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771451541676,
+  "lastUpdate": 1771453355805,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1419,6 +1419,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.006000687582124515",
             "extra": "mean: 91.02982941666937 msec\nrounds: 12"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "5076c87ed6bc62ecda3550676d7ef146a108112a",
+          "message": "fix: remove stack-trace exposure from coordination API responses\n\nReplace str(e) in error responses with generic \"internal error\"\nmessage. Full exception details logged server-side with exc_info.\nFixes 3 CodeQL py/stack-trace-exposure alerts (#277, #278, #279).\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T14:12:34-08:00",
+          "tree_id": "c85e7a0b3237d61ce4973773f2d9696d388ec112",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/5076c87ed6bc62ecda3550676d7ef146a108112a"
+        },
+        "date": 1771453355256,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22310.71281004145,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000027977954346974464",
+            "extra": "mean: 44.82151729145682 usec\nrounds: 6217"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 342.9765351507405,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004441373010132912",
+            "extra": "mean: 2.91565135661684 msec\nrounds: 272"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4510.92041105084,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00000607663877771604",
+            "extra": "mean: 221.6842481969318 usec\nrounds: 4021"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.31264339032621,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001505769715766571",
+            "extra": "mean: 29.14377620588482 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 9.648734321325056,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00748887605161699",
+            "extra": "mean: 103.64053633333646 msec\nrounds: 9"
           }
         ]
       }
