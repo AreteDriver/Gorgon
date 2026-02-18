@@ -28,7 +28,7 @@ from test_ai.state.backends import SQLiteBackend
 
 # The chat __init__.py exports `router` (the APIRouter instance), which shadows
 # the module. Use sys.modules to get the actual module.
-_ensure_import = __import__("test_ai.chat.router")  # noqa: F841
+__import__("test_ai.chat.router")
 chat_router_mod = sys.modules["test_ai.chat.router"]
 
 

@@ -46,7 +46,8 @@ def pipeline_backend():
         ):
             path = os.path.join(migrations_dir, migration)
             if os.path.exists(path):
-                sql = open(path).read()
+                with open(path) as f:
+                    sql = f.read()
                 backend.executescript(sql)
 
         yield backend

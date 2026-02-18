@@ -39,7 +39,8 @@ def backend():
         b = SQLiteBackend(db_path=db_path)
         migrations_dir = os.path.join(os.path.dirname(__file__), "..", "migrations")
         for migration in ("010_task_history.sql", "011_budget_session_usage.sql"):
-            sql = open(os.path.join(migrations_dir, migration)).read()
+            with open(os.path.join(migrations_dir, migration)) as f:
+                sql = f.read()
             b.executescript(sql)
         yield b
         b.close()

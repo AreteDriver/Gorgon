@@ -28,8 +28,6 @@ _INSECURE_DATABASE_URL = "sqlite:///gorgon-state.db"
 
 # Minimum requirements for secure configuration
 _MIN_SECRET_KEY_LENGTH = 32
-_MIN_SECRET_KEY_ENTROPY_BITS = 128
-
 # Regex for ${ENV_VAR} placeholders in YAML values
 _ENV_VAR_PLACEHOLDER_RE = re.compile(r"^\$\{[A-Z_][A-Z0-9_]*\}$")
 

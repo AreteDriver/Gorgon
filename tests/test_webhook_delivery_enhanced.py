@@ -166,10 +166,12 @@ class TestCircuitBreaker:
         cb.record_failure("https://a.com")
         cb.record_success("https://b.com")
         states = cb.get_all_states()
-        assert "https://a.com" in states
-        assert "https://b.com" in states
-        assert states["https://a.com"]["failures"] == 1
-        assert states["https://b.com"]["failures"] == 0
+        url_a = "https://a.com"
+        url_b = "https://b.com"
+        assert url_a in states
+        assert url_b in states
+        assert states[url_a]["failures"] == 1
+        assert states[url_b]["failures"] == 0
 
     def test_reset(self):
         cb = CircuitBreaker(CircuitBreakerConfig(failure_threshold=1))

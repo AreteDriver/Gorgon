@@ -27,7 +27,8 @@ def backend():
         migration_path = os.path.join(
             os.path.dirname(__file__), "..", "migrations", "010_task_history.sql"
         )
-        sql = open(migration_path).read()
+        with open(migration_path) as f:
+            sql = f.read()
         backend.executescript(sql)
 
         yield backend

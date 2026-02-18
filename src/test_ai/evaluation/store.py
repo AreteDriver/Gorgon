@@ -300,7 +300,7 @@ class EvalStore:
             try:
                 result["metadata"] = json.loads(result["metadata"])
             except (json.JSONDecodeError, TypeError):
-                pass
+                logger.debug("Failed to parse run metadata as JSON, keeping raw value")
         return result
 
     def _parse_case_row(self, row: dict) -> dict:

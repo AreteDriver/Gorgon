@@ -352,7 +352,7 @@ class TaskStore:
             try:
                 result["metadata"] = json.loads(result["metadata"])
             except (json.JSONDecodeError, TypeError):
-                pass
+                logger.debug("Failed to parse task metadata as JSON, keeping raw value")
         return result
 
 

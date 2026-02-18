@@ -30,10 +30,6 @@ from .persistence import PersistentBudgetManager
 # Singleton budget tracker instance (in-memory)
 _budget_tracker: BudgetManager | None = None
 
-# Singleton persistent budget manager (database-backed)
-_persistent_budget_manager: PersistentBudgetManager | None = None
-
-
 def get_budget_tracker(
     backend=None,
     session_id: str | None = None,

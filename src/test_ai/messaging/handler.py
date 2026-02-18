@@ -328,7 +328,7 @@ class MessageHandler:
                     lines.append(f"[{status}] {wf} | {agent} | {dur} | {cost}")
                 return "\n".join(lines)
         except Exception:
-            pass
+            logger.debug("Failed to fetch task history, falling back to session messages")
 
         # Fallback: show session messages
         session_id = self.get_session_for_user(message.user)

@@ -1120,7 +1120,7 @@ class TestExecuteBrowser:
         )
         out = exe._execute_browser(step, {"domain": "example.com"})
         assert out["dry_run"] is True
-        assert "example.com" in out["url"]
+        assert out["url"].endswith("example.com")
 
     @patch("test_ai.browser.BrowserAutomation")
     @patch("test_ai.browser.BrowserConfig")

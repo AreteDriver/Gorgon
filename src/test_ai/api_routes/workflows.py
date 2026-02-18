@@ -408,7 +408,7 @@ def start_workflow_execution(
                 )
                 workflow_name = yaml_workflow.name
             except Exception:
-                pass
+                logger.warning("Failed to load YAML workflow %s, using ID as name", workflow_id)
         else:
             raise not_found("Workflow", workflow_id)
 

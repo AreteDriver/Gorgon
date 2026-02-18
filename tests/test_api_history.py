@@ -38,7 +38,8 @@ def client(backend, monkeypatch):
     migration_path = os.path.join(
         os.path.dirname(__file__), "..", "migrations", "010_task_history.sql"
     )
-    sql = open(migration_path).read()
+    with open(migration_path) as f:
+        sql = f.read()
     backend.executescript(sql)
 
     with patch("test_ai.api.get_database", return_value=backend):
