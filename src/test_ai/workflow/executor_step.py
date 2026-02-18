@@ -17,6 +17,30 @@ from test_ai.utils.circuit_breaker import CircuitBreakerError
 
 logger = logging.getLogger(__name__)
 
+# Ordered complexity levels for threshold comparison
+_COMPLEXITY_ORDER = {"simple": 0, "medium": 1, "complex": 2}
+
+
+def _meets_min_complexity(
+    task_complexity: str | None,
+    min_complexity: str,
+) -> bool:
+    """Check whether the current task complexity meets the minimum.
+
+    Returns True (allow execution) when:
+    - task_complexity is not set (no classification available, run by default)
+    - task_complexity >= min_complexity in the ordered scale
+
+    Args:
+        task_complexity: Current task complexity from context, or None.
+        min_complexity: Minimum complexity required by the step.
+    """
+    if task_complexity is None:
+        return True  # No classification — always run
+    current = _COMPLEXITY_ORDER.get(task_complexity, 1)
+    required = _COMPLEXITY_ORDER.get(min_complexity, 1)
+    return current >= required
+
 
 class StepExecutionMixin:
     """Mixin providing single-step execution logic.
@@ -38,6 +62,19 @@ class StepExecutionMixin:
         """
         # Check condition
         if step.condition and not step.condition.evaluate(self._context):
+            result.status = StepStatus.SKIPPED
+            return None, None, None
+
+        # Check complexity-based skip
+        if step.min_complexity and not _meets_min_complexity(
+            self._context.get("_task_complexity"), step.min_complexity
+        ):
+            logger.info(
+                "Step '%s' skipped: requires min_complexity=%s, task is %s",
+                step.id,
+                step.min_complexity,
+                self._context.get("_task_complexity", "unset"),
+            )
             result.status = StepStatus.SKIPPED
             return None, None, None
 

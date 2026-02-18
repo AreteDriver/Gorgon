@@ -120,6 +120,7 @@ class StepConfig:
     fallback: FallbackConfig | None = None
     default_output: dict = field(default_factory=dict)  # For continue_with_default mode
     circuit_breaker_key: str | None = None  # Key for circuit breaker tracking
+    min_complexity: str | None = None  # Skip if task complexity is below this level
 
     @classmethod
     def from_dict(cls, data: dict) -> StepConfig:
@@ -156,6 +157,7 @@ class StepConfig:
             fallback=fallback,
             default_output=data.get("default_output", {}),
             circuit_breaker_key=data.get("circuit_breaker_key"),
+            min_complexity=data.get("min_complexity"),
         )
 
 

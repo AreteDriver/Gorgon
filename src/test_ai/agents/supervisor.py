@@ -20,6 +20,12 @@ from typing import TYPE_CHECKING, Any, AsyncGenerator
 
 from pydantic import BaseModel, Field
 
+from .task_classifier import (
+    ClassificationResult,
+    classify_task,
+    filter_delegations,
+)
+
 if TYPE_CHECKING:
     from test_ai.providers.base import BaseProvider
     from test_ai.budget.manager import BudgetManager
@@ -334,6 +340,21 @@ class SupervisorAgent:
         delegation_plan = self._parse_delegation(full_response)
 
         if delegation_plan:
+            # Classify task complexity and filter delegations accordingly
+            classification = classify_task(content, message_count=len(messages))
+            original_count = len(delegation_plan.delegations)
+            delegation_plan.delegations = filter_delegations(
+                delegation_plan.delegations, classification
+            )
+            if len(delegation_plan.delegations) < original_count:
+                logger.info(
+                    "Complexity=%s trimmed delegations from %d to %d: %s",
+                    classification.complexity.value,
+                    original_count,
+                    len(delegation_plan.delegations),
+                    classification.reasoning,
+                )
+
             yield {
                 "type": "agent",
                 "content": f"Delegating to {len(delegation_plan.delegations)} agent(s)...",
@@ -345,6 +366,7 @@ class SupervisorAgent:
                 delegation_plan.delegations,
                 context,
                 lambda chunk: None,  # Progress callback
+                classification=classification,
             )
 
             # Synthesize results
@@ -420,6 +442,7 @@ class SupervisorAgent:
         delegations: list[dict],
         context: list[dict[str, str]],
         progress_callback,
+        classification: ClassificationResult | None = None,
     ) -> dict[str, str]:
         """Execute delegations to sub-agents.
 
@@ -427,6 +450,8 @@ class SupervisorAgent:
             delegations: List of delegation dicts.
             context: Conversation context.
             progress_callback: Callback for progress updates.
+            classification: Optional task complexity classification for
+                budget-aware delegation filtering.
 
         Returns:
             Dict mapping agent names to their results.
@@ -472,21 +497,43 @@ class SupervisorAgent:
                         )
                         break
 
-        # Budget gate: skip delegations when budget is critically low
+        # Budget-aware delegation: tier the response based on budget status
         if self._budget_manager is not None:
-            if not self._budget_manager.can_allocate(self.MIN_DELEGATION_TOKENS):
-                logger.warning(
-                    "Budget critical (%d tokens remaining) — skipping %d delegation(s)",
-                    self._budget_manager.remaining,
-                    len(delegations),
-                )
+            from test_ai.budget.manager import BudgetStatus
+
+            budget_status = self._budget_manager.status
+            if budget_status == BudgetStatus.EXCEEDED:
                 for d in delegations:
                     agent = d.get("agent", "unknown")
                     results[agent] = (
-                        f"Delegation skipped: budget critical "
+                        f"Delegation skipped: budget exceeded "
                         f"({self._budget_manager.remaining} tokens remaining)"
                     )
                 return results
+
+            if budget_status == BudgetStatus.CRITICAL:
+                # Critical: only allow 1 agent (the first/most important)
+                if len(delegations) > 1:
+                    logger.info(
+                        "Budget CRITICAL — reducing %d delegations to 1",
+                        len(delegations),
+                    )
+                    delegations = delegations[:1]
+
+            elif budget_status == BudgetStatus.WARNING:
+                # Warning: cap at complexity tier or 2, whichever is lower
+                max_allowed = 2
+                if classification:
+                    max_allowed = min(max_allowed, classification.max_agents)
+                if len(delegations) > max_allowed:
+                    logger.info(
+                        "Budget WARNING — reducing %d delegations to %d",
+                        len(delegations),
+                        max_allowed,
+                    )
+                    delegations = delegations[:max_allowed]
+
+            # OK status: no additional filtering (complexity filter already applied)
 
         # Group by dependency (for now, run all in parallel)
         tasks = []
