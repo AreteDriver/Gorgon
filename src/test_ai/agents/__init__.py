@@ -7,6 +7,12 @@ delegate to specialized sub-agents, and synthesize results.
 from .supervisor import SupervisorAgent, AgentDelegation
 from .provider_wrapper import AgentProvider, create_agent_provider
 from .convergence import ConvergenceResult, DelegationConvergenceChecker, HAS_CONVERGENT
+from .task_classifier import (
+    ClassificationResult,
+    TaskComplexity,
+    classify_task,
+    filter_delegations,
+)
 
 __all__ = [
     "SupervisorAgent",
@@ -16,4 +22,8 @@ __all__ = [
     "ConvergenceResult",
     "DelegationConvergenceChecker",
     "HAS_CONVERGENT",
+    "ClassificationResult",
+    "TaskComplexity",
+    "classify_task",
+    "filter_delegations",
 ]
