@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771450297016,
+  "lastUpdate": 1771450316486,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1073,6 +1073,61 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.0027330434528634326",
             "extra": "mean: 74.45983971428356 msec\nrounds: 14"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "id": "973e0f20579d11e531d7d2b5e989a2d853ee659d",
+          "message": "deps: bump python-telegram-bot from 21.11.1 to 22.6",
+          "timestamp": "2026-02-18T21:14:15Z",
+          "url": "https://github.com/AreteDriver/Gorgon/pull/61/commits/973e0f20579d11e531d7d2b5e989a2d853ee659d"
+        },
+        "date": 1771450316146,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 21343.866778587926,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000010056829689733836",
+            "extra": "mean: 46.85186664504464 usec\nrounds: 9201"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 328.8402470660371,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000054968626586425696",
+            "extra": "mean: 3.0409902952030743 msec\nrounds: 271"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4547.976851022414,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007986195107785142",
+            "extra": "mean: 219.87798811579125 usec\nrounds: 4039"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.05857008020714,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00029566715583372223",
+            "extra": "mean: 29.36118567646919 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 9.92798659908875,
+            "unit": "iter/sec",
+            "range": "stddev: 0.003529922800901293",
+            "extra": "mean: 100.72535755555772 msec\nrounds: 9"
           }
         ]
       }
