@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771415334853,
+  "lastUpdate": 1771415659914,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -503,6 +503,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.006182295151193558",
             "extra": "mean: 106.05175610000117 msec\nrounds: 10"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "d74936e482d2a7a45dd939d54425dff3ac215e88",
+          "message": "fix: resolve remaining 4 CodeQL alerts\n\n- Use bare _ for unused loop variables (CodeQL needs _ not _attempt)\n- Remove user input from log message to avoid log-injection alert\n- Use exact URL equality in test assertion to avoid substring-sanitization FP\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T03:44:40-08:00",
+          "tree_id": "0d746742e02830c1317d61ae02c845d2e657211c",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/d74936e482d2a7a45dd939d54425dff3ac215e88"
+        },
+        "date": 1771415659611,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22360.805934323744,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000027217640581728326",
+            "extra": "mean: 44.721107232767686 usec\nrounds: 9139"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 312.3129057864411,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005476307655484992",
+            "extra": "mean: 3.2019169924530684 msec\nrounds: 265"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4417.83749239419,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000022846658261216153",
+            "extra": "mean: 226.35508927650997 usec\nrounds: 3954"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 35.13590145050743,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001610620435823809",
+            "extra": "mean: 28.460917714281614 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 11.603596239535795,
+            "unit": "iter/sec",
+            "range": "stddev: 0.007076353918519368",
+            "extra": "mean: 86.18017891667051 msec\nrounds: 12"
           }
         ]
       }
