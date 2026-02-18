@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771450411305,
+  "lastUpdate": 1771450564257,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1242,6 +1242,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.006582764539707476",
             "extra": "mean: 70.84005399999918 msec\nrounds: 13"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@gmail.com",
+            "name": "James C. Young",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "noreply@github.com",
+            "name": "GitHub",
+            "username": "web-flow"
+          },
+          "distinct": true,
+          "id": "a08edfbd832a241752c2d3053e388bd29984a1c7",
+          "message": "Merge pull request #58 from AreteDriver/dependabot/pip/python-minor-a73c79b292\n\ndeps: bump the python-minor group with 5 updates",
+          "timestamp": "2026-02-18T13:26:10-08:00",
+          "tree_id": "a8cd6b8192a54e26ac9f8a356b43123b53e5914f",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/a08edfbd832a241752c2d3053e388bd29984a1c7"
+        },
+        "date": 1771450563927,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 16809.315790532626,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000031381746744371263",
+            "extra": "mean: 59.49082118876141 usec\nrounds: 8193"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 317.53266584021907,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005247800841888029",
+            "extra": "mean: 3.149282286765404 msec\nrounds: 272"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4538.894751082493,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000017559764275449083",
+            "extra": "mean: 220.31795290285316 usec\nrounds: 4289"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 33.74707331236213,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005797735203866578",
+            "extra": "mean: 29.632199235294365 msec\nrounds: 34"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 8.381705033158807,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00911860343085786",
+            "extra": "mean: 119.30746739999876 msec\nrounds: 10"
           }
         ]
       }
