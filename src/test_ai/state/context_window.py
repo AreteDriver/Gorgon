@@ -238,7 +238,6 @@ class ContextWindow:
             if to_summarize:
                 try:
                     new_summary = self.summarizer(to_summarize)
-                    summary_tokens = self._estimate_tokens(new_summary)
 
                     # Combine with existing summary if present
                     if self._summary:
