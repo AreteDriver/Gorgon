@@ -49,9 +49,9 @@ def coordination_health() -> dict:
             return {"available": True, "reason": "health check returned no data"}
 
         return {"available": True, **health}
-    except Exception as e:
-        logger.warning("Coordination health endpoint failed: %s", e)
-        return {"available": False, "error": str(e)}
+    except Exception:
+        logger.warning("Coordination health endpoint failed", exc_info=True)
+        return {"available": False, "error": "internal error"}
 
 
 @router.get("/cycles")
@@ -77,9 +77,9 @@ def coordination_cycles() -> dict:
             "cycle_count": len(cycles),
             "cycles": cycles,
         }
-    except Exception as e:
-        logger.warning("Coordination cycles endpoint failed: %s", e)
-        return {"available": False, "error": str(e)}
+    except Exception:
+        logger.warning("Coordination cycles endpoint failed", exc_info=True)
+        return {"available": False, "error": "internal error"}
 
 
 @router.get("/events")
@@ -132,6 +132,6 @@ def coordination_events(
                 for e in events
             ],
         }
-    except Exception as e:
-        logger.warning("Coordination events endpoint failed: %s", e)
-        return {"available": False, "error": str(e)}
+    except Exception:
+        logger.warning("Coordination events endpoint failed", exc_info=True)
+        return {"available": False, "error": "internal error"}
