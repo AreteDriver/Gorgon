@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771450564257,
+  "lastUpdate": 1771450735347,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1301,6 +1301,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00911860343085786",
             "extra": "mean: 119.30746739999876 msec\nrounds: 10"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "abc9a94256c722508a2aff3aead7046d7b552cd8",
+          "message": "ci: bump actions/setup-python v5→v6 in security workflow\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T13:29:17-08:00",
+          "tree_id": "1752bd7acf35bc28da38a99581a96ea938563e6e",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/abc9a94256c722508a2aff3aead7046d7b552cd8"
+        },
+        "date": 1771450734894,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 24308.39134048898,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000021039040435896694",
+            "extra": "mean: 41.13805747130465 usec\nrounds: 9831"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 374.2910049541252,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000032511001812878035",
+            "extra": "mean: 2.6717179594592837 msec\nrounds: 296"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 5432.598177914983,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005523220978634002",
+            "extra": "mean: 184.0739858260228 usec\nrounds: 4727"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 41.315608758798035,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00020015309522194963",
+            "extra": "mean: 24.203927523809096 msec\nrounds: 42"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 7.396969469428101,
+            "unit": "iter/sec",
+            "range": "stddev: 0.020599818674599698",
+            "extra": "mean: 135.19049985714153 msec\nrounds: 7"
           }
         ]
       }
