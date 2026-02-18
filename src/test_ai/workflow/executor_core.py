@@ -54,6 +54,7 @@ class WorkflowExecutor(
         memory_config: MemoryConfig | None = None,
         feedback_engine=None,
         execution_manager=None,
+        safety_guard=None,
     ):
         """Initialize executor.
 
@@ -68,6 +69,7 @@ class WorkflowExecutor(
             memory_config: Optional MemoryConfig for memory behavior
             feedback_engine: Optional FeedbackEngine for outcome tracking and learning
             execution_manager: Optional ExecutionManager for streaming execution logs
+            safety_guard: Optional Animus SafetyGuardBridge for pre-step safety validation
         """
         self.checkpoint_manager = checkpoint_manager
         self.contract_validator = contract_validator
@@ -79,6 +81,7 @@ class WorkflowExecutor(
         self.memory_config = memory_config
         self.feedback_engine = feedback_engine
         self.execution_manager = execution_manager
+        self.safety_guard = safety_guard
         self._execution_id: str | None = None
         self._handlers: dict[str, StepHandler] = {
             "shell": self._execute_shell,

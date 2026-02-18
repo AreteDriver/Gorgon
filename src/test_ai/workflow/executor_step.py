@@ -87,6 +87,24 @@ class StepExecutionMixin:
             except Exception as e:
                 return None, None, f"Input validation failed: {e}"
 
+        # Animus SafetyGuard check — validate action before execution
+        safety_guard = getattr(self, "safety_guard", None)
+        if safety_guard is not None:
+            action = {
+                "description": f"Execute step '{step.id}' (type={step.type})",
+                "step_id": step.id,
+                "step_type": step.type,
+                "workflow_id": getattr(self, "_current_workflow_id", None),
+                "params": {
+                    k: v
+                    for k, v in step.params.items()
+                    if k not in ("api_key", "token", "secret")
+                },
+            }
+            allowed, reason = safety_guard.check_action(action)
+            if not allowed:
+                return None, None, f"Blocked by safety guard: {reason}"
+
         handler = self._handlers.get(step.type)
         if not handler:
             return None, None, f"Unknown step type: {step.type}"
