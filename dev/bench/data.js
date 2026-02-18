@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771415938434,
+  "lastUpdate": 1771419213667,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -621,6 +621,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.005098391320022647",
             "extra": "mean: 102.07591645454463 msec\nrounds: 11"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "34c60153aa9ec80f8e7d792576928dd9e721b2ea",
+          "message": "fix: resolve code scanning alerts — log injection and dead variable\n\n- workflows.py: log exception type name instead of user-influenced str(e)\n  to prevent log injection (CodeQL py/log-injection #221)\n- context_window.py: remove unused summary_tokens assignment\n  (CodeQL py/multiple-definition #226)\n- Dismissed #223-225 as false positives (CLI subcommand registration imports)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T04:43:29-08:00",
+          "tree_id": "7ebe4e6fc941d1e426340e8566017bef666e1918",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/34c60153aa9ec80f8e7d792576928dd9e721b2ea"
+        },
+        "date": 1771419212704,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22519.38842198598,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005145582289112391",
+            "extra": "mean: 44.40617930030847 usec\nrounds: 7691"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 343.37458368366845,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000361202149938299",
+            "extra": "mean: 2.9122714595592885 msec\nrounds: 272"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4548.127112349561,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005545489259658531",
+            "extra": "mean: 219.870723772142 usec\nrounds: 4337"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 35.31133406482877,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00012055594078777528",
+            "extra": "mean: 28.319519114290056 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 9.995769317897219,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00464766246380948",
+            "extra": "mean: 100.04232472727442 msec\nrounds: 11"
           }
         ]
       }
