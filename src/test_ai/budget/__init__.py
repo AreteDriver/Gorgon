@@ -30,6 +30,7 @@ from .persistence import PersistentBudgetManager
 # Singleton budget tracker instance (in-memory)
 _budget_tracker: BudgetManager | None = None
 
+
 def get_budget_tracker(
     backend=None,
     session_id: str | None = None,
