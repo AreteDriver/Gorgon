@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771445321331,
+  "lastUpdate": 1771447491268,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -739,6 +739,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.007397682840991536",
             "extra": "mean: 91.29718308333186 msec\nrounds: 12"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "cef5e7f5fbb7d4c6271c64db60879a71fbc8e924",
+          "message": "fix: align convergent dependency name with package metadata\n\nThe convergent package declares name=\"convergentAI\" in its pyproject.toml\nbut Gorgon depended on \"convergent\". Newer pip versions enforce strict\nname matching, causing the Benchmark CI job to fail.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T12:35:10-08:00",
+          "tree_id": "e932ecf015f4192c324cb1d2ebaa90476ea2035b",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/cef5e7f5fbb7d4c6271c64db60879a71fbc8e924"
+        },
+        "date": 1771447490936,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22265.451359211034,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000002532788967653569",
+            "extra": "mean: 44.912630957571324 usec\nrounds: 9148"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 347.4246849656091,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000033072705105460115",
+            "extra": "mean: 2.8783216716422673 msec\nrounds: 268"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4520.272677262194,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000006638971204290085",
+            "extra": "mean: 221.22559221486452 usec\nrounds: 4316"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.82364349284844,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00015367651273056409",
+            "extra": "mean: 28.716122142858627 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 8.813071803482506,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005410703977445332",
+            "extra": "mean: 113.46781488888445 msec\nrounds: 9"
           }
         ]
       }
