@@ -197,3 +197,107 @@ def create_bridge(db_path: str | None = None) -> Any:
     except Exception as e:
         logger.warning("Failed to create coordination bridge: %s", e)
         return None
+
+
+def create_event_log(db_path: str | None = None) -> Any:
+    """Create a Convergent EventLog for coordination event tracking.
+
+    Returns None if Convergent is not installed.
+
+    Args:
+        db_path: Path to SQLite database. Defaults to ~/.gorgon/coordination.events.db.
+
+    Returns:
+        EventLog instance or None.
+    """
+    if not HAS_CONVERGENT:
+        logger.info("Convergent not installed — coordination event log disabled")
+        return None
+    try:
+        from pathlib import Path
+
+        from convergent import EventLog
+
+        if db_path is None:
+            db_dir = Path.home() / ".gorgon"
+            db_dir.mkdir(parents=True, exist_ok=True)
+            db_path = str(db_dir / "coordination.events.db")
+
+        event_log = EventLog(db_path)
+        logger.info("Convergent event log enabled (db=%s)", db_path)
+        return event_log
+    except Exception as e:
+        logger.warning("Failed to create coordination event log: %s", e)
+        return None
+
+
+def get_coordination_health(bridge: Any) -> dict[str, Any]:
+    """Run a coordination health check via Convergent's HealthChecker.
+
+    Args:
+        bridge: A GorgonBridge instance.
+
+    Returns:
+        Dict with grade, issues, and subsystem metrics. Empty dict on failure.
+    """
+    if not HAS_CONVERGENT or bridge is None:
+        return {}
+    try:
+        from dataclasses import asdict
+
+        from convergent import HealthChecker
+
+        checker = HealthChecker.from_bridge(bridge)
+        health = checker.check()
+        return asdict(health)
+    except Exception as e:
+        logger.warning("Coordination health check failed: %s", e)
+        return {}
+
+
+def check_dependency_cycles(resolver: Any) -> list[dict[str, Any]]:
+    """Check the intent graph for dependency cycles.
+
+    Args:
+        resolver: An IntentResolver instance.
+
+    Returns:
+        List of cycle dicts with intent_ids and agent_ids. Empty on failure.
+    """
+    if not HAS_CONVERGENT or resolver is None:
+        return []
+    try:
+        from convergent import find_cycles
+
+        cycles = find_cycles(resolver)
+        return [
+            {
+                "intent_ids": list(c.intent_ids),
+                "agent_ids": list(c.agent_ids),
+                "display": str(c),
+            }
+            for c in cycles
+        ]
+    except Exception as e:
+        logger.warning("Dependency cycle check failed: %s", e)
+        return []
+
+
+def get_execution_order(resolver: Any) -> list[str]:
+    """Get topological execution order for intents.
+
+    Args:
+        resolver: An IntentResolver instance.
+
+    Returns:
+        List of intent IDs in dependency-first order. Empty on failure.
+    """
+    if not HAS_CONVERGENT or resolver is None:
+        return []
+    try:
+        from convergent import topological_order
+
+        return topological_order(resolver)
+    except Exception as e:
+        logger.warning("Execution order computation failed: %s", e)
+        return []

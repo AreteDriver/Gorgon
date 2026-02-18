@@ -169,6 +169,7 @@ class SupervisorAgent:
         skill_library: "SkillLibrary | None" = None,
         coordination_bridge: Any = None,
         budget_manager: "BudgetManager | None" = None,
+        event_log: Any = None,
     ):
         """Initialize the Supervisor agent.
 
@@ -181,6 +182,7 @@ class SupervisorAgent:
             skill_library: Optional skill library for v2 routing and context.
             coordination_bridge: Optional Convergent GorgonBridge for prompt enrichment.
             budget_manager: Optional BudgetManager for token budget enforcement.
+            event_log: Optional Convergent EventLog for coordination event tracking.
         """
         self.provider = provider
         self.mode = mode
@@ -190,6 +192,7 @@ class SupervisorAgent:
         self._skill_library = skill_library
         self._bridge = coordination_bridge
         self._budget_manager = budget_manager
+        self._event_log = event_log
         self._active_delegations: list[AgentDelegation] = []
         self._filesystem_tools = None
         self._proposal_manager = None
@@ -441,6 +444,7 @@ class SupervisorAgent:
             alert = format_convergence_alert(convergence)
             if alert:
                 logger.warning("Convergence alert:\n%s", alert)
+            self._record_coherence_events(delegations, convergence)
             if convergence.dropped_agents:
                 original_count = len(delegations)
                 delegations = [
@@ -550,6 +554,15 @@ class SupervisorAgent:
                             if hasattr(decision.outcome, "value")
                             else str(decision.outcome)
                         )
+                        self._record_event(
+                            "DECISION_MADE",
+                            agent_name,
+                            {
+                                "outcome": outcome_str,
+                                "quorum": consensus_level,
+                                "skill": delegation.get("_skill_name", ""),
+                            },
+                        )
                         if outcome_str == "rejected":
                             results[agent_name] = (
                                 f"[CONSENSUS REJECTED] Result from {agent_name} was "
@@ -589,6 +602,11 @@ class SupervisorAgent:
                         agent_id=agent_name,
                         skill_domain=agent_name,
                         outcome=outcome,
+                    )
+                    self._record_event(
+                        "SCORE_UPDATED",
+                        agent_name,
+                        {"outcome": outcome, "skill_domain": agent_name},
                     )
                 except Exception as e:
                     logger.warning(
@@ -645,6 +663,59 @@ class SupervisorAgent:
             )
 
         return self._bridge.evaluate(request_id)
+
+    def _record_event(
+        self,
+        event_type_name: str,
+        agent_id: str,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Record a coordination event to the event log.
+
+        Fails silently — event logging must never break the pipeline.
+
+        Args:
+            event_type_name: EventType enum name (e.g. "VOTE_CAST").
+            agent_id: Agent associated with the event.
+            payload: Optional structured event data.
+        """
+        if self._event_log is None:
+            return
+        try:
+            from convergent import EventType
+
+            event_type = EventType[event_type_name]
+            self._event_log.record(event_type, agent_id=agent_id, payload=payload)
+        except Exception:
+            pass  # Never break pipeline for event logging
+
+    def _record_coherence_events(
+        self,
+        delegations: list[dict],
+        convergence: Any,
+    ) -> None:
+        """Record coordination events from coherence checking.
+
+        Args:
+            delegations: The delegation list that was checked.
+            convergence: ConvergenceResult from the checker.
+        """
+        if self._event_log is None:
+            return
+        for d in delegations:
+            agent = d.get("agent", "unknown")
+            self._record_event(
+                "INTENT_PUBLISHED",
+                agent,
+                {"task": d.get("task", "")},
+            )
+        if convergence.has_conflicts:
+            for conflict in convergence.conflicts:
+                self._record_event(
+                    "CONFLICT_DETECTED",
+                    conflict.get("agent", "unknown"),
+                    {"description": conflict.get("description", "")},
+                )
 
     async def _run_agent(
         self,

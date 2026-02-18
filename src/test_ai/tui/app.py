@@ -274,6 +274,13 @@ class GorgonApp(App):
                 except Exception:
                     bridge = None
                 self._coordination_bridge = bridge
+                # Wire Convergent event log if available
+                try:
+                    from test_ai.agents.convergence import create_event_log
+
+                    event_log = create_event_log()
+                except Exception:
+                    event_log = None
                 # Create budget manager for agent session
                 try:
                     from test_ai.budget import BudgetManager
@@ -286,6 +293,7 @@ class GorgonApp(App):
                     convergence_checker=checker,
                     coordination_bridge=bridge,
                     budget_manager=budget_mgr,
+                    event_log=event_log,
                 )
             except Exception as e:
                 cs.chat_display.add_error_message(

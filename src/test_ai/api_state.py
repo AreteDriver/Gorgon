@@ -67,6 +67,12 @@ budget_manager: Optional[PersistentBudgetManager] = None
 task_store: Optional[TaskStore] = None
 
 # ---------------------------------------------------------------------------
+# Coordination (initialized in lifespan, optional)
+# ---------------------------------------------------------------------------
+coordination_event_log = None  # convergent.EventLog or None
+coordination_bridge = None  # convergent.GorgonBridge or None
+
+# ---------------------------------------------------------------------------
 # WebSocket components (initialized in lifespan)
 # ---------------------------------------------------------------------------
 ws_manager: Optional[ConnectionManager] = None

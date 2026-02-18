@@ -145,6 +145,15 @@ async def lifespan(app: FastAPI):
         _coordination_bridge = create_bridge()
     except Exception:
         _coordination_bridge = None
+    state.coordination_bridge = _coordination_bridge
+
+    # Create coordination event log
+    try:
+        from test_ai.agents.convergence import create_event_log
+
+        state.coordination_event_log = create_event_log()
+    except Exception:
+        state.coordination_event_log = None
 
     def create_supervisor(mode=None, session=None, backend=None):
         """Factory function to create Supervisor agent."""
@@ -164,6 +173,7 @@ async def lifespan(app: FastAPI):
                 convergence_checker=checker,
                 coordination_bridge=_coordination_bridge,
                 budget_manager=state.budget_manager,
+                event_log=state.coordination_event_log,
             )
         except Exception as e:
             logger.warning(f"Could not create supervisor: {e}")
@@ -223,6 +233,13 @@ async def lifespan(app: FastAPI):
             _coordination_bridge.close()
         except Exception as e:
             logger.warning("Failed to close coordination bridge: %s", e)
+
+    # Close coordination event log
+    if state.coordination_event_log is not None:
+        try:
+            state.coordination_event_log.close()
+        except Exception as e:
+            logger.warning("Failed to close coordination event log: %s", e)
 
     # Reset circuit breakers
     reset_all_circuits()
@@ -400,6 +417,7 @@ app.add_exception_handler(APIException, api_exception_handler)
 from test_ai.api_routes import (  # noqa: E402
     auth,
     budgets,
+    coordination,
     dashboard,
     executions,
     graph,
@@ -429,6 +447,7 @@ v1_router.include_router(budgets.router)
 v1_router.include_router(dashboard.router)
 v1_router.include_router(history.router)
 v1_router.include_router(graph.router)
+v1_router.include_router(coordination.router)
 
 app.include_router(v1_router)
 app.include_router(health.router)
