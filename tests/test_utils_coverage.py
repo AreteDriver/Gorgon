@@ -211,7 +211,7 @@ class TestRetryContext:
             with RetryContext(
                 max_retries=1, base_delay=0.01, operation_name="my_op"
             ) as retry:
-                for _attempt in retry:
+                for _ in retry:
                     try:
                         raise TimeoutError("timeout")
                     except Exception as e:
@@ -224,7 +224,7 @@ class TestRetryContext:
         """RetryContext should re-raise non-retryable exceptions immediately."""
         with pytest.raises(ValueError):
             with RetryContext(max_retries=3) as retry:
-                for _attempt in retry:
+                for _ in retry:
                     try:
                         raise ValueError("bad input")
                     except Exception as e:
