@@ -671,3 +671,242 @@ class TestExecutorSafetyIntegration:
 
         assert error is None
         assert handler is not None
+
+
+# ── ExecutorConvergentBridge ──────────────────────────────────────────
+
+
+class TestExecutorConvergentBridge:
+    """Tests for ExecutorConvergentBridge (stigmergy/coherence in executor)."""
+
+    def test_disabled_without_bridge(self):
+        """Bridge is disabled when no coordination_bridge provided."""
+        from test_ai.animus.convergent_executor import ExecutorConvergentBridge
+
+        bridge = ExecutorConvergentBridge(coordination_bridge=None)
+        assert bridge.enabled is False
+
+    def test_enrich_prompt_passthrough_when_disabled(self):
+        """Prompt passes through unmodified when bridge is disabled."""
+        from test_ai.animus.convergent_executor import ExecutorConvergentBridge
+
+        bridge = ExecutorConvergentBridge(coordination_bridge=None)
+        original = "Write unit tests for the parser"
+        result = bridge.enrich_prompt("tester", original)
+        assert result == original
+
+    def test_record_outcome_noop_when_disabled(self):
+        """Outcome recording is a no-op when bridge is disabled."""
+        from test_ai.animus.convergent_executor import ExecutorConvergentBridge
+
+        bridge = ExecutorConvergentBridge(coordination_bridge=None)
+        # Should not raise
+        bridge.record_outcome("builder", "step-1", success=True)
+
+    def test_check_parallel_coherence_returns_none_when_disabled(self):
+        """Coherence check returns None when bridge is disabled."""
+        from test_ai.animus.convergent_executor import ExecutorConvergentBridge
+
+        bridge = ExecutorConvergentBridge(coordination_bridge=None)
+        result = bridge.check_parallel_coherence([
+            {"agent": "builder", "task": "build feature"},
+            {"agent": "tester", "task": "test feature"},
+        ])
+        assert result is None
+
+    def test_close_noop_when_disabled(self):
+        """Close is a no-op when bridge is disabled."""
+        from test_ai.animus.convergent_executor import ExecutorConvergentBridge
+
+        bridge = ExecutorConvergentBridge(coordination_bridge=None)
+        bridge.close()  # Should not raise
+
+    def test_executor_accepts_coordination_bridge(self):
+        """WorkflowExecutor accepts coordination_bridge parameter."""
+        from test_ai.animus.convergent_executor import ExecutorConvergentBridge
+        from test_ai.workflow.executor_core import WorkflowExecutor
+
+        bridge = ExecutorConvergentBridge(coordination_bridge=None)
+        executor = WorkflowExecutor(coordination_bridge=bridge)
+        assert executor.coordination_bridge is bridge
+
+    def test_executor_records_outcome_on_step_completion(self, tmp_db):
+        """Executor calls coordination_bridge.record_outcome after step completion."""
+        from unittest.mock import MagicMock
+        from test_ai.workflow.executor_core import WorkflowExecutor
+        from test_ai.workflow.loader import StepConfig
+        from test_ai.workflow.executor_results import StepResult, StepStatus
+
+        mock_bridge = MagicMock()
+        mock_bridge.record_outcome = MagicMock()
+
+        executor = WorkflowExecutor(coordination_bridge=mock_bridge)
+
+        step = StepConfig(id="test-step", type="shell", params={"role": "builder"})
+        step_result = StepResult(
+            step_id="test-step", status=StepStatus.SUCCESS, tokens_used=100
+        )
+        result = MagicMock()
+        result.steps = []
+        result.total_tokens = 0
+        result.total_duration_ms = 0
+
+        executor._record_step_completion(step, step_result, result)
+
+        mock_bridge.record_outcome.assert_called_once_with(
+            agent_id="builder",
+            step_id="test-step",
+            success=True,
+        )
+
+
+# ── Sovereign Executor ────────────────────────────────────────────────
+
+
+class TestSovereignConfig:
+    """Tests for SovereignConfig defaults."""
+
+    def test_defaults(self):
+        """SovereignConfig has sensible defaults."""
+        from test_ai.animus.sovereign import SovereignConfig, SovereigntyLevel
+
+        config = SovereignConfig()
+        assert config.sovereignty_level == SovereigntyLevel.HYBRID
+        assert config.local_provider == "ollama"
+        assert config.max_autonomous_steps == 50
+        assert config.persist_all_outputs is True
+
+    def test_full_sovereignty(self):
+        """Can configure full sovereignty."""
+        from test_ai.animus.sovereign import SovereignConfig, SovereigntyLevel
+
+        config = SovereignConfig(sovereignty_level=SovereigntyLevel.FULL)
+        assert config.sovereignty_level == SovereigntyLevel.FULL
+        assert config.cloud_fallback_providers == ["anthropic", "openai"]
+
+
+class TestSovereignExecutor:
+    """Tests for SovereignExecutor."""
+
+    def test_init_without_bridge(self):
+        """Can create SovereignExecutor without a bridge."""
+        from test_ai.animus.sovereign import SovereignExecutor
+
+        executor = SovereignExecutor()
+        assert executor.bridge is None
+        assert executor.config is not None
+
+    def test_init_with_bridge(self, bridge):
+        """Can create SovereignExecutor with a bridge."""
+        from test_ai.animus.sovereign import SovereignExecutor
+
+        executor = SovereignExecutor(bridge=bridge)
+        assert executor.bridge is bridge
+
+    def test_get_status_without_bridge(self):
+        """Status returns basic info without a bridge."""
+        from test_ai.animus.sovereign import SovereignExecutor, SovereigntyLevel
+
+        executor = SovereignExecutor()
+        status = executor.get_status()
+        assert status["sovereignty_level"] == SovereigntyLevel.HYBRID.value
+        assert status["bridge_initialized"] is False
+
+    def test_get_status_with_bridge(self, bridge):
+        """Status returns detailed info with an initialized bridge."""
+        from test_ai.animus.sovereign import SovereignExecutor
+
+        # Create a profile so get_status has something to report
+        profile = UserProfile(display_name="TestUser", boundaries=["No spam"])
+        bridge.identity.create_profile(profile)
+
+        executor = SovereignExecutor(bridge=bridge)
+        status = executor.get_status()
+        assert status["bridge_initialized"] is True
+        assert status["active_profile"] == "TestUser"
+        assert status["boundaries_count"] == 1
+        assert status["memory_count"] == 0
+        assert status["safety_violations"] == 0
+
+    def test_build_executor_wires_safety(self, bridge):
+        """_build_executor wires the safety guard into WorkflowExecutor."""
+        from test_ai.animus.sovereign import SovereignExecutor
+
+        sovereign = SovereignExecutor(bridge=bridge)
+        executor = sovereign._build_executor()
+        assert executor.safety_guard is bridge.safety
+
+    def test_sovereignty_levels(self):
+        """All sovereignty levels are valid enum values."""
+        from test_ai.animus.sovereign import SovereigntyLevel
+
+        assert SovereigntyLevel.FULL.value == "full"
+        assert SovereigntyLevel.HYBRID.value == "hybrid"
+        assert SovereigntyLevel.CLOUD.value == "cloud"
+
+
+# ── AI Handler Enrichment ─────────────────────────────────────────────
+
+
+class TestAIHandlerEnrichment:
+    """Tests for stigmergy and identity injection in AI handlers."""
+
+    def test_identity_context_injected_in_claude_step(self):
+        """Identity context from _identity_context is injected into Claude prompts."""
+        from test_ai.workflow.executor_core import WorkflowExecutor
+        from test_ai.workflow.loader import StepConfig
+
+        executor = WorkflowExecutor(dry_run=True)
+
+        step = StepConfig(
+            id="test-claude",
+            type="claude_code",
+            params={"prompt": "Analyze this code", "role": "reviewer"},
+        )
+        context = {"_identity_context": "User: Alice\nPreferences:\n  - style: concise"}
+
+        output = executor._execute_claude_code(step, context)
+        # The identity context should be in the prompt that was sent
+        assert "Alice" in output["prompt"]
+        assert "concise" in output["prompt"]
+
+    def test_identity_context_injected_in_openai_step(self):
+        """Identity context from _identity_context is injected into OpenAI prompts."""
+        from test_ai.workflow.executor_core import WorkflowExecutor
+        from test_ai.workflow.loader import StepConfig
+
+        executor = WorkflowExecutor(dry_run=True)
+
+        step = StepConfig(
+            id="test-openai",
+            type="openai",
+            params={"prompt": "Summarize results"},
+        )
+        context = {"_identity_context": "User: Bob\nBoundaries:\n  - No jargon"}
+
+        output = executor._execute_openai(step, context)
+        assert "Bob" in output["prompt"]
+        assert "No jargon" in output["prompt"]
+
+    def test_coordination_bridge_enrichment(self):
+        """Coordination bridge enrich_prompt is called for AI steps."""
+        from unittest.mock import MagicMock
+        from test_ai.workflow.executor_core import WorkflowExecutor
+        from test_ai.workflow.loader import StepConfig
+
+        mock_bridge = MagicMock()
+        mock_bridge.enrich_prompt = MagicMock(
+            return_value="original prompt\n\n[Trail: builder completed similar task]"
+        )
+
+        executor = WorkflowExecutor(dry_run=True, coordination_bridge=mock_bridge)
+
+        step = StepConfig(
+            id="test-enrich",
+            type="claude_code",
+            params={"prompt": "original prompt", "role": "builder"},
+        )
+
+        output = executor._execute_claude_code(step, {})
+        mock_bridge.enrich_prompt.assert_called_once()
+        assert "Trail" in output["prompt"]

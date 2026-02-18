@@ -55,6 +55,7 @@ class WorkflowExecutor(
         feedback_engine=None,
         execution_manager=None,
         safety_guard=None,
+        coordination_bridge=None,
     ):
         """Initialize executor.
 
@@ -70,6 +71,7 @@ class WorkflowExecutor(
             feedback_engine: Optional FeedbackEngine for outcome tracking and learning
             execution_manager: Optional ExecutionManager for streaming execution logs
             safety_guard: Optional Animus SafetyGuardBridge for pre-step safety validation
+            coordination_bridge: Optional ExecutorConvergentBridge for stigmergy/coherence
         """
         self.checkpoint_manager = checkpoint_manager
         self.contract_validator = contract_validator
@@ -82,6 +84,7 @@ class WorkflowExecutor(
         self.feedback_engine = feedback_engine
         self.execution_manager = execution_manager
         self.safety_guard = safety_guard
+        self.coordination_bridge = coordination_bridge
         self._execution_id: str | None = None
         self._handlers: dict[str, StepHandler] = {
             "shell": self._execute_shell,
@@ -267,6 +270,18 @@ class WorkflowExecutor(
                 )
             except Exception:
                 logger.debug("Execution metrics emission failed", exc_info=True)
+
+        # Record outcome in Convergent for stigmergy trail building
+        if self.coordination_bridge is not None:
+            try:
+                agent_id = step.params.get("role", step.type)
+                self.coordination_bridge.record_outcome(
+                    agent_id=agent_id,
+                    step_id=step.id,
+                    success=step_result.status == StepStatus.SUCCESS,
+                )
+            except Exception:
+                logger.debug("Convergent outcome recording failed", exc_info=True)
 
         # Record in task history (analytics, non-critical)
         try:

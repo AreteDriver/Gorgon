@@ -48,6 +48,16 @@ class AIHandlersMixin:
         if use_memory and self.memory_manager:
             prompt = self.memory_manager.inject_context(role, prompt)
 
+        # Inject stigmergy trail markers from Convergent
+        coord_bridge = getattr(self, "coordination_bridge", None)
+        if coord_bridge is not None:
+            prompt = coord_bridge.enrich_prompt(agent_id=role, prompt=prompt)
+
+        # Inject identity context if available
+        identity_ctx = context.get("_identity_context")
+        if identity_ctx:
+            prompt = prompt + "\n\n" + identity_ctx
+
         # Inject budget context if available
         budget_mgr = getattr(self, "budget_manager", None)
         if budget_mgr:
@@ -159,6 +169,16 @@ class AIHandlersMixin:
         agent_id = f"openai-{model}"
         if use_memory and self.memory_manager:
             prompt = self.memory_manager.inject_context(agent_id, prompt)
+
+        # Inject stigmergy trail markers from Convergent
+        coord_bridge = getattr(self, "coordination_bridge", None)
+        if coord_bridge is not None:
+            prompt = coord_bridge.enrich_prompt(agent_id=agent_id, prompt=prompt)
+
+        # Inject identity context if available
+        identity_ctx = context.get("_identity_context")
+        if identity_ctx:
+            prompt = prompt + "\n\n" + identity_ctx
 
         # Dry run mode - return mock response
         if self.dry_run:

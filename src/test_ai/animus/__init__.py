@@ -30,17 +30,20 @@ Usage:
 from __future__ import annotations
 
 from .config import AnimusBridgeConfig
+from .convergent_executor import ExecutorConvergentBridge
 from .identity import IdentityStore
 from .integration import GorgonIntegration
 from .intelligence_bridge import GorgonIntelligenceProvider
 from .memory_bridge import AnimusMemoryProvider
 from .models import Memory, MemorySource, MemoryType, SafetyCheckResult, UserProfile
 from .safety_bridge import SafetyGuardBridge
+from .sovereign import SovereignConfig, SovereignExecutor, SovereigntyLevel
 
 __all__ = [
     "AnimusBridge",
     "AnimusBridgeConfig",
     "AnimusMemoryProvider",
+    "ExecutorConvergentBridge",
     "GorgonIntelligenceProvider",
     "GorgonIntegration",
     "IdentityStore",
@@ -49,6 +52,9 @@ __all__ = [
     "MemoryType",
     "SafetyCheckResult",
     "SafetyGuardBridge",
+    "SovereignConfig",
+    "SovereignExecutor",
+    "SovereigntyLevel",
     "UserProfile",
 ]
 
