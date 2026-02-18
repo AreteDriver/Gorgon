@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771453355805,
+  "lastUpdate": 1771455190211,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1478,6 +1478,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.00748887605161699",
             "extra": "mean: 103.64053633333646 msec\nrounds: 9"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "44a403fe22ea6788a15948377ff7d1edab19c948",
+          "message": "chore(deps): upgrade textual 8, bcrypt 5, telegram-bot 22, notion-client 3\n\nMajor version bumps with no breaking changes to Gorgon's usage:\n- textual ^2.1.0 → ^8.0.0 (Select.BLANK→NULL, not used)\n- bcrypt ^4.0.0 → ^5.0.0 (hashpw 72-byte limit, only checkpw used)\n- python-telegram-bot ^21.0 → ^22.0 (removed v20 deprecated APIs, not used)\n- notion-client ^2.2.1 → ^3.0.0 (removed helpers, not used)\n\nAlso migrates convergentai from git dep to PyPI ^1.1.0 (fixes dulwich\nresolver bug that blocked poetry lock with git dependencies).\n\n7285 tests pass, 0 failures.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-18T14:43:23-08:00",
+          "tree_id": "ac610415f781c119f88d132b3c19bc9b24c5c628",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/44a403fe22ea6788a15948377ff7d1edab19c948"
+        },
+        "date": 1771455189354,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 21846.061798707953,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000002856193562064875",
+            "extra": "mean: 45.77484075684264 usec\nrounds: 9250"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 339.14309838049695,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00008619972173550227",
+            "extra": "mean: 2.94860784363674 msec\nrounds: 275"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4440.743831666501,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000006304906461962904",
+            "extra": "mean: 225.18749964118618 usec\nrounds: 4179"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 34.6221715654307,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0003454112832594544",
+            "extra": "mean: 28.88322582857492 msec\nrounds: 35"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 6.919871416402441,
+            "unit": "iter/sec",
+            "range": "stddev: 0.01115186615134378",
+            "extra": "mean: 144.5113557500015 msec\nrounds: 8"
           }
         ]
       }
