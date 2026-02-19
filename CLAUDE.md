@@ -2,7 +2,7 @@
 
 ## Overview
 
-**Gorgon** is a multi-agent orchestration framework for production AI workflows. It coordinates specialized AI agents (OpenAI, Claude) across enterprise workflows with integrations for GitHub, Notion, and Gmail.
+**Gorgon** is a headless multi-agent orchestration engine. It coordinates specialized AI agents (OpenAI, Claude) across enterprise workflows via API + ops dashboard, with integrations for GitHub, Notion, and Gmail. User-facing features (chat, memory, identity) belong to Animus.
 
 > The Gorgon metaphor: Multiple specialized "heads" (agents) work in coordination - Planner, Builder, Tester, Reviewer, Architect, Documenter, etc.
 
@@ -34,7 +34,6 @@ gorgon/
 │   ├── cli/                   # Typer CLI (main.py + commands/)
 │   ├── agents/                # Supervisor, provider_wrapper, convergence
 │   ├── auth/                  # Token auth, tenants, brute force protection
-│   ├── chat/                  # Chat interface (sessions, streaming, router)
 │   ├── contracts/             # Contract validation
 │   ├── dashboard/             # Streamlit dashboard (13 pages)
 │   ├── jobs/                  # Job management
