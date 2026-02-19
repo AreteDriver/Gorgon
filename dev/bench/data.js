@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771455190211,
+  "lastUpdate": 1771502639585,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1537,6 +1537,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.01115186615134378",
             "extra": "mean: 144.5113557500015 msec\nrounds: 8"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "ff80f4e5d01c041d8bf7121b565c930d9d10ea40",
+          "message": "refactor: remove user-facing features, refocus as headless orchestration engine\n\nGorgon is now a pure orchestration API + ops dashboard.\nChat interface, conversational memory, and file upload UX removed —\nthese responsibilities belong to Animus.\n\nRemoved: chat module (models, router, session_manager), chat API routes,\nchat TUI (agent message handling), chat frontend (page, 10 components,\nstore, types), vectorstore (4 modules), knowledge graph (3 modules),\nmessaging handler, Telegram/Discord bot CLI commands.\n\nCleaned: supervisor agent (dropped mode/session/process_message/tool\nexecution — kept delegation/consensus/bridge orchestration), API lifespan\n(dropped chat init, kept supervisor factory), CLI (dropped bot sub-app),\ndown migration 013_drop_chat.sql.\n\n50 files changed, 14,802 lines removed. 6,696 tests pass, 87.68% coverage.\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-19T03:54:33-08:00",
+          "tree_id": "a8bc3efb7c7a5b24356049e21b5efe6d5cefa584",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/ff80f4e5d01c041d8bf7121b565c930d9d10ea40"
+        },
+        "date": 1771502638734,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 21628.9227337592,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000029534804711728068",
+            "extra": "mean: 46.23438773671164 usec\nrounds: 7714"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 317.7579253984285,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00004070755180001004",
+            "extra": "mean: 3.147049750989297 msec\nrounds: 253"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4493.898499284078,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000007892948136518436",
+            "extra": "mean: 222.5239399953759 usec\nrounds: 4283"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 33.513702999607276,
+            "unit": "iter/sec",
+            "range": "stddev: 0.00046136744390043953",
+            "extra": "mean: 29.83854096969584 msec\nrounds: 33"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 9.122779736164249,
+            "unit": "iter/sec",
+            "range": "stddev: 0.019278682942259782",
+            "extra": "mean: 109.61571241666945 msec\nrounds: 12"
           }
         ]
       }
