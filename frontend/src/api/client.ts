@@ -21,14 +21,6 @@ import type {
   MCPTool,
   Credential,
 } from '@/types/mcp';
-import type {
-  ChatSession,
-  ChatSessionDetail,
-  ChatMode,
-  EditProposal,
-  ProposalStatus,
-} from '@/types/chat';
-
 // =============================================================================
 // API Client Configuration
 // =============================================================================
@@ -385,66 +377,6 @@ class GorgonApiClient {
     await this.client.delete(`/v1/settings/api-keys/${provider}`);
   }
 
-  // ---------------------------------------------------------------------------
-  // Chat
-  // ---------------------------------------------------------------------------
-
-  async getChatSessions(): Promise<ChatSession[]> {
-    const { data } = await this.client.get('/chat/sessions');
-    return data;
-  }
-
-  async createChatSession(params?: {
-    title?: string;
-    project_path?: string;
-    mode?: ChatMode;
-    filesystem_enabled?: boolean;
-    allowed_paths?: string[];
-  }): Promise<ChatSession> {
-    const { data } = await this.client.post('/chat/sessions', params);
-    return data;
-  }
-
-  async getChatSession(sessionId: string): Promise<ChatSessionDetail> {
-    const { data } = await this.client.get(`/chat/sessions/${sessionId}`);
-    return data;
-  }
-
-  async deleteChatSession(sessionId: string): Promise<void> {
-    await this.client.delete(`/chat/sessions/${sessionId}`);
-  }
-
-  async getChatSessionJobs(sessionId: string): Promise<{ session_id: string; job_ids: string[] }> {
-    const { data } = await this.client.get(`/chat/sessions/${sessionId}/jobs`);
-    return data;
-  }
-
-  // ---------------------------------------------------------------------------
-  // Edit Proposals
-  // ---------------------------------------------------------------------------
-
-  async getProposals(sessionId: string, status?: ProposalStatus): Promise<EditProposal[]> {
-    const params = status ? { status } : undefined;
-    const { data } = await this.client.get(`/chat/sessions/${sessionId}/proposals`, { params });
-    return data;
-  }
-
-  async getProposal(sessionId: string, proposalId: string): Promise<EditProposal> {
-    const { data } = await this.client.get(`/chat/sessions/${sessionId}/proposals/${proposalId}`);
-    return data;
-  }
-
-  async approveProposal(sessionId: string, proposalId: string): Promise<EditProposal> {
-    const { data } = await this.client.post(`/chat/sessions/${sessionId}/proposals/${proposalId}/approve`);
-    return data;
-  }
-
-  async rejectProposal(sessionId: string, proposalId: string): Promise<EditProposal> {
-    const { data } = await this.client.post(`/chat/sessions/${sessionId}/proposals/${proposalId}/reject`);
-    return data;
-  }
-
-  // Note: sendChatMessage uses fetch for SSE streaming, not this client
   getAuthToken(): string {
     return localStorage.getItem('gorgon_token') || '';
   }

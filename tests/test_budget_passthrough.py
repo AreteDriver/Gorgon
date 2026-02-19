@@ -7,20 +7,18 @@ and bot /budget command.
 
 from __future__ import annotations
 
-import asyncio
 import os
 import shutil
 import sys
 import tempfile
 from datetime import datetime
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 
 sys.path.insert(0, "src")
 
 from test_ai.budget.manager import BudgetConfig, BudgetManager
-from test_ai.messaging.base import BotMessage, BotUser, MessagePlatform
 
 
 # =============================================================================
@@ -375,74 +373,6 @@ class TestBudgetDailyCommand:
 
 
 # =============================================================================
-# TestBotBudgetCommand
-# =============================================================================
-
-
-class TestBotBudgetCommand:
-    """Tests for /budget bot command."""
-
-    def _make_message(self):
-        user = BotUser(
-            id="u1",
-            platform=MessagePlatform.TELEGRAM,
-            username="testuser",
-            is_admin=False,
-        )
-        return BotMessage(
-            id="msg-1",
-            platform=MessagePlatform.TELEGRAM,
-            user=user,
-            content="/budget",
-            chat_id="chat-1",
-        )
-
-    def _make_handler(self):
-        from test_ai.messaging.handler import MessageHandler
-
-        session_mgr = MagicMock()
-        return MessageHandler(session_manager=session_mgr)
-
-    def test_budget_command_returns_daily_spend(self, store):
-        today = datetime.now().strftime("%Y-%m-%d")
-        store.backend.execute(
-            "INSERT INTO budget_log (date, agent_role, task_count, total_tokens, total_cost_usd) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (today, "builder", 5, 15000, 1.50),
-        )
-
-        handler = self._make_handler()
-        msg = self._make_message()
-        with patch("test_ai.db.get_task_store", return_value=store):
-            result = asyncio.run(handler.handle_command(msg, "budget", []))
-        assert "15,000" in result
-        assert "Today" in result
-
-    def test_budget_command_empty_db(self, store):
-        handler = self._make_handler()
-        msg = self._make_message()
-        with patch("test_ai.db.get_task_store", return_value=store):
-            result = asyncio.run(handler.handle_command(msg, "budget", []))
-        assert "No budget data" in result
-
-    def test_budget_command_error_fallback(self):
-        handler = self._make_handler()
-        msg = self._make_message()
-        with patch("test_ai.db.get_task_store", side_effect=RuntimeError("DB error")):
-            result = asyncio.run(handler.handle_command(msg, "budget", []))
-        assert "unavailable" in result.lower()
-
-    def test_budget_registered_in_handlers(self):
-        handler = self._make_handler()
-        msg = self._make_message()
-        # handle_command for unknown command returns None
-        result = asyncio.run(handler.handle_command(msg, "unknown_cmd_xyz", []))
-        assert result is None
-        # budget should return something (not None)
-        with patch("test_ai.db.get_task_store", side_effect=RuntimeError("DB error")):
-            result = asyncio.run(handler.handle_command(msg, "budget", []))
-        assert result is not None
-
 
 # =============================================================================
 # TestPersistentBudget

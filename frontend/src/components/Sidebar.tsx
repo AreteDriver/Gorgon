@@ -12,7 +12,6 @@ import {
   Plug,
   Lightbulb,
   PlusCircle,
-  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -27,7 +26,6 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { title: 'Dashboard', href: '/', icon: LayoutDashboard },
-  { title: 'Chat', href: '/chat', icon: MessageSquare },
   { title: 'Decisions', href: '/decisions', icon: Lightbulb },
   { title: 'Workflows', href: '/workflows', icon: GitBranch },
   { title: 'New Workflow', href: '/workflows/new', icon: PlusCircle },

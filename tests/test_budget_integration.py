@@ -13,7 +13,7 @@ import shutil
 import sys
 import tempfile
 from datetime import datetime
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -285,53 +285,3 @@ class TestBudgetGateInDelegations:
 
 
 # =============================================================================
-# TestBotBudgetWithPersistence
-# =============================================================================
-
-
-class TestBotBudgetWithPersistence:
-    """Bot /budget command with persisted budget data."""
-
-    def test_bot_shows_persisted_daily_spend(self, budget_backend):
-        from test_ai.db import TaskStore
-        from test_ai.messaging.base import BotMessage, BotUser, MessagePlatform
-        from test_ai.messaging.handler import MessageHandler
-
-        store = TaskStore(budget_backend)
-
-        # Record usage via BudgetManager (persisted)
-        bm = BudgetManager(
-            config=BudgetConfig(total_budget=100000),
-            backend=budget_backend,
-            session_id="bot-test",
-        )
-        bm.record_usage("builder", 10000, "generation")
-
-        # Also seed budget_log for the bot command
-        today = datetime.now().strftime("%Y-%m-%d")
-        budget_backend.execute(
-            "INSERT INTO budget_log (date, agent_role, task_count, total_tokens, total_cost_usd) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (today, "builder", 3, 10000, 1.00),
-        )
-
-        handler = MessageHandler(session_manager=MagicMock())
-        user = BotUser(
-            id="u1",
-            platform=MessagePlatform.TELEGRAM,
-            username="testuser",
-            is_admin=False,
-        )
-        msg = BotMessage(
-            id="msg-1",
-            platform=MessagePlatform.TELEGRAM,
-            user=user,
-            content="/budget",
-            chat_id="chat-1",
-        )
-
-        with patch("test_ai.db.get_task_store", return_value=store):
-            result = asyncio.run(handler.handle_command(msg, "budget", []))
-
-        assert "10,000" in result
-        assert "Today" in result

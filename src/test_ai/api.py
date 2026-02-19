@@ -133,11 +133,6 @@ async def lifespan(app: FastAPI):
 
     logger.info("WebSocket components initialized")
 
-    # Initialize chat module
-    from test_ai.agents import SupervisorAgent, create_agent_provider
-    from test_ai.chat import router as chat_router
-    from test_ai.chat.router import init_chat_module
-
     # Create coordination bridge once (persistent across supervisor instances)
     try:
         from test_ai.agents.convergence import create_bridge
@@ -155,7 +150,9 @@ async def lifespan(app: FastAPI):
     except Exception:
         state.coordination_event_log = None
 
-    def create_supervisor(mode=None, session=None, backend=None):
+    from test_ai.agents import SupervisorAgent, create_agent_provider
+
+    def create_supervisor(backend=None):
         """Factory function to create Supervisor agent."""
         try:
             provider = create_agent_provider("anthropic")
@@ -167,8 +164,6 @@ async def lifespan(app: FastAPI):
                 checker = None
             return SupervisorAgent(
                 provider,
-                mode=mode,
-                session=session,
                 backend=backend or state._app_state.get("backend"),
                 convergence_checker=checker,
                 coordination_bridge=_coordination_bridge,
@@ -179,9 +174,8 @@ async def lifespan(app: FastAPI):
             logger.warning(f"Could not create supervisor: {e}")
             return None
 
-    init_chat_module(backend, supervisor_factory=create_supervisor)
-    app.include_router(chat_router)
-    logger.info("Chat module initialized")
+    state.supervisor_factory = create_supervisor
+    logger.info("Supervisor factory initialized")
 
     # Migrate existing workflows (one-time)
     try:
@@ -378,7 +372,7 @@ request_limit_config = RequestLimitConfig(
     max_body_size=_settings.request_max_body_size,
     max_json_size=_settings.request_max_json_size,
     max_form_size=_settings.request_max_form_size,
-    large_upload_paths=("/v1/workflows/upload",),
+    large_upload_paths=(),
 )
 app.add_middleware(RequestSizeLimitMiddleware, config=request_limit_config)
 

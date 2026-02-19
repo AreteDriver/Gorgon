@@ -5,9 +5,6 @@ import type { WorkflowNodeData, ValidationError } from '@/types/workflow-builder
 import type { Node, Edge, Connection } from '@xyflow/react';
 import { applyNodeChanges, applyEdgeChanges, addEdge, type NodeChange, type EdgeChange } from '@xyflow/react';
 
-// Re-export chat store
-export { useChatStore } from './chatStore';
-
 // =============================================================================
 // UI Store - Transient UI state
 // =============================================================================

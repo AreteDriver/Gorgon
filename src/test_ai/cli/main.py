@@ -78,7 +78,6 @@ from .commands.budget import budget_app  # noqa: E402
 from .commands.metrics import metrics_app  # noqa: E402
 from .commands.config import config_app  # noqa: E402
 from .commands.admin import plugins_app  # noqa: E402
-from .commands.bot import bot_app  # noqa: E402
 from .commands.calendar_cmd import calendar_app  # noqa: E402
 from .commands.browser import browser_app  # noqa: E402
 from .commands.history import history_app  # noqa: E402
@@ -93,7 +92,6 @@ app.add_typer(budget_app, name="budget")
 app.add_typer(metrics_app, name="metrics")
 app.add_typer(config_app, name="config")
 app.add_typer(plugins_app, name="plugins")
-app.add_typer(bot_app, name="bot")
 app.add_typer(calendar_app, name="calendar")
 app.add_typer(browser_app, name="browser")
 app.add_typer(history_app, name="history")

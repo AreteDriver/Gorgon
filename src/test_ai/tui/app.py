@@ -179,11 +179,6 @@ class GorgonApp(App):
             }
         )
 
-        # Check if we should use agent mode
-        if self._agent_mode not in ("off", "none"):
-            await self._handle_agent_message(content, cs)
-            return
-
         # Stream response
         self._cancel_event.clear()
         self._is_streaming = True
@@ -249,115 +244,6 @@ class GorgonApp(App):
                     self._session.save()
                 except Exception as e:
                     logger.debug(f"Auto-save failed: {e}")
-
-    async def _handle_agent_message(self, content: str, cs: ChatScreen) -> None:
-        """Handle a message in agent mode via SupervisorAgent."""
-        if self._supervisor is None:
-            try:
-                from test_ai.agents.provider_wrapper import AgentProvider
-                from test_ai.agents.supervisor import SupervisorAgent
-
-                provider = self._provider_manager.get_default()
-                agent_provider = AgentProvider(provider)
-                # Wire Convergent coherence checker if available
-                try:
-                    from test_ai.agents.convergence import create_checker
-
-                    checker = create_checker()
-                except Exception:
-                    checker = None
-                # Wire Convergent coordination bridge if available
-                try:
-                    from test_ai.agents.convergence import create_bridge
-
-                    bridge = create_bridge()
-                except Exception:
-                    bridge = None
-                self._coordination_bridge = bridge
-                # Wire Convergent event log if available
-                try:
-                    from test_ai.agents.convergence import create_event_log
-
-                    event_log = create_event_log()
-                except Exception:
-                    event_log = None
-                # Create budget manager for agent session
-                try:
-                    from test_ai.budget import BudgetManager
-
-                    budget_mgr = BudgetManager()
-                except Exception:
-                    budget_mgr = None
-                self._supervisor = SupervisorAgent(
-                    provider=agent_provider,
-                    convergence_checker=checker,
-                    coordination_bridge=bridge,
-                    budget_manager=budget_mgr,
-                    event_log=event_log,
-                )
-            except Exception as e:
-                cs.chat_display.add_error_message(
-                    f"Agent init failed: {_sanitize_error(str(e))}"
-                )
-                return
-
-        self._cancel_event.clear()
-        self._is_streaming = True
-        cs.status_bar.is_streaming = True
-
-        full_response = ""
-        try:
-            import uuid
-
-            from test_ai.chat.models import ChatMessage
-
-            session_id = str(uuid.uuid4())
-            chat_messages = [
-                ChatMessage(
-                    id=str(uuid.uuid4()),
-                    session_id=session_id,
-                    role=m["role"],
-                    content=m["content"],
-                )
-                for m in self._messages
-            ]
-            async for chunk in self._supervisor.process_message(content, chat_messages):
-                if self._cancel_event.is_set():
-                    break
-
-                chunk_type = chunk.get("type", "text")
-                chunk_content = chunk.get("content", "")
-                chunk_agent = chunk.get("agent", "supervisor")
-
-                if chunk_type == "text" and chunk_content:
-                    if not full_response:
-                        cs.chat_display.begin_assistant_stream()
-                    full_response += chunk_content
-                    cs.chat_display.append_stream_chunk(chunk_content)
-                elif chunk_type == "agent":
-                    cs.chat_display.add_agent_message(chunk_agent, chunk_content)
-                elif chunk_type == "tool_result":
-                    cs.chat_display.add_system_message(f"[tool] {chunk_content[:200]}")
-                elif chunk_type == "done":
-                    break
-
-        except Exception as e:
-            logger.error(f"Agent error: {e}")
-            cs.chat_display.add_error_message(_sanitize_error(str(e)))
-        finally:
-            self._is_streaming = False
-            cs.status_bar.is_streaming = False
-            if full_response:
-                cs.chat_display.end_assistant_stream(full_response)
-
-        if full_response:
-            self._messages.append(
-                {
-                    "role": "assistant",
-                    "content": full_response,
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                }
-            )
 
     def _build_file_context(self) -> str:
         """Build file context string from attached files.

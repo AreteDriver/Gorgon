@@ -3,9 +3,6 @@
 The Supervisor analyzes user requests and autonomously delegates
 to specialized agents: Planner, Builder, Tester, Reviewer, Architect,
 and Documenter.
-
-Also handles filesystem tool calls when a project_path is configured,
-allowing agents to read files, search code, and propose edits.
 """
 
 from __future__ import annotations
@@ -16,14 +13,13 @@ import logging
 import re
 from dataclasses import dataclass
 from enum import Enum
-from typing import TYPE_CHECKING, Any, AsyncGenerator
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field
 
 if TYPE_CHECKING:
     from test_ai.providers.base import BaseProvider
     from test_ai.budget.manager import BudgetManager
-    from test_ai.chat.models import ChatMessage, ChatMode, ChatSession
     from test_ai.state.backends import DatabaseBackend
     from test_ai.agents.convergence import DelegationConvergenceChecker
     from test_ai.skills.library import SkillLibrary
@@ -108,50 +104,6 @@ When you need to delegate, respond with a JSON block:
 For direct responses without delegation, just respond naturally.
 """
 
-SELF_IMPROVE_PROMPT_ADDITION = """
-**Self-Improvement Mode:**
-You are operating on the Gorgon codebase itself. You have special permissions to:
-- Analyze Gorgon's own code for improvements
-- Propose changes to Gorgon's implementation
-- Create PRs for self-improvement
-
-**Safety Rules:**
-- Never modify security-critical files (auth, credentials, self_improve module)
-- All changes require human approval before merging
-- Run tests before proposing changes
-- Keep changes focused and minimal
-"""
-
-FILESYSTEM_TOOLS_PROMPT = """
-**Filesystem Tools:**
-You have access to the project files. Use these tools to explore and understand the codebase:
-
-**Available Tools:**
-- `read_file`: Read a file's content. Args: path (required), start_line, end_line
-- `list_files`: List files in a directory. Args: path (default "."), pattern (glob), recursive
-- `search_code`: Search for patterns in files. Args: pattern (regex), path, file_pattern
-- `get_structure`: Get project tree overview. Args: max_depth (default 4)
-- `propose_edit`: Propose a file change for approval. Args: path, new_content, description
-
-**Tool Call Format:**
-To use a tool, include a tool_call block in your response:
-<tool_call>
-{"tool": "read_file", "path": "src/main.py"}
-</tool_call>
-
-Tool results will be injected as:
-<tool_result>
-{"tool": "read_file", "success": true, "data": {...}}
-</tool_result>
-
-**Guidelines:**
-- Read files before suggesting changes
-- Use search_code to find relevant code
-- Use get_structure to understand project layout
-- Proposed edits require user approval before applying
-- Keep file operations focused and minimal
-"""
-
 
 class SupervisorAgent:
     """Orchestrates multi-agent workflows through intelligent delegation."""
@@ -162,8 +114,6 @@ class SupervisorAgent:
     def __init__(
         self,
         provider: "BaseProvider",
-        mode: "ChatMode | None" = None,
-        session: "ChatSession | None" = None,
         backend: "DatabaseBackend | None" = None,
         convergence_checker: "DelegationConvergenceChecker | None" = None,
         skill_library: "SkillLibrary | None" = None,
@@ -175,9 +125,7 @@ class SupervisorAgent:
 
         Args:
             provider: LLM provider for generating responses.
-            mode: Operating mode (assistant or self_improve).
-            session: Chat session for filesystem access context.
-            backend: Database backend for proposal storage.
+            backend: Database backend for persistence.
             convergence_checker: Optional Convergent coherence checker.
             skill_library: Optional skill library for v2 routing and context.
             coordination_bridge: Optional Convergent GorgonBridge for prompt enrichment.
@@ -185,8 +133,6 @@ class SupervisorAgent:
             event_log: Optional Convergent EventLog for coordination event tracking.
         """
         self.provider = provider
-        self.mode = mode
-        self.session = session
         self.backend = backend
         self._convergence_checker = convergence_checker
         self._skill_library = skill_library
@@ -194,200 +140,15 @@ class SupervisorAgent:
         self._budget_manager = budget_manager
         self._event_log = event_log
         self._active_delegations: list[AgentDelegation] = []
-        self._filesystem_tools = None
-        self._proposal_manager = None
-
-        # Initialize filesystem tools if session has project access
-        if session and session.has_project_access and backend:
-            self._init_filesystem_tools()
-
-    def _init_filesystem_tools(self) -> None:
-        """Initialize filesystem tools for the session."""
-        from test_ai.tools.safety import PathValidator, SecurityError
-        from test_ai.tools.filesystem import FilesystemTools
-        from test_ai.tools.proposals import ProposalManager
-
-        try:
-            validator = PathValidator(
-                project_path=self.session.project_path,
-                allowed_paths=self.session.allowed_paths,
-            )
-            self._filesystem_tools = FilesystemTools(validator)
-            self._proposal_manager = ProposalManager(self.backend, validator)
-            logger.info(f"Filesystem tools initialized for {self.session.project_path}")
-        except SecurityError as e:
-            logger.warning(f"Failed to initialize filesystem tools: {e}")
 
     def _build_system_prompt(self) -> str:
-        """Build the system prompt based on mode and capabilities."""
+        """Build the system prompt based on capabilities."""
         prompt = SUPERVISOR_SYSTEM_PROMPT
-        if self.mode and self.mode.value == "self_improve":
-            prompt += SELF_IMPROVE_PROMPT_ADDITION
-        if self._filesystem_tools:
-            prompt += FILESYSTEM_TOOLS_PROMPT
         if self._skill_library:
             routing_summary = self._skill_library.build_routing_summary()
             if routing_summary:
                 prompt += "\n\n" + routing_summary
         return prompt
-
-    def _build_context(
-        self,
-        messages: list["ChatMessage"],
-        project_path: str | None = None,
-    ) -> list[dict[str, str]]:
-        """Build conversation context for the LLM.
-
-        Args:
-            messages: Chat history.
-            project_path: Optional project context path.
-
-        Returns:
-            List of message dicts for the LLM.
-        """
-        context = [{"role": "system", "content": self._build_system_prompt()}]
-
-        if project_path:
-            context.append(
-                {
-                    "role": "system",
-                    "content": f"Project context: {project_path}",
-                }
-            )
-
-        # Add conversation history
-        for msg in messages:
-            context.append(
-                {
-                    "role": msg.role.value,
-                    "content": msg.content,
-                }
-            )
-
-        return context
-
-    async def process_message(
-        self,
-        content: str,
-        messages: list["ChatMessage"],
-        project_path: str | None = None,
-    ) -> AsyncGenerator[dict[str, Any], None]:
-        """Process a user message and stream the response.
-
-        Args:
-            content: The user's message.
-            messages: Previous conversation history.
-            project_path: Optional project context.
-
-        Yields:
-            Stream chunks with type, content, agent, etc.
-        """
-        context = self._build_context(messages, project_path)
-
-        # Add the new user message
-        context.append({"role": "user", "content": content})
-
-        # Conversation loop for tool calls
-        max_tool_iterations = 10  # Prevent infinite loops
-        iteration = 0
-
-        while iteration < max_tool_iterations:
-            iteration += 1
-
-            # Get response from LLM
-            full_response = ""
-            async for chunk in self._stream_response(context):
-                full_response += chunk
-                yield {"type": "text", "content": chunk, "agent": "supervisor"}
-
-            # Check for tool calls
-            tool_calls = self._parse_tool_calls(full_response)
-
-            if tool_calls and self._filesystem_tools:
-                # Execute tool calls
-                tool_results = []
-                for tool_call in tool_calls:
-                    result = await self._execute_tool_call(tool_call)
-                    tool_results.append(result)
-
-                    # Yield tool result to client
-                    yield {
-                        "type": "tool_result",
-                        "content": json.dumps(result, default=str),
-                        "agent": "supervisor",
-                    }
-
-                # Add assistant response and tool results to context for next iteration
-                context.append({"role": "assistant", "content": full_response})
-
-                # Build tool results message
-                results_content = "\n".join(
-                    f"<tool_result>\n{json.dumps(r, default=str)}\n</tool_result>"
-                    for r in tool_results
-                )
-                context.append({"role": "user", "content": results_content})
-
-                # Continue loop to process tool results
-                continue
-
-            # No tool calls, check for delegations and exit loop
-            break
-
-        # Check if response contains delegation plan
-        delegation_plan = self._parse_delegation(full_response)
-
-        if delegation_plan:
-            yield {
-                "type": "agent",
-                "content": f"Delegating to {len(delegation_plan.delegations)} agent(s)...",
-                "agent": "supervisor",
-            }
-
-            # Execute delegations
-            results = await self._execute_delegations(
-                delegation_plan.delegations,
-                context,
-                lambda chunk: None,  # Progress callback
-            )
-
-            # Synthesize results
-            yield {
-                "type": "text",
-                "content": "\n\n---\n\n**Synthesis:**\n\n",
-                "agent": "supervisor",
-            }
-
-            synthesis = await self._synthesize_results(
-                delegation_plan, results, context
-            )
-            yield {"type": "text", "content": synthesis, "agent": "supervisor"}
-
-        yield {"type": "done", "content": None, "agent": "supervisor"}
-
-    async def _stream_response(
-        self,
-        messages: list[dict[str, str]],
-    ) -> AsyncGenerator[str, None]:
-        """Stream response from the LLM.
-
-        Args:
-            messages: Conversation messages.
-
-        Yields:
-            Text chunks.
-        """
-        try:
-            # Use streaming if provider supports it
-            if hasattr(self.provider, "stream_completion"):
-                async for chunk in self.provider.stream_completion(messages):
-                    yield chunk
-            else:
-                # Fall back to non-streaming
-                response = await self.provider.complete(messages)
-                yield response
-        except Exception as e:
-            logger.error(f"LLM streaming error: {e}")
-            yield f"\n\n[Error: {str(e)}]"
 
     def _parse_delegation(self, response: str) -> DelegationPlan | None:
         """Parse delegation plan from response.
@@ -892,131 +653,3 @@ Focus on the most important findings and recommendations.
             return "\n\n".join(
                 f"**{agent}:** {result}" for agent, result in results.items()
             )
-
-    def _parse_tool_calls(self, response: str) -> list[dict[str, Any]]:
-        """Parse tool calls from LLM response.
-
-        Args:
-            response: LLM response text.
-
-        Returns:
-            List of tool call dicts with 'tool' and other args.
-        """
-        tool_calls = []
-
-        # Find all <tool_call>...</tool_call> blocks
-        pattern = r"<tool_call>\s*(.*?)\s*</tool_call>"
-        matches = re.findall(pattern, response, re.DOTALL)
-
-        for match in matches:
-            try:
-                tool_call = json.loads(match)
-                if "tool" in tool_call:
-                    tool_calls.append(tool_call)
-            except json.JSONDecodeError as e:
-                logger.warning(f"Invalid tool call JSON: {e}")
-
-        return tool_calls
-
-    async def _execute_tool_call(self, tool_call: dict[str, Any]) -> dict[str, Any]:
-        """Execute a single tool call.
-
-        Args:
-            tool_call: Tool call dict with 'tool' and args.
-
-        Returns:
-            Result dict with 'tool', 'success', 'data' or 'error'.
-        """
-        tool_name = tool_call.get("tool")
-        result = {"tool": tool_name, "success": False, "data": None, "error": None}
-
-        if not self._filesystem_tools:
-            result["error"] = "Filesystem tools not available"
-            return result
-
-        try:
-            if tool_name == "read_file":
-                path = tool_call.get("path", "")
-                start_line = tool_call.get("start_line")
-                end_line = tool_call.get("end_line")
-                file_content = self._filesystem_tools.read_file(
-                    path, start_line, end_line
-                )
-                result["success"] = True
-                result["data"] = file_content.model_dump()
-
-            elif tool_name == "list_files":
-                path = tool_call.get("path", ".")
-                pattern = tool_call.get("pattern")
-                recursive = tool_call.get("recursive", False)
-                listing = self._filesystem_tools.list_files(path, pattern, recursive)
-                result["success"] = True
-                result["data"] = listing.model_dump()
-
-            elif tool_name == "search_code":
-                pattern = tool_call.get("pattern", "")
-                path = tool_call.get("path", ".")
-                file_pattern = tool_call.get("file_pattern")
-                case_sensitive = tool_call.get("case_sensitive", True)
-                max_results = tool_call.get("max_results")
-                search_result = self._filesystem_tools.search_code(
-                    pattern, path, file_pattern, case_sensitive, max_results
-                )
-                result["success"] = True
-                result["data"] = search_result.model_dump()
-
-            elif tool_name == "get_structure":
-                max_depth = tool_call.get("max_depth", 4)
-                structure = self._filesystem_tools.get_structure(max_depth)
-                result["success"] = True
-                result["data"] = structure.model_dump()
-
-            elif tool_name == "propose_edit":
-                if not self._proposal_manager or not self.session:
-                    result["error"] = "Proposal manager not available"
-                    return result
-
-                path = tool_call.get("path", "")
-                new_content = tool_call.get("new_content", "")
-                description = tool_call.get("description", "")
-
-                proposal = self._proposal_manager.create_proposal(
-                    session_id=self.session.id,
-                    file_path=path,
-                    new_content=new_content,
-                    description=description,
-                )
-                result["success"] = True
-                result["data"] = {
-                    "proposal_id": proposal.id,
-                    "file_path": proposal.file_path,
-                    "status": proposal.status.value,
-                    "message": "Edit proposal created. Waiting for user approval.",
-                }
-
-            else:
-                result["error"] = f"Unknown tool: {tool_name}"
-
-        except Exception as e:
-            logger.error(f"Tool execution error ({tool_name}): {e}")
-            result["error"] = str(e)
-
-        # Log file access for audit
-        if (
-            self.backend
-            and self.session
-            and tool_name in ("read_file", "list_files", "search_code", "get_structure")
-        ):
-            from test_ai.tools.proposals import log_file_access
-
-            log_file_access(
-                backend=self.backend,
-                session_id=self.session.id,
-                tool=tool_name,
-                file_path=tool_call.get("path", "."),
-                operation=tool_name.replace("_", " "),
-                success=result["success"],
-                error_message=result.get("error"),
-            )
-
-        return result
