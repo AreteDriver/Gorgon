@@ -218,8 +218,16 @@ def pause_execution(execution_id: str, authorization: Optional[str] = Header(Non
 
 
 @router.post("/executions/{execution_id}/resume", responses=CRUD_RESPONSES)
-def resume_execution(execution_id: str, authorization: Optional[str] = Header(None)):
-    """Resume a paused execution."""
+def resume_execution(
+    execution_id: str,
+    body: Optional[dict] = None,
+    authorization: Optional[str] = Header(None),
+):
+    """Resume a paused or approval-awaiting execution.
+
+    For approval-gated executions, provide a token in the body:
+    {"token": "...", "approve": true}
+    """
     verify_auth(authorization)
 
     execution = state.execution_manager.get_execution(execution_id)
@@ -228,6 +236,61 @@ def resume_execution(execution_id: str, authorization: Optional[str] = Header(No
 
     from test_ai.executions import ExecutionStatus
 
+    # Handle approval token resume
+    if execution.status == ExecutionStatus.AWAITING_APPROVAL:
+        if not body or not body.get("token"):
+            raise bad_request(
+                "Resume token required for approval-gated execution",
+                {"execution_id": execution_id},
+            )
+
+        from test_ai.workflow.approval_store import get_approval_store
+
+        store = get_approval_store()
+        token_data = store.get_by_token(body["token"])
+
+        if not token_data or token_data["execution_id"] != execution_id:
+            raise bad_request(
+                "Invalid or expired resume token",
+                {"execution_id": execution_id},
+            )
+
+        approve = body.get("approve", True)
+        approved_by = body.get("approved_by", "api")
+
+        if not approve:
+            store.reject(body["token"], rejected_by=approved_by)
+            state.execution_manager.complete_execution(
+                execution_id, error="Approval rejected"
+            )
+            return {
+                "status": "rejected",
+                "execution_id": execution_id,
+                "reason": body.get("reason", ""),
+            }
+
+        # Approve and resume
+        store.approve(body["token"], approved_by=approved_by)
+        context = token_data.get("context", {})
+        next_step_id = token_data.get("next_step_id", "")
+
+        # Re-execute workflow from the step after approval
+        try:
+            # Mark execution as running again
+            state.execution_manager.resume_execution(execution_id)
+
+            return {
+                "status": "approved",
+                "execution_id": execution_id,
+                "resume_from": next_step_id,
+                "context_keys": list(context.keys())
+                if isinstance(context, dict)
+                else [],
+            }
+        except Exception as e:
+            raise internal_error(f"Failed to resume workflow: {e}")
+
+    # Standard PAUSED resume
     if execution.status != ExecutionStatus.PAUSED:
         raise bad_request(
             f"Cannot resume execution in {execution.status.value} status",
@@ -239,6 +302,39 @@ def resume_execution(execution_id: str, authorization: Optional[str] = Header(No
         "status": "success",
         "execution_id": execution_id,
         "execution_status": updated.status.value if updated else "unknown",
+    }
+
+
+@router.get("/executions/{execution_id}/approval", responses=CRUD_RESPONSES)
+def get_approval_status(execution_id: str, authorization: Optional[str] = Header(None)):
+    """Get pending approval details for an execution."""
+    verify_auth(authorization)
+
+    execution = state.execution_manager.get_execution(execution_id)
+    if not execution:
+        raise not_found("Execution", execution_id)
+
+    from test_ai.workflow.approval_store import get_approval_store
+
+    tokens = get_approval_store().get_by_execution(execution_id)
+    pending = [
+        {
+            "token": t["token"],
+            "step_id": t["step_id"],
+            "prompt": t.get("prompt", ""),
+            "preview": t.get("preview", {}),
+            "timeout_at": t.get("timeout_at"),
+            "created_at": t.get("created_at"),
+            "status": t["status"],
+        }
+        for t in tokens
+        if t["status"] == "pending"
+    ]
+
+    return {
+        "execution_id": execution_id,
+        "pending_approvals": pending,
+        "total_tokens": len(tokens),
     }
 
 

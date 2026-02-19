@@ -18,6 +18,7 @@ class StepStatus(Enum):
     SUCCESS = "success"
     FAILED = "failed"
     SKIPPED = "skipped"
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 @dataclass

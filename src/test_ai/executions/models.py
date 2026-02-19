@@ -18,6 +18,7 @@ class ExecutionStatus(str, Enum):
     COMPLETED = "completed"
     FAILED = "failed"
     CANCELLED = "cancelled"
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 class LogLevel(str, Enum):

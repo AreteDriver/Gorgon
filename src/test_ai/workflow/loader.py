@@ -107,6 +107,7 @@ class StepConfig:
         "branch",
         "loop",
         "mcp_tool",
+        "approval",
     ]
     params: dict = field(default_factory=dict)
     condition: ConditionConfig | None = None
@@ -249,6 +250,7 @@ WORKFLOW_SCHEMA = {
                             "branch",
                             "loop",
                             "mcp_tool",
+                            "approval",
                         ],
                     },
                     "params": {"type": "object"},
@@ -445,6 +447,7 @@ VALID_STEP_TYPES = frozenset(
         "branch",
         "loop",
         "mcp_tool",
+        "approval",
     }
 )
 VALID_OPERATORS = frozenset(
@@ -529,6 +532,15 @@ def _validate_step(step: dict, index: int) -> list[str]:
 
     errors.extend(_validate_step_condition(step, prefix))
     errors.extend(_validate_step_optional_fields(step, prefix))
+
+    # Approval-specific validation
+    if step.get("type") == "approval":
+        params = step.get("params", {})
+        if "prompt" not in params:
+            errors.append(f"{prefix}: approval step requires 'prompt' in params")
+        preview_from = params.get("preview_from")
+        if preview_from is not None and not isinstance(preview_from, list):
+            errors.append(f"{prefix}: 'preview_from' must be a list of step IDs")
 
     return errors
 

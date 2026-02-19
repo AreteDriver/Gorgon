@@ -16,6 +16,7 @@ class WorkflowStatus(Enum):
     PAUSED = "paused"
     COMPLETED = "completed"
     FAILED = "failed"
+    AWAITING_APPROVAL = "awaiting_approval"
 
 
 class StatePersistence:

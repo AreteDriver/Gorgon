@@ -19,6 +19,7 @@ from .executor_patterns import DistributionPatternsMixin
 from .executor_step import StepExecutionMixin
 from .executor_error import ErrorHandlerMixin
 from .executor_parallel_exec import ParallelGroupMixin
+from .executor_approval import ApprovalHandlerMixin
 from test_ai.state.agent_context import WorkflowMemoryManager, MemoryConfig
 
 logger = logging.getLogger(__name__)
@@ -32,6 +33,7 @@ class WorkflowExecutor(
     AIHandlersMixin,
     MCPHandlersMixin,
     DistributionPatternsMixin,
+    ApprovalHandlerMixin,
 ):
     """Executes workflows with contract validation and state persistence.
 
@@ -91,6 +93,8 @@ class WorkflowExecutor(
             "map_reduce": self._execute_map_reduce,
             # MCP handler
             "mcp_tool": self._execute_mcp_tool,
+            # Approval gate
+            "approval": self._execute_approval,
             # Integration handlers
             "github": self._execute_github,
             "notion": self._execute_notion,
@@ -324,6 +328,32 @@ class WorkflowExecutor(
             workflow_id: Current workflow ID
             error: Exception if workflow failed with error
         """
+        # Approval gate: workflow is suspended, not complete or failed
+        if result.status == "awaiting_approval":
+            from test_ai.state.persistence import WorkflowStatus
+
+            if self.checkpoint_manager and workflow_id:
+                try:
+                    self.checkpoint_manager.persistence.update_status(
+                        workflow_id, WorkflowStatus.AWAITING_APPROVAL
+                    )
+                except Exception:
+                    logger.debug(
+                        "Failed to update workflow to awaiting_approval",
+                        exc_info=True,
+                    )
+            if self.execution_manager and self._execution_id:
+                try:
+                    self.execution_manager.pause_execution(self._execution_id)
+                except Exception:
+                    logger.debug(
+                        "Failed to pause execution for approval gate",
+                        exc_info=True,
+                    )
+            self._execution_id = None
+            self._current_workflow_id = None
+            return
+
         if error:
             result.status = "failed"
             result.error = str(error)
@@ -497,6 +527,14 @@ class WorkflowExecutor(
                     continue
 
             self._store_step_outputs(step, step_result)
+
+            # Check if step is an approval gate that halted execution
+            if (
+                step_result.output
+                and step_result.output.get("status") == "awaiting_approval"
+            ):
+                self._handle_approval_halt(step, step_result, result, workflow)
+                break
         else:
             result.status = "success"
 
@@ -596,8 +634,64 @@ class WorkflowExecutor(
                     continue
 
             self._store_step_outputs(step, step_result)
+
+            # Check if step is an approval gate that halted execution
+            if (
+                step_result.output
+                and step_result.output.get("status") == "awaiting_approval"
+            ):
+                self._handle_approval_halt(step, step_result, result, workflow)
+                break
         else:
             result.status = "success"
+
+    def _handle_approval_halt(
+        self,
+        step: StepConfig,
+        step_result: StepResult,
+        result: ExecutionResult,
+        workflow: WorkflowConfig,
+    ) -> None:
+        """Handle an approval gate halt.
+
+        Computes the next step ID and updates the approval token,
+        then sets the execution result to awaiting_approval.
+
+        Args:
+            step: The approval step that triggered the halt
+            step_result: Result from the approval handler
+            result: ExecutionResult to update
+            workflow: WorkflowConfig for step lookup
+        """
+        # Compute next step ID for resume
+        try:
+            step_idx = next(i for i, s in enumerate(workflow.steps) if s.id == step.id)
+            if step_idx + 1 < len(workflow.steps):
+                next_step_id = workflow.steps[step_idx + 1].id
+            else:
+                next_step_id = ""
+        except StopIteration:
+            next_step_id = ""
+
+        # Update the token with the correct next_step_id
+        token = step_result.output.get("token", "")
+        if token:
+            try:
+                from test_ai.workflow.approval_store import get_approval_store
+
+                get_approval_store().backend.execute(
+                    "UPDATE approval_tokens SET next_step_id = ? WHERE token = ?",
+                    (next_step_id, token),
+                )
+            except Exception:
+                logger.debug(
+                    "Failed to update approval token next_step_id", exc_info=True
+                )
+
+        result.status = "awaiting_approval"
+        result.outputs["__approval_token"] = token
+        result.outputs["__approval_prompt"] = step_result.output.get("prompt", "")
+        result.outputs["__approval_preview"] = step_result.output.get("preview", {})
 
     def get_context(self) -> dict:
         """Get current execution context."""

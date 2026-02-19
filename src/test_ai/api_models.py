@@ -44,6 +44,15 @@ class ExecutionStartRequest(BaseModel):
     variables: Optional[Dict] = None
 
 
+class ApprovalResumeRequest(BaseModel):
+    """Request to resume an execution with an approval token."""
+
+    token: str
+    approve: bool = True
+    approved_by: Optional[str] = None
+    reason: Optional[str] = None
+
+
 class YAMLWorkflowExecuteRequest(BaseModel):
     """Request to execute a YAML workflow."""
 
