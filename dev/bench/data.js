@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771502639585,
+  "lastUpdate": 1771534042111,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1596,6 +1596,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.019278682942259782",
             "extra": "mean: 109.61571241666945 msec\nrounds: 12"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "8d8754fa21940bed56894d0fe4d62f8d05b8fc75",
+          "message": "feat: add approval gates with resume tokens for workflow execution\n\nApproval steps halt workflow execution and return a compact resume token.\nExternal callers (Animus) hold the token and POST approve/reject to resume.\n\n- New step type \"approval\" with prompt, preview_from, timeout_hours params\n- ResumeTokenStore (SQLite-backed, singleton) for token CRUD and expiry\n- ApprovalHandlerMixin decomposed from executor core\n- AWAITING_APPROVAL status in StepStatus, ExecutionStatus, WorkflowStatus\n- API: enhanced POST /resume with token validation, GET /approval endpoint\n- Migration 014_approval_tokens.sql (auto-discovered)\n- 34 new tests (16 store + 18 executor/loader/resume flow)\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-19T12:25:22-08:00",
+          "tree_id": "ca986e053885138d00c0a0f7cae83884f54048d7",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/8d8754fa21940bed56894d0fe4d62f8d05b8fc75"
+        },
+        "date": 1771534041248,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22332.36698494362,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0000025927601306777204",
+            "extra": "mean: 44.77805691954621 usec\nrounds: 7291"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 344.15640465349225,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000037636424814887054",
+            "extra": "mean: 2.905655645161775 msec\nrounds: 279"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4482.823591571136,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000006579306323612179",
+            "extra": "mean: 223.0736899574317 usec\nrounds: 4222"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 35.89299086240884,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0001587281086896532",
+            "extra": "mean: 27.860592722221767 msec\nrounds: 36"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 10.50383297995228,
+            "unit": "iter/sec",
+            "range": "stddev: 0.005776180988321593",
+            "extra": "mean: 95.20334166666682 msec\nrounds: 12"
           }
         ]
       }
