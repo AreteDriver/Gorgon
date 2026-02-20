@@ -349,7 +349,7 @@ class TestMessagingBot:
 # 2. handler.py — removed (chat moved to Animus)
 # ===========================================================================
 
-_HANDLER_TESTS_REMOVED = True  # MessageHandler tests removed with chat module
+# MessageHandler tests removed with chat module (moved to Animus)
 
 
 # ===========================================================================

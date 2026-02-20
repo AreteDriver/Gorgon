@@ -104,7 +104,7 @@ class ResumeTokenStore:
                     self._expire_token(token)
                     return None
             except (ValueError, TypeError):
-                pass
+                pass  # Invalid date format — treat as no timeout
 
         # Parse JSON fields
         for field in ("preview", "context"):
@@ -112,7 +112,7 @@ class ResumeTokenStore:
                 try:
                     result[field] = json.loads(result[field])
                 except (json.JSONDecodeError, TypeError):
-                    pass
+                    pass  # Keep raw string if not valid JSON
 
         return result
 
@@ -176,7 +176,7 @@ class ResumeTokenStore:
                     try:
                         result[field] = json.loads(result[field])
                     except (json.JSONDecodeError, TypeError):
-                        pass
+                        pass  # Keep raw string if not valid JSON
             results.append(result)
         return results
 
