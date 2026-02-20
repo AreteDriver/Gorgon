@@ -1,5 +1,5 @@
 window.BENCHMARK_DATA = {
-  "lastUpdate": 1771534042111,
+  "lastUpdate": 1771579654936,
   "repoUrl": "https://github.com/AreteDriver/Gorgon",
   "entries": {
     "Benchmark": [
@@ -1655,6 +1655,65 @@ window.BENCHMARK_DATA = {
             "unit": "iter/sec",
             "range": "stddev: 0.005776180988321593",
             "extra": "mean: 95.20334166666682 msec\nrounds: 12"
+          }
+        ]
+      },
+      {
+        "commit": {
+          "author": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "committer": {
+            "email": "AreteDriver@users.noreply.github.com",
+            "name": "AreteDriver",
+            "username": "AreteDriver"
+          },
+          "distinct": true,
+          "id": "8e0bbb0c64fb81871e1eab6bd4dfa080495e2e42",
+          "message": "fix: resolve CodeQL alerts — add comments to empty-except, remove unused global\n\nCo-Authored-By: Claude Opus 4.6 <noreply@anthropic.com>",
+          "timestamp": "2026-02-20T01:18:09-08:00",
+          "tree_id": "d9ef30259a0a272a32863b8251177c27e5633082",
+          "url": "https://github.com/AreteDriver/Gorgon/commit/8e0bbb0c64fb81871e1eab6bd4dfa080495e2e42"
+        },
+        "date": 1771579654361,
+        "tool": "pytest",
+        "benches": [
+          {
+            "name": "tests/test_benchmarks.py::TestWorkflowParseBenchmark::test_parse_20_step_workflow",
+            "value": 22306.480896478617,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000002581886904932589",
+            "extra": "mean: 44.830020685058564 usec\nrounds: 7590"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestYAMLLoadBenchmark::test_load_yaml_10_steps",
+            "value": 335.8836778960197,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000032344502115022426",
+            "extra": "mean: 2.9772211804515623 msec\nrounds: 266"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestConditionEvalBenchmark::test_condition_evaluate_1000",
+            "value": 4604.347249115729,
+            "unit": "iter/sec",
+            "range": "stddev: 0.000005970199093842333",
+            "extra": "mean: 217.18605176706672 usec\nrounds: 4018"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestCacheBenchmark::test_cache_set_get_1000",
+            "value": 36.27126126501076,
+            "unit": "iter/sec",
+            "range": "stddev: 0.0005771672327343789",
+            "extra": "mean: 27.570036583333664 msec\nrounds: 36"
+          },
+          {
+            "name": "tests/test_benchmarks.py::TestTaskStoreBenchmark::test_record_query_100",
+            "value": 11.090026803495375,
+            "unit": "iter/sec",
+            "range": "stddev: 0.004815093132271224",
+            "extra": "mean: 90.17110758333047 msec\nrounds: 12"
           }
         ]
       }
