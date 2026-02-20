@@ -1,4 +1,8 @@
-# Gorgon
+# Gorgon (Archived)
+
+> **This repo has been consolidated into the [Animus monorepo](https://github.com/AreteDriver/animus) as `packages/forge/` (Animus Forge).** All future development happens there. The package has been renamed from `test_ai` to `animus_forge`.
+
+---
 
 Production runtime for AI agent workflows. Budget controls, checkpoints, resilience, and cost observability — built in, not bolted on.
 
